@@ -1,0 +1,7 @@
+nba_api
+pandas
+supabase
+google-genai
+beautifulsoup4
+requests
+python-dotenv
