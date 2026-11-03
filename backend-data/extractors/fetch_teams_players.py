@@ -11,7 +11,7 @@ import math
 import sys
 import time
 
-from nba_api.stats.endpoints import commonplayerinfo, leaguestandingsv3, playerindex
+from nba_api.stats.endpoints import commonplayerinfo, leaguegamelog, leaguestandingsv3, playerindex
 from nba_api.stats.static import teams as static_teams
 
 from config import API_SLEEP_SECONDS, SUPABASE_SERVICE_KEY, SUPABASE_URL
@@ -73,9 +73,41 @@ def weight_to_kg(weight):
     return f"{round(float(weight) * 0.45359237)} kg"
 
 
+def to_float(value):
+    value = clean(value)
+    return None if value is None else round(float(value), 1)
+
+
+def build_form() -> dict[int, list[str]]:
+    """Últimos 10 resultados ('W'/'L') de cada equipo, del más antiguo al más reciente.
+    Una sola llamada para toda la liga; con menos de 10 partidos devuelve los que haya."""
+    log = leaguegamelog.LeagueGameLog(player_or_team_abbreviation="T", timeout=TIMEOUT).get_data_frames()[0]
+    log = log[log["WL"].isin(["W", "L"])].sort_values(["GAME_DATE", "GAME_ID"])
+    return {int(team_id): games["WL"].tolist()[-10:] for team_id, games in log.groupby("TEAM_ID")}
+
+
+def build_standings_extra(st, form: list[str]) -> dict:
+    """Rachas, últimos 10, casa/fuera y puntos para `teams.standings_extra`."""
+    if st is None:
+        return {"form": form}
+    streak = clean(st["strCurrentStreak"])
+    return {
+        "streak": streak.replace(" ", "") if streak else None,  # "W 3" -> "W3"
+        "l10": clean(st["L10"]),
+        "home": clean(st["HOME"]),
+        "road": clean(st["ROAD"]),
+        "ppg": to_float(st["PointsPG"]),
+        "opp_ppg": to_float(st["OppPointsPG"]),
+        "diff_ppg": to_float(st["DiffPointsPG"]),
+        "form": form,
+    }
+
+
 def build_teams() -> list[dict]:
     standings = leaguestandingsv3.LeagueStandingsV3(timeout=TIMEOUT).get_data_frames()[0]
     by_id = {int(r["TeamID"]): r for _, r in standings.iterrows()}
+    time.sleep(API_SLEEP_SECONDS)
+    form_by_id = build_form()
 
     rows = []
     for t in static_teams.get_teams():
@@ -92,6 +124,7 @@ def build_teams() -> list[dict]:
             "wins": to_int(st["WINS"]) or 0 if st is not None else 0,
             "losses": to_int(st["LOSSES"]) or 0 if st is not None else 0,
             "conf_rank": to_int(st["PlayoffRank"]) if st is not None else None,
+            "standings_extra": build_standings_extra(st, form_by_id.get(t["id"], [])),
         })
     return rows
 

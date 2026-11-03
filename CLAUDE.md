@@ -43,6 +43,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 ## 4. Reglas Críticas de Dominio (NBA, Tiempo Real y Spoilers)
 
 ### A. Regla de Oro del Sistema "Sin Spoilers" en 3 Niveles (`SpoilerContext`)
+- **Alcance:** Solo pantallas de partidos y resultados (Home/Jornada, `/games/[id]`). Clasificación, equipos, jugadores y GM se muestran siempre, **sin** confirmaciones de "mostrar/ocultar" (fricción innecesaria para el usuario).
 - **Nivel 1 — Cero Spoilers Blindado (Por defecto cuando `spoilerMode === 'STRICT'`):**
   - **SOLO** se muestra el número de la nota del partido (`excitement_score` del `1.0` al `10.0`) y su color asociado.
   - **TERMINANTEMENTE PROHIBIDO mostrar en Nivel 1:** Marcadores, ganador, si hubo prórroga (OT), si un jugador anotó 50 puntos, o cualquier texto/etiqueta que destripe cómo se desarrolla el final del partido.
@@ -59,7 +60,11 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 ### C. Multimedia, Tarjetas RRSS y Diseño UI
 - **CDN Oficial NBA:** Fotos en `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png` y logos en `https://cdn.nba.com/logos/nba/${teamId}/global/L/logo.svg`.
 - **Modo Creador (`SocialCardExporter`):** Los perfiles, comparativas, notas sin spoiler y traspasos deben poder exportarse en 1 clic a imagen PNG (`16:9` y `9:16`) con marca de agua de la app.
-- **Estilo Visual:** Dark Mode deportivo (`bg-slate-950`, tarjetas `bg-slate-900`), `Sidebar` en escritorio y `BottomNav` en móvil.
+- **Estilo Visual "Grafismo TV":** Dark Mode deportivo sobre `bg-slate-950`, `Sidebar` en escritorio y `BottomNav` en móvil. Referencia: `/standings` y `/teams/[id]`.
+  - **NO** tarjetas flotantes con `rounded-xl` + borde: secciones a todo el ancho (márgenes negativos `-mx-4 -mt-4 md:-mx-8 md:-mt-8` dentro de `main`) separadas por líneas finas `border-slate-800`.
+  - Tipografía: `font-display` (Barlow Condensed, `uppercase`, `font-extrabold`) para títulos, cifras y cabeceras de tabla; antetítulos con `tracking-[0.25em]`; texto corrido en Geist (`font-sans`).
+  - Color de equipo: franjas finas con `teamAccent()` (`lib/team-colors.ts`, garantiza visibilidad sobre oscuro); cabeceras con degradado del color primario + logo como marca de agua.
+  - Contraste alto: cabeceras `text-slate-300`, cifras `text-white`; acento de la app `orange-500`; victoria `emerald`, derrota `red`.
 
 ---
 
