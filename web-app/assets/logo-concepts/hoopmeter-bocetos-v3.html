@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Hoopmeter · Bocetos v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500&family=JetBrains+Mono:wght@700&display=block" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #020617; color: #f1f5f9; font-family: Inter, system-ui, sans-serif; width: 1800px; padding: 56px 64px 64px; }
+  .eyebrow { font: 700 14px "Barlow Condensed"; letter-spacing: .3em; text-transform: uppercase; color: #f97316; }
+  h1 { font: 800 64px/1 "Barlow Condensed"; text-transform: uppercase; margin-top: 10px; }
+  h1 span, .wm-text span { color: #f97316; }
+  .lead { color: #94a3b8; margin-top: 10px; font-size: 16px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; margin-top: 40px; border-top: 1px solid #1e293b; }
+  .col { padding: 36px 44px 40px; border-bottom: 1px solid #1e293b; }
+  .col:nth-child(odd) { border-right: 1px solid #1e293b; }
+  .tag { font: 700 13px "Barlow Condensed"; letter-spacing: .25em; text-transform: uppercase; color: #94a3b8; }
+  h2 { font: 800 42px/1 "Barlow Condensed"; text-transform: uppercase; margin: 6px 0 10px; }
+  p.idea { color: #cbd5e1; font-size: 16px; line-height: 1.5; max-width: 760px; min-height: 72px; }
+  .body { display: grid; grid-template-columns: 220px 1fr; gap: 36px; margin-top: 26px; align-items: center; }
+  .sizes { display: flex; align-items: flex-end; gap: 18px; }
+  .light { background: #e2e8f0; padding: 10px; border-radius: 20px; }
+  .wordmark { display: flex; align-items: center; gap: 14px; margin-top: 22px; }
+  .wm-text { font: 800 52px/1 "Barlow Condensed"; text-transform: uppercase; }
+  .claim { margin-top: 8px; color: #94a3b8; font-size: 15px; }
+  .row { display: flex; align-items: center; gap: 28px; margin-top: 18px; }
+  .score { display: inline-flex; align-items: center; gap: 12px; }
+  .chip { font: 700 22px "JetBrains Mono"; color: #34d399; background: rgba(16,185,129,.15); box-shadow: inset 0 0 0 1px rgba(16,185,129,.4); border-radius: 8px; padding: 4px 10px; }
+  .chip.mid { color: #fbbf24; background: rgba(245,158,11,.15); box-shadow: inset 0 0 0 1px rgba(245,158,11,.4); }
+  .score .sub { color: #94a3b8; font: 700 13px "Barlow Condensed"; letter-spacing: .2em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Bocetos v3 · Línea E: balón + ojo cerrado + escala de notas</div>
+  <h1>Hoop<span>meter</span></h1>
+  <p class="lead">Las pestañas siempre son la escala de la nota (rojo, ámbar, esmeralda: los colores de la app). El ojo cerrado dice "sin spoilers". El balón dice baloncesto.</p>
+
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <symbol id="ball" viewBox="-100 -100 200 200">
+        <circle r="100" fill="#f97316" />
+        <g fill="none" stroke="#020617" stroke-width="12" stroke-linecap="round">
+          <path d="M-100 0H100" /><path d="M0 -100V100" />
+          <path d="M-62 -78c26 22 38 48 38 78s-12 56-38 78" /><path d="M62 -78c-26 22-38 48-38 78s12 56 38 78" />
+        </g>
+      </symbol>
+
+      <!-- E1 · Ojo cerrado (refinado): balón más grande, párpado y pestañas más gruesos -->
+      <symbol id="e1" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <g transform="translate(0 26)">
+          <use href="#ball" x="186" y="76" width="140" height="140" />
+          <g stroke-linecap="round" stroke-width="28">
+            <path d="M128.1 261.3L101.7 299" stroke="#ef4444" />
+            <path d="M191.9 294.7L176.7 338.1" stroke="#f59e0b" />
+            <path d="M256 306V352" stroke="#f59e0b" />
+            <path d="M320.1 294.7L335.3 338.1" stroke="#10b981" />
+            <path d="M383.9 261.3L410.3 299" stroke="#10b981" />
+          </g>
+          <path d="M96 236Q256 376 416 236" fill="none" stroke="#f8fafc" stroke-width="34" stroke-linecap="round" />
+        </g>
+      </symbol>
+
+      <!-- E2 · Balón-párpado: la cúpula del balón es el párpado cerrado; las pestañas cuelgan de él -->
+      <symbol id="e2" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <g transform="translate(0 34)">
+          <path d="M106 256A150 150 0 0 1 406 256Q256 336 106 256Z" fill="#f97316" />
+          <g fill="none" stroke="#020617" stroke-width="14" stroke-linecap="round">
+            <path d="M256 106V294" />
+            <path d="M152 150c34 36 48 86 46 136" />
+            <path d="M360 150c-34 36-48 86-46 136" />
+          </g>
+          <g stroke-linecap="round" stroke-width="26">
+            <path d="M136.1 270.5L117.2 314.7" stroke="#ef4444" />
+            <path d="M195.9 289.5L185.9 336.4" stroke="#f59e0b" />
+            <path d="M256 296V344" stroke="#f59e0b" />
+            <path d="M316.1 289.5L326.1 336.4" stroke="#10b981" />
+            <path d="M375.9 270.5L394.8 314.7" stroke="#10b981" />
+          </g>
+          <path d="M106 256Q256 336 406 256" fill="none" stroke="#f8fafc" stroke-width="22" stroke-linecap="round" />
+        </g>
+      </symbol>
+
+      <!-- E3 · Aro-ojo: el aro es el párpado y los hilos de la red son las pestañas; el balón cae dentro -->
+      <symbol id="e3" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <g transform="translate(0 14)">
+          <use href="#ball" x="196" y="104" width="120" height="120" />
+          <g stroke-linecap="round" stroke-width="24">
+            <path d="M128.1 261.3L176 352" stroke="#ef4444" />
+            <path d="M191.9 294.7L218 372" stroke="#f59e0b" />
+            <path d="M256 306V378" stroke="#f59e0b" />
+            <path d="M320.1 294.7L294 372" stroke="#10b981" />
+            <path d="M383.9 261.3L336 352" stroke="#10b981" />
+          </g>
+          <path d="M96 236Q256 376 416 236" fill="none" stroke="#f97316" stroke-width="34" stroke-linecap="round" />
+        </g>
+      </symbol>
+
+      <!-- E4 · Pestañas-ranking: las pestañas crecen de izquierda a derecha, como unas barras de puntuación -->
+      <symbol id="e4" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <g transform="translate(0 30)">
+          <use href="#ball" x="196" y="84" width="120" height="120" />
+          <g stroke-linecap="round" stroke-width="26">
+            <path d="M128.1 261.3L114.3 280.9" stroke="#ef4444" />
+            <path d="M191.9 294.7L180 328.7" stroke="#f59e0b" />
+            <path d="M256 306V354" stroke="#f59e0b" />
+            <path d="M320.1 294.7L339.9 351.3" stroke="#10b981" />
+            <path d="M383.9 261.3L425.2 320.3" stroke="#10b981" />
+          </g>
+          <path d="M96 236Q256 376 416 236" fill="none" stroke="#f8fafc" stroke-width="34" stroke-linecap="round" />
+        </g>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="grid">
+    <section class="col">
+      <div class="tag">E1</div>
+      <h2>Ojo cerrado</h2>
+      <p class="idea">Tu favorito, refinado: balón más grande, trazos más gruesos para que aguante en pequeño. Tres ideas separadas y fáciles de leer: balón arriba, ojo cerrado, pestañas de color.</p>
+      <div class="body">
+        <svg width="200" height="200"><use href="#e1" /></svg>
+        <div>
+          <div class="sizes"><svg width="96" height="96"><use href="#e1" /></svg><svg width="48" height="48"><use href="#e1" /></svg><div class="light"><svg width="72" height="72"><use href="#e1" /></svg></div></div>
+          <div class="wordmark"><svg width="60" height="60"><use href="#e1" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+          <div class="claim">Qué partido ver, sin spoilers</div>
+          <div class="row"><div class="score"><span class="chip">9.3</span><span class="sub">Hoopmeter</span></div><div class="score"><span class="chip mid">7.1</span><span class="sub">Hoopmeter</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="col">
+      <div class="tag">E2</div>
+      <h2>Balón-párpado</h2>
+      <p class="idea">El balón ES el párpado: media pelota con sus costuras, cerrada como un ojo dormido, y las pestañas de color colgando. Un solo símbolo compacto en vez de dos piezas; el más "de marca".</p>
+      <div class="body">
+        <svg width="200" height="200"><use href="#e2" /></svg>
+        <div>
+          <div class="sizes"><svg width="96" height="96"><use href="#e2" /></svg><svg width="48" height="48"><use href="#e2" /></svg><div class="light"><svg width="72" height="72"><use href="#e2" /></svg></div></div>
+          <div class="wordmark"><svg width="60" height="60"><use href="#e2" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+          <div class="claim">Qué partido ver, sin spoilers</div>
+          <div class="row"><div class="score"><span class="chip">9.3</span><span class="sub">Hoopmeter</span></div><div class="score"><span class="chip mid">7.1</span><span class="sub">Hoopmeter</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="col">
+      <div class="tag">E3</div>
+      <h2>Aro-ojo</h2>
+      <p class="idea">El aro naranja es el párpado cerrado y los hilos de la red son las pestañas de color; el balón cae dentro. Mete la canasta en el ojo: baloncesto, sin spoilers y nota en una sola forma.</p>
+      <div class="body">
+        <svg width="200" height="200"><use href="#e3" /></svg>
+        <div>
+          <div class="sizes"><svg width="96" height="96"><use href="#e3" /></svg><svg width="48" height="48"><use href="#e3" /></svg><div class="light"><svg width="72" height="72"><use href="#e3" /></svg></div></div>
+          <div class="wordmark"><svg width="60" height="60"><use href="#e3" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+          <div class="claim">Qué partido ver, sin spoilers</div>
+          <div class="row"><div class="score"><span class="chip">9.3</span><span class="sub">Hoopmeter</span></div><div class="score"><span class="chip mid">7.1</span><span class="sub">Hoopmeter</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="col">
+      <div class="tag">E4</div>
+      <h2>Pestañas-ranking</h2>
+      <p class="idea">Como E1, pero las pestañas crecen de izquierda a derecha igual que unas barras de puntuación: se lee "ranking de notas" de un vistazo. A cambio el ojo es asimétrico y parece guiñar.</p>
+      <div class="body">
+        <svg width="200" height="200"><use href="#e4" /></svg>
+        <div>
+          <div class="sizes"><svg width="96" height="96"><use href="#e4" /></svg><svg width="48" height="48"><use href="#e4" /></svg><div class="light"><svg width="72" height="72"><use href="#e4" /></svg></div></div>
+          <div class="wordmark"><svg width="60" height="60"><use href="#e4" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+          <div class="claim">Qué partido ver, sin spoilers</div>
+          <div class="row"><div class="score"><span class="chip">9.3</span><span class="sub">Hoopmeter</span></div><div class="score"><span class="chip mid">7.1</span><span class="sub">Hoopmeter</span></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

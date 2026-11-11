@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { ConferenceSwitch } from "@/components/standings/ConferenceSwitch";
 import { StandingsTable } from "@/components/standings/StandingsTable";
+import { BRAND } from "@/lib/brand";
 import { getTeams } from "@/lib/queries";
 
 export const metadata: Metadata = {
-  title: "Clasificación · NBA Hub",
+  title: `Clasificación · ${BRAND.name}`,
 };
 
 export default async function StandingsPage() {

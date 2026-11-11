@@ -18,7 +18,7 @@ type CardData = {
 };
 
 /** "Luka Dončić" → "luka-doncic" */
-function slugify(text: string): string {
+export function slugify(text: string): string {
   return text
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
@@ -28,7 +28,7 @@ function slugify(text: string): string {
 }
 
 /** Tamaño de fuente para que el apellido quepa en `maxWidth` (Barlow Condensed ≈ 0.5em por letra). */
-function fitFont(text: string, maxWidth: number, maxSize: number): number {
+export function fitFont(text: string, maxWidth: number, maxSize: number): number {
   return Math.min(maxSize, Math.floor(maxWidth / (Math.max(text.length, 1) * 0.5)));
 }
 
@@ -190,7 +190,7 @@ function StatGrid({ season, columns = 3, className }: { season: PlayerSeasonStat
   return (
     <div className={className}>
       <p className="font-display text-lg font-semibold uppercase tracking-[0.25em] text-white/70">
-        Temporada {season.season_id} · {season.games_played ?? 0} partidos
+        {season.season_id === "Career" ? "Carrera" : `Temporada ${season.season_id}`} · {season.games_played ?? 0} partidos
       </p>
       <dl className={cn("mt-3 grid gap-y-4", columns === 3 ? "grid-cols-3" : "grid-cols-2")}>
         {stats.map((s, i) => (

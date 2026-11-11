@@ -18,7 +18,7 @@ const SearchContext = createContext<SearchContextValue | null>(null);
 // El índice se descarga una sola vez por sesión (y se reintenta si falla).
 let indexPromise: Promise<SearchIndex> | null = null;
 
-function loadSearchIndex(): Promise<SearchIndex> {
+export function loadSearchIndex(): Promise<SearchIndex> {
   indexPromise ??= fetch("/api/search-index")
     .then((res) => {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -294,7 +294,7 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold">{player.full_name}</span>
                         <span className="block text-xs text-slate-400">
-                          {[player.position, team?.abbreviation ?? "Sin equipo"].filter(Boolean).join(" · ")}
+                          {[player.position, team?.abbreviation ?? (player.is_active ? "Sin equipo" : "Retirado")].filter(Boolean).join(" · ")}
                         </span>
                       </span>
                       {team && (

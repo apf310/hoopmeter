@@ -20,7 +20,7 @@ export function tierOf(value: number): Tier {
   return { label: "Mejorable", color: "#64748b", textClass: "text-slate-400" };
 }
 
-export function getRadar(player: Player): RadarAttributes | null {
+export function getRadar(player: Pick<Player, "radar_attributes">): RadarAttributes | null {
   const radar = player.radar_attributes as Partial<RadarAttributes>;
   return RADAR_CATEGORIES.every((c) => typeof radar?.[c] === "number") ? (radar as RadarAttributes) : null;
 }

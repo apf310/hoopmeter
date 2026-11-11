@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormStrip, PointDiff, Streak } from "@/components/standings/TeamForm";
+import { BRAND } from "@/lib/brand";
 import { getTeamRoster, getTeams, getUpcomingGames, type UpcomingGame } from "@/lib/queries";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
 import { formatDraft } from "@/lib/player-profile";
@@ -42,7 +43,7 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
 
   return (
     <>
-      <title>{`${team.name} · NBA Hub`}</title>
+      <title>{`${team.name} · ${BRAND.name}`}</title>
       <TeamHero team={team} />
       <div className="mt-8 grid gap-10 lg:grid-cols-3">
         <section className="lg:col-span-2">

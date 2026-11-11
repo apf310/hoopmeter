@@ -8,6 +8,16 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").split("/rest/v1")[0].rstrip("/")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL") or "gemini-3.5-flash"
+# Se prueban en orden si el principal está saturado (503/504) o retirado (404). Los alias
+# "-latest" siempre apuntan al Flash vigente, así que sobreviven a las retiradas de Google.
+GEMINI_FALLBACK_MODELS = [
+    m.strip() for m in (os.getenv("GEMINI_FALLBACK_MODELS") or "gemini-flash-latest,gemini-flash-lite-latest").split(",")
+    if m.strip()
+]
+
+# Pausa tras cada llamada a Gemini (plan gratuito: ~10 peticiones/minuto)
+AI_SLEEP_SECONDS = 6
 
 # Pausa entre llamadas consecutivas a endpoints estadísticos de nba_api
 API_SLEEP_SECONDS = 0.6

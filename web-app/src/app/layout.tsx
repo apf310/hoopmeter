@@ -2,10 +2,12 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { ServiceWorkerRegistrar } from "@/components/layout/ServiceWorkerRegistrar";
 import { SpoilerModeSelector } from "@/components/layout/SpoilerModeSelector";
 import { Wordmark } from "@/components/layout/Wordmark";
 import { SearchProvider, SearchTrigger } from "@/components/search/SearchCommand";
 import { SpoilerProvider } from "@/context/SpoilerContext";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,8 +27,10 @@ const barlowCondensed = Barlow_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "NBA Hub",
+  title: BRAND.name,
   description: "Plataforma NBA en tiempo real y en español, con modo sin spoilers.",
+  applicationName: BRAND.name,
+  appleWebApp: { capable: true, title: BRAND.name, statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
@@ -44,7 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <SpoilerProvider>
           <SearchProvider>
             <Sidebar />
-            <div className="flex min-h-screen flex-col pb-20 md:pb-0 md:pl-60">
+            <div className="flex min-h-screen flex-col pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-60">
               {/* Barra superior móvil: el selector de spoilers siempre a un toque */}
               <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
                 <div className="flex h-14 items-center justify-between gap-3 px-4">
@@ -61,6 +65,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <BottomNav />
           </SearchProvider>
         </SpoilerProvider>
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

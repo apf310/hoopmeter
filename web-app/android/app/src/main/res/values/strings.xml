@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hoopmeter</string>
+    <string name="title_activity_main">Hoopmeter</string>
+    <string name="package_name">com.hoopmeter.app</string>
+    <string name="custom_url_scheme">com.hoopmeter.app</string>
+</resources>

@@ -4,15 +4,12 @@
 
 ---
 
-## 🏷️ 1. Propuestas de Nombre (Branding)
+## 🏷️ 1. Marca: **Hoopmeter**
 
-| Nombre Propuesto | Estilo / Enfoque | Por qué funciona |
-| :--- | :--- | :--- |
-| **BeHoops** / **BeBasket** | Directo / Inspirado en BeSoccer | Fácil de recordar, transmite inmediatamente que es una enciclopedia viva de baloncesto. |
-| **SixthMan (Sexto Hombre)** | Comunidad / Asistente IA | El "sexto hombre" que te asiste en directo y cada mañana con datos, notas y análisis. |
-| **CourtVision AI** | Tecnológico / Analítico | Suena a producto SaaS moderno, ideal si quieres destacar la parte de datos e IA en LinkedIn. |
-| **NoSpoiler NBA** / **WakeUp Hoops** | Nicho Europa / España | Ataca directamente el mayor dolor del fan en España: saber qué partido ver sin comerse ningún spoiler. |
-| **HoopsHub** / **CanchaNBA** | Generalista / App todo-en-uno | Corto, limpio y escalable a cualquier funcionalidad futura. |
+* **Nombre:** *hoop* (aro, baloncesto) + *meter* (medidor). La nota de espectáculo se llama "el Hoopmeter", igual que el *Tomatometer* de Rotten Tomatoes: *"ese partido tiene un 9,3 en el Hoopmeter"*. Sin "NBA" en el nombre porque es marca registrada.
+* **Eslogan:** *Qué partido ver, sin spoilers* / *Know which games are worth watching. No spoilers.*
+* **Logo (E1):** un balón sobre un ojo cerrado (sin spoilers) cuyas pestañas son la escala de la nota, en los colores de la app (rojo, ámbar, esmeralda). Fuente: `web-app/assets/logo.svg` y `LogoMark.tsx`; bocetos descartados en `web-app/assets/logo-concepts/`.
+* **Pendiente:** registrar `hoopmeter.com` en DonDominio (estaba libre en noviembre de 2026). TMview ya comprobado: sin registros de "Hoopmeter".
 
 ---
 
@@ -45,21 +42,22 @@ El proyecto se divide en **5 pilares** que combinan tiempo real, utilidad sin sp
 
 Por eso, la aplicación implementa **3 niveles de visibilidad** controlados por el usuario:
 
-1. **🔒 Nivel 1: Modo "Cero Spoilers" (Blindado — Por defecto al activar Sin Spoilers):**
-   * Oculta absolutamente todos los resultados, cuartos, rachas y estadísticas del día.
-   * **SOLO muestra la Nota Numérica del Partido (`Excitement Score` del `1.0` al `10.0`)** junto con el código de color (ej. `🟢 9.3 / 10` Imprescindible, `🟡 7.1 / 10` Entretenido, `🔴 4.2 / 10` Flojo).
-   * **Prohibido mostrar en este nivel:** Si hubo prórroga, si alguien hizo un récord de puntos, o cualquier pista sobre cómo termina el partido. Solo sabes la nota de espectáculo global.
-2. **🕵️ Nivel 2: Modo "Pista / Teaser" (Botón opcional *"¿Por qué tiene esta nota?"* en cada partido):**
-   * Solo si el usuario pulsa voluntariamente en *"Ver pista sin ganador"*, se despliega una frase generada por IA y etiquetas generales (ej. *"Ritmo ofensivo altísimo y duelo individual espectacular entre las estrellas"*) sin revelar el ganador ni el marcador final.
-3. **🔓 Nivel 3: Modo "Con Spoilers" (Modo Normal / En Directo):**
-   * Muestra marcadores en tiempo real o finales, cuartos, *Boxscore* completo, líderes del partido y la **Crónica Táctica IA completa** explicando por qué ganó el equipo vencedor y qué ajustes tácticos decidieron el choque.
+1. **🔒 Nivel 1: "Todo oculto" (por defecto, SIEMPRE al abrir la app):**
+   * Solo los partidos de la jornada (emparejamientos y hora). Ni nota, ni resultados, ni estado del partido.
+2. **⭐ Nivel 2: "Solo nota" (un toque):**
+   * Añade la **Nota Numérica del Partido (`Excitement Score` del `1.0` al `10.0`)** con su código de color (ej. `🟢 9.3` Imprescindible, `🟡 7.1` Entretenido, `🔴 4.2` Flojo) para elegir qué partidos ver.
+   * **Prohibido:** si hubo prórroga, si alguien hizo un récord de puntos o cualquier pista sobre cómo termina el partido. Solo la nota de espectáculo global.
+3. **🔓 Nivel 3: "Resultados" (manteniendo pulsado 1 segundo):**
+   * Marcadores en tiempo real o finales (junto a la nota), cuartos, *Boxscore* completo y líderes del partido.
+
+> **La garantía:** con otras apps (incluida la oficial de la NBA) siempre se te olvida cambiar de modo y acabas comiéndote un spoiler. Aquí la app **vuelve sola al Nivel 1** cada vez que se abre (o tras 15 min en segundo plano), y llegar a los resultados exige mantener pulsado: un toque accidental nunca destripa nada.
 
 #### ¿Cómo se calcula el `Excitement Score (1.0 - 10.0)` de forma interna al acabar cada partido?
 En el instante en que un partido pasa a estado `Final`, nuestro motor en segundo plano analiza el *Play-by-Play* y calcula la nota ponderando:
 * Cambios de líder (*Lead Changes*) y empates (*Times Tied*).
 * Igualdad en los últimos 5 minutos (*Clutch Margin*).
 * Ritmo de anotación, eficiencia de tiro y rachas espectaculares.
-* Actuaciones individuales históricas (ponderadas internamente en el número, pero **nunca reveladas en texto en el Nivel 1**).
+* Actuaciones individuales históricas (ponderadas internamente en el número, pero **nunca reveladas en texto junto a la nota**).
 
 ---
 
@@ -84,7 +82,7 @@ En el instante en que un partido pasa a estado `Final`, nuestro motor en segundo
 
 ## ⚡ 3. Arquitectura de Datos: Tiempo Real + Post-Partido Instantáneo
 
-Para que los resultados se vean **en tiempo real mientras se juegan** (tardes de domingo o madrugadas) y la **nota sin spoiler + crónica IA esté lista en el minuto exacto en que suena la bocina final** (sin esperar a las 7:00 AM), usaremos una arquitectura híbrida muy inteligente y 100% gratuita:
+Para que los resultados se vean **en tiempo real mientras se juegan** (tardes de domingo o madrugadas) y la **nota sin spoiler esté lista en el minuto exacto en que suena la bocina final** (sin esperar a las 7:00 AM), usaremos una arquitectura híbrida muy inteligente y 100% gratuita:
 
 ```mermaid
 flowchart TD
@@ -97,7 +95,7 @@ flowchart TD
     subgraph Capa Tiempo Real y Procesamiento
         N["Next.js Server Cache (Revalidación cada 30s en partidos Live)"]
         W["Worker / Poller Python (Detecta cuando un partido pasa a FINAL)"]
-        AI["Motor Excitement Score + Gemini Flash IA"]
+        AI["Motor Excitement Score"]
     end
 
     subgraph Base de Datos Persistente
@@ -108,7 +106,7 @@ flowchart TD
     L -->|"¿Partido acaba de terminar?"| W
     S --> W
     W -->|"Calcula al instante"| AI
-    AI -->|"Guarda Nota 1-10 y Crónicas"| DB
+    AI -->|"Guarda Nota 1-10"| DB
     DB --> N
     C --> N
 ```
@@ -119,11 +117,11 @@ flowchart TD
    * **Por qué es brillante:** Aunque haya 2.000 personas mirando el marcador en directo en tu app, tu servidor solo hace **1 petición cada 30 segundos** al endpoint `live.nba.endpoints.scoreboard` de la NBA. Cero bloqueos de IP y marcadores en tiempo real para todos (los que tengan el *Modo Sin Spoilers* desactivado).
 2. **En el instante en que un partido termina (`status == "Final"`):**
    * Nuestro proceso detector ve que el partido `ID` ha pasado a `Final` y aún no tiene calculado su `excitement_score`.
-   * **Al instante (tarde o madrugada):** Descarga el *Boxscore* final y el *Play-by-Play*, calcula la nota del `1.0` al `10.0`, pide a Gemini la pista sin spoilers (Nivel 2) y la crónica completa (Nivel 3), actualiza la clasificación de las conferencias y lo guarda en Supabase.
+   * **Al instante (tarde o madrugada):** Descarga el *Boxscore* final y el *Play-by-Play*, calcula la nota del `1.0` al `10.0` y la guarda en Supabase.
    * Así, si un partido del domingo acaba a las 23:45 o uno entre semana acaba a las 03:30 AM, **1 minuto después ya tiene su nota lista**.
 3. **Sincronización de Consolidación (Diaria / Semanal):**
    * Un job diario recalcula los percentiles globales de los radares de todos los jugadores (`0-99`) y actualiza récords personales.
-   * Un job semanal (`scrape_salaries.py`) actualiza la tabla de contratos desde Basketball-Reference.
+   * Varias veces al día (cada pocos minutos en julio y en la fecha límite), `fetch_transactions.py` aplica a los contratos el registro oficial de movimientos de la NBA y, justo después, `fetch_contract_news.py` pone las cifras que publican los medios fiables. `scrape_salaries.py` (Basketball-Reference) solo se usó para la carga inicial.
 
 ---
 
@@ -137,7 +135,7 @@ flowchart TD
 | **Empaquetado Móvil (App)** | **PWA + Capacitor.js** | Instalable desde el navegador y exportable a Google Play (Android) y App Store (iOS). |
 | **Base de Datos & Realtime** | **Supabase (PostgreSQL + Realtime)** | Base de datos relacional y suscripción en tiempo real a cambios de estado de partidos. |
 | **Ingesta de Datos & IA** | **Python 3.11+ (`nba_api`, `pandas`, `supabase-py`)** | Extracción en vivo/histórica, algoritmo `Excitement Score` y conexión con IA. |
-| **Modelos de IA (LLMs)** | **Google Gemini API (`gemini-2.5-flash`)** | Generación instantánea de pistas Nivel 2, crónicas Nivel 3 y evaluación de traspasos. |
+| **Modelos de IA (LLMs)** | **Google Gemini API (Flash)** | Evaluación de traspasos (Fase 4). Las crónicas de partidos están aparcadas por ahora. |
 
 ---
 
@@ -164,6 +162,7 @@ erDiagram
         int losses
         int conf_rank
         jsonb standings_extra "Rachas, L10, Home/Away"
+        jsonb dead_money "Nómina no traspasable: cortados y sueldos sin jugador en players"
     }
 
     PLAYERS {
@@ -190,9 +189,9 @@ erDiagram
         int away_score
         string status "Scheduled / Live / Final"
         string live_period_text "Ej. Q3 04:12 o Halftime"
-        float excitement_score "Nota Nivel 1 Cero Spoilers (1.0 - 10.0)"
-        text ai_teaser_level2 "Pista Nivel 2 (Sin ganador ni prórrogas/50pts)"
-        text ai_summary_full "Crónica Nivel 3 Con Spoilers"
+        float excitement_score "Nota Nivel 2 (1.0 - 10.0)"
+        text ai_teaser_level2 "Sin uso por ahora (IA aparcada)"
+        text ai_summary_full "Sin uso por ahora (IA aparcada)"
         jsonb quarters_score "Puntos por cuarto"
         boolean is_processed "True cuando ya se calculó nota al acabar"
     }
@@ -225,7 +224,10 @@ erDiagram
         bigint salary_year_2
         bigint salary_year_3
         bigint salary_year_4
-        string contract_option "Player Option / Team Option / UFA"
+        string contract_option "Próxima opción pendiente: Player Option / Team Option"
+        date signed_on "Última firma"
+        string signed_kind "free_agent / extension / rookie / rookie_extension"
+        date acquired_on "Último traspaso"
     }
 ```
 
@@ -242,7 +244,7 @@ nba-app/
 │   └── workflows/
 │       ├── live_game_watcher.yml    # Revisa partidos terminados y dispara nota + IA al instante
 │       ├── daily_stats_sync.yml     # Consolida estadísticas de temporada y radares (0-99)
-│       └── weekly_salaries_sync.yml # Actualiza salarios semanalmente
+│       └── contracts_sync.yml       # Aplica el registro oficial de movimientos (varias veces al día)
 │
 ├── backend-data/                    # 🐍 MOTOR DE DATOS, TIEMPO REAL E IA (PYTHON)
 │   ├── requirements.txt
@@ -252,24 +254,37 @@ nba-app/
 │   │   ├── fetch_teams_players.py   # Equipos y jugadores activos/históricos
 │   │   ├── fetch_live_and_final.py  # Detecta partidos en curso y recién terminados
 │   │   ├── fetch_career_awards.py   # Trayectoria y palmarés de jugadores
-│   │   └── scrape_salaries.py       # Salarios y contratos para el GM Virtual
+│   │   ├── fetch_legends.py         # Leyendas retiradas para el comparador y sus fichas
+│   │   ├── fetch_transactions.py    # Registro oficial de movimientos de la NBA -> contratos del GM
+│   │   ├── fetch_contract_news.py   # Cifras de los contratos desde los RSS de Hoops Rumors y RealGM
+│   │   └── scrape_salaries.py       # Carga inicial de contratos (Basketball-Reference, no se programa)
 │   ├── processors/
+│   │   ├── cba.py                   # Cifras del convenio de la temporada (revisar cada verano)
+│   │   ├── contract_engine.py       # Reglas puras: qué hace cada fichaje, corte o traspaso a los contratos
+│   │   ├── contract_news.py         # Lee en una noticia las condiciones del contrato de un jugador
+│   │   ├── contract_resolver.py     # Decide las cifras (exactas, ≈ o sin cifra) a partir de las noticias
 │   │   ├── excitement_calculator.py # Calcula la nota numérica pura (1.0 - 10.0) al acabar el partido
 │   │   ├── player_radar_calc.py     # Calcula percentiles (0-99) de cada jugador
-│   │   ├── ai_chronicler.py         # Genera Pista Nivel 2 y Crónica Nivel 3 con Gemini
+│   │   ├── ai_chronicler.py         # APARCADO: textos IA con Gemini (fuera del pipeline)
 │   │   └── social_bot.py            # Publica alertas en X/Twitter o Telegram (opcional)
+│   ├── tests/                       # Tests sin red ni base de datos (python -m unittest discover -s tests -t .)
 │   └── watcher.py                   # Orquestador que procesa cada partido en cuanto pasa a 'Final'
 │
 └── web-app/                         # ⚛️ APLICACIÓN WEB Y MÓVIL (NEXT.JS + CAPACITOR)
     ├── package.json
     ├── next.config.ts
-    ├── capacitor.config.ts
+    ├── capacitor.config.ts          # La app nativa carga la web desplegada (CAPACITOR_SERVER_URL)
+    ├── android/ · ios/              # Proyectos nativos de Capacitor
+    ├── assets/logo.svg              # Logo provisional: fuente de todos los iconos (`npm run icons`)
+    ├── scripts/                     # generate-icons.mjs, prepare-native-shell.mjs
     ├── public/
-    │   ├── manifest.json
-    │   └── court-bg.svg
+    │   ├── sw.js                    # Service worker: solo navegaciones y página sin conexión
+    │   ├── offline.html
+    │   └── icons/
     └── src/
         ├── app/
         │   ├── layout.tsx
+        │   ├── manifest.ts          # Manifiesto de la PWA
         │   ├── page.tsx             # HOME: Partidos en vivo/terminados + Modo Sin Spoilers (3 niveles)
         │   ├── api/
         │   │   └── live/route.ts    # Endpoint con caché de 30s para actualizar marcadores en tiempo real
@@ -283,12 +298,13 @@ nba-app/
         │   └── compare/page.tsx
         ├── components/
         │   ├── layout/              # Sidebar, BottomNav, SpoilerModeSelector
-        │   ├── games/               # LiveGameCard, PureScoreBadge (Nivel 1), TeaserDrawer (Nivel 2), BoxScore
+        │   ├── games/               # LiveGameCard, PureScoreBadge (Nivel 2), BoxScore
         │   ├── players/             # PlayerRadarChart, TrophyCabinet, CareerTable
         │   ├── gm/                  # TradeMachine, SalaryCapBar, TradeEvaluationCard
+        │   ├── compare/             # CompareView, DuelRadar, DuelRows, PlayerPicker
         │   └── share/               # SocialCardExporter (Generador de imágenes 16:9 y 9:16 con marca de agua)
         ├── context/
-        │   └── SpoilerContext.tsx   # Gestiona el modo Sin Spoilers (Nivel 1 Cero Spoilers vs Nivel 3 En Vivo)
+        │   └── SpoilerContext.tsx   # Nivel de spoilers 1-2-3 (siempre arranca en 1)
         └── lib/
             ├── supabase.ts
             └── trade-rules.ts
@@ -307,7 +323,7 @@ nba-app/
 ### 🎨 Fase 1: Esqueleto Visual Multiplataforma + Modo Sin Spoilers Blindado
 * [X] **Tarea 1.1:** Inicializar **Next.js + TypeScript + Tailwind CSS + shadcn/ui** en `web-app/`.
 * [X] **Tarea 1.2:** Crear layout responsive (Sidebar en PC + BottomNav en Móvil).
-* [X] **Tarea 1.3:** Programar `SpoilerContext.tsx` con la regla de los **3 Niveles** (garantizando que en Nivel 1 solo se vea el número `1.0 - 10.0` sin textos ni pistas de prórroga).
+* [X] **Tarea 1.3:** Programar `SpoilerContext.tsx` con la regla de los **3 Niveles** (redefinidos en la 3.2: 1 Todo oculto · 2 Solo nota · 3 Resultados).
 * [X] **Tarea 1.4:** Construir las páginas de **Clasificaciones (`/standings`)** y **Equipos (`/teams/[id]`)**.
 
 ### 🌟 Fase 2: Fichas de Jugadores "Estilo BeSoccer" + Exportador a Redes Sociales
@@ -317,15 +333,20 @@ nba-app/
 * [X] **Tarea 2.4:** Añadir buscador instantáneo de jugadores y equipos.
 
 ### 🔥 Fase 3: Marcadores en Tiempo Real + Nota Instantánea Post-Partido + IA
-* [ ] **Tarea 3.1:** Crear la ruta `/api/live/route.ts` en Next.js con caché de 30 segundos para servir resultados y estadísticas cuarto a cuarto en directo sin saturar la API de la NBA.
-* [ ] **Tarea 3.2:** Programar `excitement_calculator.py` y `ai_chronicler.py` (Gemini Flash) para que en cuanto un partido pase a `Final` calcule inmediatamente la nota `1.0 - 10.0`, la pista Nivel 2 (sin revelar prórrogas ni récords destripadores) y la crónica Nivel 3.
-* [ ] **Tarea 3.3:** Construir la pantalla principal (**Home / Jornada**) con refresco en tiempo real para partidos en juego y visualización adaptada al nivel de spoiler elegido.
-* [ ] **Tarea 3.4:** Construir la ficha completa del partido (`/games/[id]`) con Boxscore avanzado, cuartos, crónicas IA y botón de exportar tarjeta del partido para RRSS.
+* [X] **Tarea 3.1:** Crear la ruta `/api/live/route.ts` en Next.js con caché de 30 segundos para servir resultados y estadísticas cuarto a cuarto en directo sin saturar la API de la NBA.
+* [X] **Tarea 3.2:** Programar el calendario completo (`fetch_live_and_final.py`), `excitement_calculator.py` y `watcher.py` para que en cuanto un partido pase a `Final` calcule inmediatamente la nota `1.0 - 10.0`. Niveles de spoiler redefinidos (1 Todo oculto · 2 Solo nota · 3 Resultados) con arranque siempre en Nivel 1. *(Textos IA aparcados.)*
+* [X] **Tarea 3.3:** Construir la pantalla principal (**Home / Jornada**) con refresco en tiempo real para partidos en juego y visualización adaptada al nivel de spoiler elegido.
+* [X] **Tarea 3.4:** Construir la ficha completa del partido (`/games/[id]`) con Boxscore avanzado, cuartos, gráficos y mapa de tiro, y botón de exportar tarjeta del partido para RRSS.
 
 ### 💼 Fase 4: El "GM Virtual" (Simulador de Traspasos) + Comparador Cara a Cara
-* [ ] **Tarea 4.1:** Programar `scrape_salaries.py` para actualizar contratos de jugadores.
-* [ ] **Tarea 4.2:** Programar el motor de reglas salariales CBA (`trade-rules.ts`) y la pantalla interactiva `/gm-simulator` con evaluación del traspaso por IA y exportación de imagen del traspaso para redes.
-* [ ] **Tarea 4.3:** Construir el Comparador Cara a Cara (`/compare`) con radares superpuestos y tarjeta descargable.
+* [X] **Tarea 4.1:** Programar `scrape_salaries.py` para actualizar contratos de jugadores.
+* [X] **Tarea 4.2:** Programar el motor de reglas salariales CBA (`trade-rules.ts`) y la pantalla interactiva `/gm-simulator` con evaluación del traspaso por IA y exportación de imagen del traspaso para redes.
+* [X] **Tarea 4.3:** Construir el Comparador Cara a Cara (`/compare`) con radares superpuestos y tarjeta descargable.
+* [ ] **Tarea 4.4:** Contratos automáticos y fiables sin raspar Basketball-Reference:
+  * [X] **Fase 1 — Movimientos oficiales:** `fetch_transactions.py` aplica el registro oficial de la NBA (fichajes, cortes, traspasos, reclamados y conversiones) con las reglas de `contract_engine.py` (tests incluidos). Un contrato firmado sin cifra pública queda "pendiente": el GM lo marca, pide la estimación del usuario y la señala como tal en el veredicto, en la IA y en la imagen. El dinero muerto dudoso (garantías, *stretch*) queda "por confirmar".
+  * [X] **Fase 2 — Cifras desde noticias:** `fetch_contract_news.py` lee los RSS de Hoops Rumors y RealGM (respetando su *crawl-delay*). `contract_news.py` extrae solo lo que la noticia afirma de ese jugador y ese equipo: ignora el pasado, las suposiciones, las cifras de opciones viejas y las frases sobre otros jugadores o equipos. `contract_resolver.py` decide: mínimos y excepciones completas exactos con las tablas del convenio (`cba.py`), cifras redondeadas de la prensa como aproximadas (≈), y ante cualquier contradicción, sin cifra. Prueba con los fichajes de julio de 2026: 12 de 12 cifras exactas correctas.
+  * [ ] **Fase 3 — Cambio de temporada (antes del 1 de julio de 2027):** pasar los contratos a 2027-28, opciones ejercidas o rechazadas y garantías de los cortes. Ese día los procesos se paran y avisan hasta que se haga, junto con la revisión anual de cifras de `cba.py` y `trade-rules.ts`.
+  * Descartado: Gemini con búsqueda de Google. Sus condiciones prohíben guardar sus resultados o crear una base de datos con ellos.
 
 ### 📱 Fase 5: App Móvil (PWA + Capacitor), Bot de Redes y Despliegue
 * [ ] **Tarea 5.1:** Configurar PWA y **Capacitor.js** para instalar la app en Android/iOS.

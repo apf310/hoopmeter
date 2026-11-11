@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Página sin conexión de la app nativa (la genera scripts/prepare-native-shell.mjs)
+/native-shell/

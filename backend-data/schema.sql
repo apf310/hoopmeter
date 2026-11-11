@@ -16,7 +16,8 @@ create table if not exists public.teams (
     wins             integer not null default 0,
     losses           integer not null default 0,
     conf_rank        integer,
-    standings_extra  jsonb not null default '{}'::jsonb  -- Rachas, L10, Home/Away
+    standings_extra  jsonb not null default '{}'::jsonb,  -- Rachas, L10, Home/Away
+    dead_money       jsonb not null default '[]'::jsonb   -- Nómina no traspasable: [{name, salaries[4], waived}]
 );
 
 -- ---------- players ----------
@@ -87,7 +88,67 @@ create table if not exists public.player_contracts (
     salary_year_2    bigint,
     salary_year_3    bigint,
     salary_year_4    bigint,
-    contract_option  text                            -- Player Option / Team Option / UFA
+    contract_option  text,                           -- Próxima opción pendiente: Player Option / Team Option
+    signed_on        date,                           -- Última firma
+    signed_kind      text,                           -- free_agent / extension / rookie / rookie_extension
+    acquired_on      date                            -- Último traspaso
+);
+
+-- Bases de datos creadas antes de la Tarea 4.2
+alter table public.teams
+    add column if not exists dead_money jsonb not null default '[]'::jsonb;
+alter table public.player_contracts
+    add column if not exists signed_on   date,
+    add column if not exists signed_kind text,
+    add column if not exists acquired_on date;
+
+-- ---------- Tarea 4.4: contratos desde el registro oficial de movimientos ----------
+-- status: confirmed = cifras conocidas · pending = firmado, sin cifra pública (salary_current NULL)
+--         pending_future = esta temporada se conoce, los años de su renovación aún no
+-- source: de dónde salen las cifras. NULL = carga inicial (Basketball-Reference, 4 nov 2026)
+alter table public.player_contracts
+    add column if not exists status     text not null default 'confirmed',
+    add column if not exists source     jsonb,
+    add column if not exists updated_at timestamptz not null default now();
+alter table public.player_contracts drop constraint if exists player_contracts_status_check;
+alter table public.player_contracts add constraint player_contracts_status_check
+    check (status in ('confirmed', 'pending', 'pending_future'));
+
+-- Registro oficial de movimientos de nba.com, tal como se aplicó a los contratos
+create table if not exists public.transactions (
+    id                text primary key,              -- "{GroupSort}:{PLAYER_ID}:{TEAM_ID}" del registro oficial
+    transaction_date  date not null,
+    type              text not null,                 -- Signing / Waive / Trade / AwardOnWaivers / ContractConverted
+    contract_type     text,                          -- standard, two_way, ten_day, rest_of_season, rookie_scale, veteran_extension…
+    player_id         integer not null,              -- sin FK: el jugador puede no estar aún en players
+    team_id           integer not null,
+    other_team_id     integer,                       -- en traspasos: el equipo que lo envía
+    description       text not null,
+    outcome           text,                          -- qué se hizo al aplicarlo (signed_pending, traded, waived_dead_money…)
+    details           jsonb,
+    applied_at        timestamptz,
+    created_at        timestamptz not null default now()
+);
+
+-- Estado de los procesos automáticos: el GM muestra cuándo se actualizaron los contratos
+create table if not exists public.sync_status (
+    id               text primary key,               -- 'contracts', 'contract_news'
+    last_run_at      timestamptz,
+    last_success_at  timestamptz,
+    last_error       text,
+    details          jsonb
+);
+
+-- Noticias de los RSS (Hoops Rumors, RealGM) de las que se leen las cifras de los contratos.
+-- Solo el principio del texto y solo 150 días. PRIVADA: sin política de lectura pública.
+create table if not exists public.news_items (
+    id            text primary key,                  -- "{fuente}:{guid}"
+    source        text not null,                     -- hoopsrumors / realgm
+    url           text not null,
+    title         text not null,
+    published_at  timestamptz not null,
+    body          text not null,
+    fetched_at    timestamptz not null default now()
 );
 
 -- =============================================================
@@ -101,6 +162,9 @@ create index if not exists idx_games_away_team            on public.games (away_
 create index if not exists idx_pss_player_id              on public.player_season_stats (player_id);
 create index if not exists idx_pss_team_id                on public.player_season_stats (team_id);
 create index if not exists idx_awards_player_id           on public.player_awards (player_id);
+create index if not exists idx_transactions_player_id     on public.transactions (player_id);
+create index if not exists idx_transactions_date          on public.transactions (transaction_date);
+create index if not exists idx_news_items_published       on public.news_items (published_at);
 
 -- =============================================================
 -- Seguridad (RLS): lectura pública con la anon key; escritura solo
@@ -112,6 +176,9 @@ alter table public.games               enable row level security;
 alter table public.player_season_stats enable row level security;
 alter table public.player_awards       enable row level security;
 alter table public.player_contracts    enable row level security;
+alter table public.transactions        enable row level security;
+alter table public.sync_status         enable row level security;
+alter table public.news_items          enable row level security;  -- sin policy: solo el backend (service_role)
 
 drop policy if exists "public read teams"               on public.teams;
 drop policy if exists "public read players"             on public.players;
@@ -119,6 +186,8 @@ drop policy if exists "public read games"               on public.games;
 drop policy if exists "public read player_season_stats" on public.player_season_stats;
 drop policy if exists "public read player_awards"       on public.player_awards;
 drop policy if exists "public read player_contracts"    on public.player_contracts;
+drop policy if exists "public read transactions"        on public.transactions;
+drop policy if exists "public read sync_status"         on public.sync_status;
 
 create policy "public read teams"               on public.teams               for select using (true);
 create policy "public read players"             on public.players             for select using (true);
@@ -126,6 +195,8 @@ create policy "public read games"               on public.games               fo
 create policy "public read player_season_stats" on public.player_season_stats for select using (true);
 create policy "public read player_awards"       on public.player_awards       for select using (true);
 create policy "public read player_contracts"    on public.player_contracts    for select using (true);
+create policy "public read transactions"        on public.transactions        for select using (true);
+create policy "public read sync_status"         on public.sync_status         for select using (true);
 
 -- =============================================================
 -- Realtime: cambios de estado de partidos (Live -> Final)

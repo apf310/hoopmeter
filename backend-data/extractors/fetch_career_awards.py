@@ -192,10 +192,10 @@ def build_awards(player_id: int) -> list[dict]:
     return rows
 
 
-def load_active_players(client) -> list[dict]:
+def load_active_players(client, columns: str = "id, full_name") -> list[dict]:
     players, start = [], 0
     while True:
-        page = (client.table("players").select("id, full_name").eq("is_active", True)
+        page = (client.table("players").select(columns).eq("is_active", True)
                 .order("id").range(start, start + PAGE_SIZE - 1).execute().data)
         players += page
         if len(page) < PAGE_SIZE:

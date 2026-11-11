@@ -1,103 +1,115 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
-import { DEFAULT_SPOILER_MODE, type SpoilerLevel, type SpoilerMode } from "@/lib/spoilers";
+import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { onNativeAppState } from "@/lib/native";
+import { DEFAULT_SPOILER_LEVEL, isSpoilerLevel, type SpoilerLevel } from "@/lib/spoilers";
 
-// El modo vive en sessionStorage (no localStorage): se mantiene al navegar o
-// recargar, pero cada vez que se abre la app vuelve a Cero Spoilers por seguridad.
-const STORAGE_KEY = "nba-hub:spoiler-mode";
+// Garantía "jamás un spoiler por olvido": la app SIEMPRE arranca en Nivel 1.
+// - El nivel vive en sessionStorage (no localStorage): se mantiene al navegar o recargar,
+//   pero desaparece al cerrar la pestaña o la app.
+// - En móvil "cerrar" suele ser mandar la app a segundo plano, donde sessionStorage sobrevive
+//   días: si pasa más de IDLE_RESET_MS oculta, al volver también se vuelve al Nivel 1.
+const STORAGE_KEY = "nba-hub:spoiler-level";
+const IDLE_RESET_MS = 15 * 60 * 1000;
+
+type StoredState = { level: SpoilerLevel; hiddenAt: number | null };
 
 const listeners = new Set<() => void>();
 
-function readStoredMode(): SpoilerMode {
+function readState(): StoredState | null {
   try {
-    return sessionStorage.getItem(STORAGE_KEY) === "FULL" ? "FULL" : DEFAULT_SPOILER_MODE;
+    const parsed: unknown = JSON.parse(sessionStorage.getItem(STORAGE_KEY) ?? "null");
+    if (parsed && typeof parsed === "object" && "level" in parsed && isSpoilerLevel(parsed.level)) {
+      const hiddenAt = "hiddenAt" in parsed && typeof parsed.hiddenAt === "number" ? parsed.hiddenAt : null;
+      return { level: parsed.level, hiddenAt };
+    }
   } catch {
-    return DEFAULT_SPOILER_MODE;
+    // Almacenamiento no disponible o corrupto: se trata como recién abierta.
   }
+  return null;
 }
 
-function writeStoredMode(mode: SpoilerMode) {
+function writeState(state: StoredState) {
   try {
-    sessionStorage.setItem(STORAGE_KEY, mode);
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   } catch {
-    // Almacenamiento no disponible (modo privado): el modo vive solo en memoria.
+    // Modo privado sin almacenamiento: no hay persistencia y cada recarga vuelve al Nivel 1.
   }
   listeners.forEach((listener) => listener());
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+function isExpired(state: StoredState): boolean {
+  return state.hiddenAt !== null && Date.now() - state.hiddenAt > IDLE_RESET_MS;
 }
 
-// En servidor e hidratación siempre STRICT: nunca se renderiza un spoiler antes de saber el modo.
-const getServerMode = (): SpoilerMode => DEFAULT_SPOILER_MODE;
+function readLevel(): SpoilerLevel {
+  const state = readState();
+  return state && !isExpired(state) ? state.level : DEFAULT_SPOILER_LEVEL;
+}
+
+function handleAppVisible(visible: boolean) {
+  const state = readState();
+  if (!state) return;
+  if (visible) {
+    writeState({ level: isExpired(state) ? DEFAULT_SPOILER_LEVEL : state.level, hiddenAt: null });
+  } else if (state.hiddenAt === null) {
+    writeState({ ...state, hiddenAt: Date.now() });
+  }
+}
+
+const handleVisibility = () => handleAppVisible(document.visibilityState === "visible");
+
+let stopNativeAppState: (() => void) | null = null;
+
+function subscribe(listener: () => void) {
+  if (listeners.size === 0) {
+    document.addEventListener("visibilitychange", handleVisibility);
+    // En la app nativa visibilitychange no siempre salta al ir a segundo plano: sin este aviso
+    // nunca se anotaría hiddenAt y el Nivel 3 sobreviviría a los 15 minutos.
+    stopNativeAppState = onNativeAppState(handleAppVisible);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stopNativeAppState?.();
+    }
+  };
+}
+
+function setSpoilerLevel(level: SpoilerLevel) {
+  writeState({ level, hiddenAt: null });
+}
+
+// Intención de cambiar de nivel (ratón encima, pulsación en curso): las pantallas precargan
+// los datos de ese nivel SIN mostrarlos, para que al confirmar aparezcan al instante.
+const intentListeners = new Set<(level: SpoilerLevel) => void>();
+
+export function announceLevelIntent(level: SpoilerLevel) {
+  intentListeners.forEach((listener) => listener(level));
+}
+
+export function onLevelIntent(listener: (level: SpoilerLevel) => void) {
+  intentListeners.add(listener);
+  return () => {
+    intentListeners.delete(listener);
+  };
+}
+
+// En servidor e hidratación siempre Nivel 1: nunca se renderiza nada antes de saber el nivel.
+const getServerLevel = (): SpoilerLevel => DEFAULT_SPOILER_LEVEL;
 
 type SpoilerContextValue = {
-  spoilerMode: SpoilerMode;
-  setSpoilerMode: (mode: SpoilerMode) => void;
-  toggleSpoilerMode: () => void;
-  isTeaserRevealed: (gameId: string) => boolean;
-  revealTeaser: (gameId: string) => void;
-  hideTeaser: (gameId: string) => void;
+  spoilerLevel: SpoilerLevel;
+  setSpoilerLevel: (level: SpoilerLevel) => void;
 };
 
 const SpoilerContext = createContext<SpoilerContextValue | null>(null);
 
 export function SpoilerProvider({ children }: { children: ReactNode }) {
-  const spoilerMode = useSyncExternalStore(subscribe, readStoredMode, getServerMode);
-  // Pistas de Nivel 2 abiertas por partido. Solo en memoria: nunca se persisten.
-  const [revealedTeasers, setRevealedTeasers] = useState<ReadonlySet<string>>(() => new Set());
-
-  const setSpoilerMode = useCallback((mode: SpoilerMode) => {
-    // Al cambiar de modo se cierran todas las pistas: volver a STRICT es volver a cero.
-    setRevealedTeasers(new Set());
-    writeStoredMode(mode);
-  }, []);
-
-  const toggleSpoilerMode = useCallback(() => {
-    setSpoilerMode(readStoredMode() === "STRICT" ? "FULL" : "STRICT");
-  }, [setSpoilerMode]);
-
-  const revealTeaser = useCallback((gameId: string) => {
-    setRevealedTeasers((prev) => (prev.has(gameId) ? prev : new Set(prev).add(gameId)));
-  }, []);
-
-  const hideTeaser = useCallback((gameId: string) => {
-    setRevealedTeasers((prev) => {
-      if (!prev.has(gameId)) return prev;
-      const next = new Set(prev);
-      next.delete(gameId);
-      return next;
-    });
-  }, []);
-
-  const isTeaserRevealed = useCallback(
-    (gameId: string) => revealedTeasers.has(gameId),
-    [revealedTeasers]
-  );
-
-  const value = useMemo<SpoilerContextValue>(
-    () => ({
-      spoilerMode,
-      setSpoilerMode,
-      toggleSpoilerMode,
-      isTeaserRevealed,
-      revealTeaser,
-      hideTeaser,
-    }),
-    [spoilerMode, setSpoilerMode, toggleSpoilerMode, isTeaserRevealed, revealTeaser, hideTeaser]
-  );
-
+  const spoilerLevel = useSyncExternalStore(subscribe, readLevel, getServerLevel);
+  const value = useMemo<SpoilerContextValue>(() => ({ spoilerLevel, setSpoilerLevel }), [spoilerLevel]);
   return <SpoilerContext.Provider value={value}>{children}</SpoilerContext.Provider>;
 }
 
@@ -107,9 +119,6 @@ export function useSpoiler(): SpoilerContextValue {
   return ctx;
 }
 
-/** Nivel efectivo para un partido: FULL → 3; STRICT → 2 si su pista está abierta, si no 1. */
-export function useSpoilerLevel(gameId: string): SpoilerLevel {
-  const { spoilerMode, isTeaserRevealed } = useSpoiler();
-  if (spoilerMode === "FULL") return 3;
-  return isTeaserRevealed(gameId) ? 2 : 1;
+export function useSpoilerLevel(): SpoilerLevel {
+  return useSpoiler().spoilerLevel;
 }

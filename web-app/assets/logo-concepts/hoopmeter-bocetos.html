@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Hoopmeter · Bocetos de logo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500&display=block" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; margin: 0; }
+  body { background: #020617; color: #f1f5f9; font-family: Inter, system-ui, sans-serif; width: 1800px; padding: 56px 64px 64px; }
+  .eyebrow { font: 700 14px "Barlow Condensed"; letter-spacing: .3em; text-transform: uppercase; color: #f97316; }
+  h1 { font: 800 64px/1 "Barlow Condensed"; text-transform: uppercase; margin-top: 10px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 44px; border-top: 1px solid #1e293b; }
+  .col { padding: 36px 40px 8px; border-right: 1px solid #1e293b; }
+  .col:last-child { border-right: 0; }
+  .tag { font: 700 13px "Barlow Condensed"; letter-spacing: .25em; text-transform: uppercase; color: #94a3b8; }
+  h2 { font: 800 40px/1 "Barlow Condensed"; text-transform: uppercase; margin: 6px 0 10px; }
+  p.idea { color: #cbd5e1; font-size: 16px; line-height: 1.5; min-height: 72px; }
+  .icon-row { display: flex; align-items: flex-end; gap: 22px; margin-top: 28px; }
+  .icon-row svg { display: block; }
+  .light { background: #f1f5f9; padding: 10px; border-radius: 22px; }
+  .wordmark { display: flex; align-items: center; gap: 14px; margin-top: 34px; padding: 22px 0; border-top: 1px solid #1e293b; border-bottom: 1px solid #1e293b; }
+  .wm-text { font: 800 54px/1 "Barlow Condensed"; text-transform: uppercase; letter-spacing: .01em; }
+  .wm-text span { color: #f97316; }
+  .claim { margin-top: 10px; color: #94a3b8; font-size: 15px; }
+  .score { display: flex; align-items: center; gap: 16px; margin-top: 26px; }
+  .score .num { font: 800 60px/1 "Barlow Condensed"; color: #fff; }
+  .score .lbl { font: 700 14px "Barlow Condensed"; letter-spacing: .2em; text-transform: uppercase; }
+  .score .sub { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+</style>
+</head>
+<body>
+  <div class="eyebrow">Bocetos · Marca provisional</div>
+  <h1>Hoop<span style="color:#f97316">meter</span></h1>
+
+  <svg width="0" height="0" style="position:absolute">
+    <defs>
+      <!-- A · Velocímetro: el balón es el eje de la aguja -->
+      <symbol id="a" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <g fill="none" stroke-width="46">
+          <path d="M96 316a160 160 0 0 1 46.9-113.1" stroke="#ef4444" />
+          <path d="M155.9 190.9a160 160 0 0 1 200.2 0" stroke="#eab308" />
+          <path d="M369.1 202.9A160 160 0 0 1 416 316" stroke="#22c55e" />
+        </g>
+        <path d="M256 316L376 246" stroke="#f8fafc" stroke-width="22" stroke-linecap="round" />
+        <circle cx="256" cy="316" r="62" fill="#f97316" />
+        <g fill="none" stroke="#020617" stroke-width="7" stroke-linecap="round">
+          <path d="M194 316h124" /><path d="M256 254v124" />
+          <path d="M213 271c16 14 23 28 23 45s-7 31-23 45" /><path d="M299 271c-16 14-23 28-23 45s7 31 23 45" />
+        </g>
+      </symbol>
+
+      <!-- B · Costura-aguja: la costura vertical del balón es la aguja del medidor -->
+      <symbol id="b" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <circle cx="256" cy="256" r="186" fill="#f97316" />
+        <g fill="none" stroke="#020617" stroke-width="18" stroke-linecap="round">
+          <path d="M70 256h372" />
+          <path d="M139 116c58 46 86 92 86 140s-28 94-86 140" />
+          <path d="M373 116c-58 46-86 92-86 140s28 94 86 140" />
+        </g>
+        <path d="M256 256L366 104" stroke="#f8fafc" stroke-width="26" stroke-linecap="round" />
+        <circle cx="256" cy="256" r="30" fill="#f8fafc" />
+        <circle cx="256" cy="256" r="12" fill="#020617" />
+      </symbol>
+
+      <!-- C · Aro-medidor: el aro es la escala; las marcas pasan de rojo a verde -->
+      <symbol id="c" viewBox="0 0 512 512">
+        <rect width="512" height="512" rx="112" fill="#020617" />
+        <g stroke-linecap="round" stroke-width="22">
+          <path d="M108 248l-30-12" stroke="#ef4444" />
+          <path d="M131 186l-24-22" stroke="#f97316" />
+          <path d="M178 140l-14-30" stroke="#eab308" />
+          <path d="M256 122V88" stroke="#eab308" />
+          <path d="M334 140l14-30" stroke="#84cc16" />
+          <path d="M381 186l24-22" stroke="#22c55e" />
+          <path d="M404 248l30-12" stroke="#22c55e" />
+        </g>
+        <path d="M256 290L344 218" stroke="#f8fafc" stroke-width="18" stroke-linecap="round" />
+        <circle cx="352" cy="211" r="26" fill="#f97316" />
+        <ellipse cx="256" cy="290" rx="150" ry="34" fill="none" stroke="#f97316" stroke-width="22" />
+        <g fill="none" stroke="#cbd5e1" stroke-width="9" stroke-linecap="round">
+          <path d="M126 316l38 112h184l38-112" />
+          <path d="M176 322l26 106M226 324l12 104M286 324l-12 104M336 322l-26 106" />
+          <path d="M150 376h212" />
+        </g>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="grid">
+    <section class="col">
+      <div class="tag">Concepto A</div>
+      <h2>Velocímetro</h2>
+      <p class="idea">Un medidor de tres colores, los mismos de la nota (flojo, entretenido, imprescindible), con el balón como eje de la aguja. Es el más literal: se entiende de un vistazo que la app "mide" partidos.</p>
+      <div class="icon-row">
+        <svg width="200" height="200"><use href="#a" /></svg>
+        <svg width="96" height="96"><use href="#a" /></svg>
+        <svg width="48" height="48"><use href="#a" /></svg>
+        <div class="light"><svg width="72" height="72"><use href="#a" /></svg></div>
+      </div>
+      <div class="wordmark"><svg width="64" height="64"><use href="#a" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+      <div class="claim">Qué partido ver, sin spoilers</div>
+      <div class="score"><svg width="56" height="56"><use href="#a" /></svg><div class="num">9.3</div><div><div class="lbl" style="color:#22c55e">Imprescindible</div><div class="sub">en el Hoopmeter</div></div></div>
+    </section>
+
+    <section class="col">
+      <div class="tag">Concepto B</div>
+      <h2>Costura-aguja</h2>
+      <p class="idea">Un balón de siempre en el que una costura se ha convertido en la aguja de un medidor. El más simple y el que mejor aguanta a tamaño pequeño; recuerda al balón actual, así que el cambio de marca sería suave.</p>
+      <div class="icon-row">
+        <svg width="200" height="200"><use href="#b" /></svg>
+        <svg width="96" height="96"><use href="#b" /></svg>
+        <svg width="48" height="48"><use href="#b" /></svg>
+        <div class="light"><svg width="72" height="72"><use href="#b" /></svg></div>
+      </div>
+      <div class="wordmark"><svg width="64" height="64"><use href="#b" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+      <div class="claim">Qué partido ver, sin spoilers</div>
+      <div class="score"><svg width="56" height="56"><use href="#b" /></svg><div class="num">9.3</div><div><div class="lbl" style="color:#22c55e">Imprescindible</div><div class="sub">en el Hoopmeter</div></div></div>
+    </section>
+
+    <section class="col">
+      <div class="tag">Concepto C</div>
+      <h2>Aro-medidor</h2>
+      <p class="idea">La canasta es el medidor: las marcas alrededor del aro pasan de rojo a verde y la aguja termina en un balón. Cuenta mejor la historia (aro + medidor), pero tiene más detalle y pierde algo a tamaño pequeño.</p>
+      <div class="icon-row">
+        <svg width="200" height="200"><use href="#c" /></svg>
+        <svg width="96" height="96"><use href="#c" /></svg>
+        <svg width="48" height="48"><use href="#c" /></svg>
+        <div class="light"><svg width="72" height="72"><use href="#c" /></svg></div>
+      </div>
+      <div class="wordmark"><svg width="64" height="64"><use href="#c" /></svg><div class="wm-text">Hoop<span>meter</span></div></div>
+      <div class="claim">Qué partido ver, sin spoilers</div>
+      <div class="score"><svg width="56" height="56"><use href="#c" /></svg><div class="num">9.3</div><div><div class="lbl" style="color:#22c55e">Imprescindible</div><div class="sub">en el Hoopmeter</div></div></div>
+    </section>
+  </div>
+</body>
+</html>

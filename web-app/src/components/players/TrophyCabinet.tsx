@@ -2,6 +2,7 @@ import {
   Award,
   Crown,
   Flame,
+  Landmark,
   Medal,
   Shield,
   ShieldCheck,
@@ -23,6 +24,7 @@ const TROPHIES: TrophyDef[] = [
   { key: "champion", match: /Champion$/i, label: "Anillos", icon: Trophy, major: true },
   { key: "mvp", match: /^NBA Most Valuable Player$/i, label: "MVP", icon: Crown, major: true },
   { key: "fmvp", match: /^NBA Finals Most Valuable Player$/i, label: "MVP de las Finales", icon: Medal, major: true },
+  { key: "hof", match: /Hall of Fame/i, label: "Salón de la Fama", icon: Landmark, major: true },
   { key: "dpoy", match: /Defensive Player of the Year/i, label: "Mejor Defensor", icon: Shield, major: true },
   { key: "roy", match: /Rookie of the Year/i, label: "Rookie del Año", icon: Sparkles },
   { key: "smoy", match: /Sixth Man/i, label: "Sexto Hombre", icon: UserPlus },
@@ -39,6 +41,8 @@ const TROPHIES: TrophyDef[] = [
   { key: "olysilver", match: /Olympic Silver/i, label: "Plata Olímpica", icon: Medal },
   { key: "olybronze", match: /Olympic Bronze/i, label: "Bronce Olímpico", icon: Medal },
   { key: "allrookie", match: /^All-Rookie/i, label: "Quinteto Rookie", icon: Sparkles },
+  { key: "ibm", match: /IBM Award/i, label: "Premio IBM", icon: Award },
+  { key: "citizenship", match: /Citizenship/i, label: "Premio a la Ciudadanía", icon: Award },
 ];
 
 const ORDINAL_ES: Record<string, string> = { "1st": "1º", "2nd": "2º", "3rd": "3º" };
@@ -79,6 +83,11 @@ function groupAwards(awards: PlayerAward[]): TrophyGroup[] {
             .join(" · ")
         : undefined,
     }));
+}
+
+/** Cuántas veces ha ganado cada premio, por clave de `TROPHIES`. */
+export function trophyCounts(awards: PlayerAward[]): Record<string, number> {
+  return Object.fromEntries(groupAwards(awards).map((group) => [group.key, group.seasons.length]));
 }
 
 /** Vitrina de trofeos agrupada por premio, con los grandes trofeos destacados en dorado. */

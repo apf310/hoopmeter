@@ -3,10 +3,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
+import { Swords } from "lucide-react";
 import { CareerTable } from "@/components/players/CareerTable";
 import { PlayerRadarChart } from "@/components/players/PlayerRadarChart";
 import { PlayerCardExport } from "@/components/share/PlayerShareCard";
 import { CareerHighs, TrophyCabinet } from "@/components/players/TrophyCabinet";
+import { BRAND } from "@/lib/brand";
 import { getPlayer, getPlayerAwards, getPlayerCareer, getTeams } from "@/lib/queries";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
 import {
@@ -64,12 +66,14 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   const accent = team ? teamAccent(team) : "#f97316";
   const radar = getRadar(player);
   const regular = career.filter((r) => r.season_type === "Regular Season");
-  const latest = regular.filter((r) => r.season_id !== "Career").at(-1) ?? null;
-  const highs = regular.find((r) => r.season_id === "Career")?.advanced_stats.career_highs;
+  const careerRow = regular.find((r) => r.season_id === "Career") ?? null;
+  // De un retirado interesa su carrera, no su última temporada
+  const latest = player.is_active ? (regular.filter((r) => r.season_id !== "Career").at(-1) ?? null) : careerRow;
+  const highs = careerRow?.advanced_stats.career_highs;
 
   return (
     <>
-      <title>{`${player.full_name} · NBA Hub`}</title>
+      <title>{`${player.full_name} · ${BRAND.name}`}</title>
       <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} />
       {latest && <SeasonBand season={latest} />}
       <SectionNav />
@@ -82,7 +86,19 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
             <AttributeBars radar={radar} />
           </div>
         ) : (
-          <p className="py-4 text-sm text-slate-400">Aún no hay datos suficientes para calcular sus atributos.</p>
+          <p className="py-4 text-sm text-slate-400">
+            {player.is_active ? (
+              "Aún no hay datos suficientes para calcular sus atributos."
+            ) : (
+              <>
+                Este radar solo existe para jugadores en activo.{" "}
+                <Link href={`/compare?a=${player.id}`} className="font-semibold text-orange-400 hover:text-orange-300">
+                  Míralo en el comparador
+                </Link>
+                , donde tiene su radar histórico.
+              </>
+            )}
+          </p>
         )}
       </section>
 
@@ -179,7 +195,16 @@ function PlayerHero({
             <HeroStat label="Draft">{formatDraft(player)}</HeroStat>
           </dl>
 
-          <PlayerCardExport className="mt-7" player={player} team={team} radar={radar} season={season} age={age} />
+          <div className="mt-7 flex flex-wrap items-end gap-x-8 gap-y-4">
+            <PlayerCardExport player={player} team={team} radar={radar} season={season} age={age} />
+            <Link
+              href={`/compare?a=${player.id}`}
+              className="flex items-center gap-2 bg-orange-500 px-4 py-2.5 font-display text-base font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-orange-400"
+            >
+              <Swords className="size-5" />
+              Comparar
+            </Link>
+          </div>
         </div>
 
         <Image
@@ -242,7 +267,7 @@ function SeasonBand({ season }: { season: PlayerSeasonStats }) {
   return (
     <div className="-mx-4 border-b border-slate-800 md:-mx-8">
       <p className="px-4 pt-4 font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400 md:px-8">
-        Temporada {season.season_id} · {season.games_played ?? 0} partidos
+        {season.season_id === "Career" ? "Carrera" : `Temporada ${season.season_id}`} · {season.games_played ?? 0} partidos
       </p>
       <dl className="grid grid-cols-3 md:grid-cols-6">
         {stats.map((s, i) => (

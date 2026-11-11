@@ -1,12 +1,15 @@
 // Reglas puras del sistema "Sin Spoilers" en 3 niveles.
 // Sin "use client": se puede usar tanto en Server como en Client Components.
 
-export type SpoilerMode = "STRICT" | "FULL";
-
-/** 1 = Cero Spoilers (solo nota), 2 = Pista sin ganador, 3 = Con Spoilers. */
+/** 1 = Todo oculto (solo partidos), 2 = Solo nota, 3 = Resultados. */
 export type SpoilerLevel = 1 | 2 | 3;
 
-export const DEFAULT_SPOILER_MODE: SpoilerMode = "STRICT";
+/** La app SIEMPRE arranca aquí, aunque se cerrara en otro nivel: jamás un spoiler por olvido. */
+export const DEFAULT_SPOILER_LEVEL: SpoilerLevel = 1;
+
+export function isSpoilerLevel(value: unknown): value is SpoilerLevel {
+  return value === 1 || value === 2 || value === 3;
+}
 
 /** Fila de la tabla `games` en Supabase. */
 export type Game = {
@@ -19,6 +22,7 @@ export type Game = {
   status: "Scheduled" | "Live" | "Final";
   live_period_text: string | null;
   excitement_score: number | null;
+  // Columnas sin uso por ahora: textos IA aparcados (ver backend-data/processors/ai_chronicler.py)
   ai_teaser_level2: string | null;
   ai_summary_full: string | null;
   quarters_score: Record<string, unknown> | null;
@@ -26,8 +30,8 @@ export type Game = {
 };
 
 /**
- * Nivel 1: SOLO emparejamiento, fecha y nota. Ni marcador, ni estado,
- * ni `live_period_text` (podría delatar una prórroga), ni textos IA.
+ * Nivel 1: SOLO emparejamiento y fecha. Ni nota, ni marcador, ni estado,
+ * ni `live_period_text` (podría delatar una prórroga).
  */
 export type GameLevel1 = {
   level: 1;
@@ -35,12 +39,12 @@ export type GameLevel1 = {
   game_datetime_utc: string;
   home_team_id: number;
   away_team_id: number;
-  excitement_score: number | null;
 };
 
+/** Nivel 2: lo del Nivel 1 + la nota. Nada más. */
 export type GameLevel2 = Omit<GameLevel1, "level"> & {
   level: 2;
-  ai_teaser_level2: string | null;
+  excitement_score: number | null;
 };
 
 export type GameLevel3 = Game & { level: 3 };
@@ -61,11 +65,10 @@ export function redactGame(game: Game, level: SpoilerLevel): RedactedGame {
     game_datetime_utc: game.game_datetime_utc,
     home_team_id: game.home_team_id,
     away_team_id: game.away_team_id,
-    excitement_score: game.excitement_score,
   };
 
   if (level === 1) return { level: 1, ...base };
-  if (level === 2) return { level: 2, ...base, ai_teaser_level2: game.ai_teaser_level2 };
+  if (level === 2) return { level: 2, ...base, excitement_score: game.excitement_score };
   return { ...game, level: 3 };
 }
 
@@ -78,7 +81,7 @@ export function getExcitementTone(score: number | null): ExcitementTone {
   return "low";
 }
 
-/** Clases de color por tono. Solo color: sin etiquetas de texto (regla Nivel 1). */
+/** Clases de color por tono. Solo color: sin etiquetas de texto (regla Nivel 2: solo la nota). */
 export const EXCITEMENT_TONE_CLASSES: Record<ExcitementTone, string> = {
   high: "bg-emerald-500/15 text-emerald-400 ring-emerald-500/40",
   mid: "bg-amber-500/15 text-amber-400 ring-amber-500/40",

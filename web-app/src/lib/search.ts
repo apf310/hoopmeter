@@ -2,7 +2,7 @@
 import type { Player, Team } from "@/lib/supabase";
 
 export type SearchTeam = Pick<Team, "id" | "name" | "abbreviation" | "conference" | "primary_color" | "secondary_color">;
-export type SearchPlayer = Pick<Player, "id" | "full_name" | "position" | "team_id">;
+export type SearchPlayer = Pick<Player, "id" | "full_name" | "position" | "team_id" | "is_active">;
 export type SearchIndex = { teams: SearchTeam[]; players: SearchPlayer[] };
 
 export type SearchResults = { teams: SearchTeam[]; players: SearchPlayer[] };
@@ -28,9 +28,11 @@ export function normalize(text: string): string {
  */
 function score(name: string, query: string, terms: string[]): number {
   if (name === query) return 100;
-  if (name.startsWith(query)) return 90;
 
   const words = name.split(" ");
+  // La gente busca por apellido: "jordan" debe dar antes a Michael Jordan que a Jordan Poole
+  if (words.length > 1 && words.at(-1) === query) return 95;
+  if (name.startsWith(query)) return 90;
   if (words.length > 1 && query === words.map((w) => w[0]).join("")) return 85;
   if (terms.every((t) => words.some((w) => w.startsWith(t)))) {
     // Mejor si el primer término coincide con el apellido o el nombre de pila tal cual

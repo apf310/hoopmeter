@@ -19,9 +19,6 @@ dist/
 *.tsbuildinfo
 next-env.d.ts
 
-# Capacitor / móvil
-android/
-ios/
 
 # Sistema / IDE
 .DS_Store

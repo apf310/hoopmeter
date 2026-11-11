@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { SignedKind } from "@/lib/trade-rules";
 
 export type GameResult = "W" | "L";
 
@@ -14,6 +15,17 @@ export type StandingsExtra = {
   form?: GameResult[]; // Últimos ≤10 resultados, del más antiguo al más reciente
 };
 
+/** Nómina no traspasable (`teams.dead_money`): cortados y sueldos de jugadores que no están en `players`. */
+export type DeadMoney = {
+  name: string;
+  salaries: (number | null)[]; // Temporada actual y las 3 siguientes
+  waived: boolean;
+  /** Cortes del registro oficial (Tarea 4.4): la cifra puede no ser segura (garantías, "stretch"). */
+  pending?: boolean;
+  player_id?: number;
+  waived_on?: string;
+};
+
 /** Fila de la tabla `teams` en Supabase. */
 export type Team = {
   id: number;
@@ -27,6 +39,7 @@ export type Team = {
   losses: number;
   conf_rank: number | null;
   standings_extra: StandingsExtra;
+  dead_money: DeadMoney[];
 };
 
 /** Fila de la tabla `players` en Supabase. */
@@ -97,6 +110,44 @@ export type PlayerSeasonStats = {
 
 /** Fila de `player_awards` (nombre del premio tal cual lo da nba_api, en inglés). */
 export type PlayerAward = { id: number; player_id: number; award_name: string; season: string | null };
+
+/**
+ * Estado de un contrato (Tarea 4.4): `pending` = firmado según el registro oficial, aún sin cifra
+ * pública; `pending_future` = esta temporada se conoce, los años de su renovación aún no.
+ */
+export type ContractStatus = "confirmed" | "pending" | "pending_future";
+
+/** Lo que publica la prensa de un contrato (fase 2 de la Tarea 4.4, `fetch_contract_news.py`). */
+export type ContractSource = {
+  kind?: "official" | "news";
+  /** exact: cifra completa o calculada con el convenio · approx: redondeada por la prensa o mínimo prorrateado. */
+  precision?: "exact" | "approx";
+  reported?: {
+    years: number | null;
+    total: number | null;
+    minimum: boolean;
+    /** Mínimo de un año de un veterano que renueva: puede contar en la nómina por una de estas dos cifras. */
+    minimum_options?: number[];
+  };
+  items?: { outlet: string; url: string; title: string; published_at: string }[];
+};
+
+/** Fila de `player_contracts`: carga inicial de `scrape_salaries.py` + movimientos de `fetch_transactions.py`. */
+export type PlayerContract = {
+  player_id: number;
+  salary_current: number | null; // null mientras el contrato no tenga cifra pública
+  salary_year_2: number | null;
+  salary_year_3: number | null;
+  salary_year_4: number | null;
+  contract_option: "Player Option" | "Team Option" | null; // Próxima opción pendiente
+  signed_on: string | null;
+  signed_kind: SignedKind | null;
+  acquired_on: string | null;
+  /** Opcional: no existe en bases de datos sin la migración de la Tarea 4.4. */
+  status?: ContractStatus;
+  /** De dónde salen las cifras. NULL = carga inicial (exactas). */
+  source?: ContractSource | null;
+};
 
 let client: SupabaseClient | null = null;
 

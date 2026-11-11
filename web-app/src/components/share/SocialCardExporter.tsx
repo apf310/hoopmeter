@@ -4,7 +4,9 @@ import { useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { toBlob } from "html-to-image";
 import { LoaderCircle, RectangleHorizontal, RectangleVertical } from "lucide-react";
+import { LogoMark } from "@/components/layout/LogoMark";
 import { BRAND } from "@/lib/brand";
+import { isNativeApp, shareImageNatively } from "@/lib/native";
 import { cn } from "@/lib/utils";
 
 export type CardFormat = "16:9" | "9:16";
@@ -41,8 +43,9 @@ function imagesReady(node: HTMLElement): Promise<unknown> {
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-/** En móvil (y en la app de Capacitor) se abre el menú nativo de compartir; en escritorio, descarga directa. */
+/** En móvil y en la app nativa se abre el menú de compartir del sistema; en escritorio, descarga directa. */
 async function deliver(blob: Blob, fileName: string) {
+  if (isNativeApp()) return shareImageNatively(blob, fileName);
   const file = new File([blob], fileName, { type: "image/png" });
   const touch = window.matchMedia("(pointer: coarse)").matches;
   if (touch && navigator.canShare?.({ files: [file] })) {
@@ -168,10 +171,12 @@ function CardFrame({
         style={{ height: WATERMARK_HEIGHT[format] }}
         className={cn("flex shrink-0 items-center justify-between border-t-4 border-orange-500 bg-slate-950", vertical ? "px-16" : "px-20")}
       >
-        <span className="flex items-baseline gap-4 font-display uppercase">
+        <span className="flex items-center gap-4 font-display uppercase">
           <span className={cn("font-semibold tracking-[0.3em] text-slate-400", vertical ? "text-2xl" : "text-xl")}>Creado en</span>
+          <LogoMark className={vertical ? "size-14" : "size-12"} />
           <span className={cn("font-extrabold tracking-wide text-white", vertical ? "text-5xl" : "text-4xl")}>
-            {BRAND.lead} <span className="text-orange-500">{BRAND.accent}</span>
+            {BRAND.lead}
+            <span className="text-orange-500">{BRAND.accent}</span>
           </span>
         </span>
         {caption && (

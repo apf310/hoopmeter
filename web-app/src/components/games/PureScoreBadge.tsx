@@ -11,7 +11,7 @@ type PureScoreBadgeProps = {
   className?: string;
 };
 
-/** Nivel 1 — Cero Spoilers: únicamente el número 1.0 – 10.0 y su color. */
+/** Nivel 2 — Solo nota: únicamente el número 1.0 – 10.0 y su color. */
 export function PureScoreBadge({ score, className }: PureScoreBadgeProps) {
   const tone = getExcitementTone(score);
   const formatted = formatExcitementScore(score);
