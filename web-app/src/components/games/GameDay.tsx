@@ -202,7 +202,7 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
           {relative && `${formatWeekday(day, "long")}, `}
           {formatDayMonth(day)}
           {games && (
-            <span className="text-slate-500"> · {games.length === 1 ? "1 partido" : `${games.length} partidos`}</span>
+            <span className="text-slate-400"> · {games.length === 1 ? "1 partido" : `${games.length} partidos`}</span>
           )}
         </p>
       </header>
@@ -245,7 +245,7 @@ function LevelHint({ level, live, offline }: { level: SpoilerLevel; live: boolea
   return (
     <div aria-live="polite" className="flex items-center gap-2 border-b border-slate-800 px-4 py-2 text-xs md:px-8">
       <Icon className={cn("size-3.5 shrink-0", className)} />
-      <span className={cn("font-display text-sm font-bold uppercase tracking-wide", className)}>{title}</span>
+      <span className={cn("shrink-0 whitespace-nowrap font-display text-sm font-bold uppercase tracking-wide", className)}>{title}</span>
       <span className="truncate text-slate-400">{tip}</span>
       {live && (
         <span className="ml-auto flex shrink-0 items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wider text-red-400">

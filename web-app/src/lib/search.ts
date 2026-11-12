@@ -52,12 +52,12 @@ function rank<T>(items: T[], getKeys: (item: T) => string[], getLabel: (item: T)
     .map(({ item }) => item);
 }
 
-export function search(index: SearchIndex, rawQuery: string): SearchResults {
+export function search(index: SearchIndex, rawQuery: string, limits = { teams: MAX_TEAMS, players: MAX_PLAYERS }): SearchResults {
   const query = normalize(rawQuery);
   if (!query) return { teams: [], players: [] };
 
   return {
-    teams: rank(index.teams, (t) => [normalize(t.name), normalize(t.abbreviation)], (t) => t.name, query, MAX_TEAMS),
-    players: rank(index.players, (p) => [normalize(p.full_name)], (p) => p.full_name, query, MAX_PLAYERS),
+    teams: rank(index.teams, (t) => [normalize(t.name), normalize(t.abbreviation)], (t) => t.name, query, limits.teams),
+    players: rank(index.players, (p) => [normalize(p.full_name)], (p) => p.full_name, query, limits.players),
   };
 }

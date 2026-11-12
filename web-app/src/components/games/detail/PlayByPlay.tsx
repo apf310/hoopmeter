@@ -107,7 +107,7 @@ function PlayRow({ play, team, away, home }: { play: Play; team: MatchupTeam | u
         {scored ? (
           <span className="text-sm font-bold">
             <span className={awayScored ? "text-white" : "text-slate-400"}>{play.away}</span>
-            <span className="text-slate-500"> – </span>
+            <span className="text-slate-400"> – </span>
             <span className={awayScored ? "text-slate-400" : "text-white"}>{play.home}</span>
             <span className="ml-1.5 inline-block min-w-6 bg-slate-800 px-1 text-center text-xs text-white">+{play.points}</span>
           </span>

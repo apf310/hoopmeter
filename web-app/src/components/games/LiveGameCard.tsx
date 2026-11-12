@@ -103,7 +103,7 @@ function TeamLine({ team, dimmed }: { team: TeamLite | undefined; dimmed: boolea
     <div className="flex h-8 min-w-0 items-center gap-2.5">
       <span aria-hidden className="h-6 w-1 shrink-0" style={{ backgroundColor: team?.accent ?? "#475569" }} />
       {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />}
-      <span className={cn("truncate font-semibold", dimmed ? "text-slate-500" : "text-white")}>
+      <span className={cn("truncate font-semibold", dimmed ? "text-slate-400" : "text-white")}>
         <span className="md:hidden">{team?.abbreviation ?? "—"}</span>
         <span className="hidden md:inline">{team?.name ?? "—"}</span>
       </span>
@@ -159,7 +159,7 @@ function ResultCell({ result, homeWins, awayWins }: { result: GameResult | undef
             key={row}
             className={cn(
               "flex h-8 items-center justify-end font-display text-2xl font-extrabold tabular-nums",
-              wins ? "text-white" : lost ? "text-slate-500" : live ? "text-white" : "text-slate-300"
+              wins ? "text-white" : lost ? "text-slate-400" : live ? "text-white" : "text-slate-300"
             )}
           >
             {side.score ?? "–"}

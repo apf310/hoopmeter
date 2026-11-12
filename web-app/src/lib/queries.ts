@@ -330,6 +330,30 @@ export async function getScoutingReports(playerIds: number[], season: string, pr
 }
 
 /** Índice compacto del buscador: los 30 equipos y todos los jugadores, leyendas incluidas (solo campos necesarios). */
+/** Jugador destacado del directorio: los mejores de la temporada según la media de su radar. */
+export type StarPlayer = { id: number; name: string; position: string | null; teamId: number; overall: number };
+
+/** Todo lo que necesita /players: buscador completo, los mejores de la temporada y las leyendas. */
+export async function getPlayersDirectory(): Promise<{ index: SearchIndex; stars: StarPlayer[]; legends: { id: number; name: string }[] }> {
+  "use cache";
+  cacheLife("hours");
+
+  const [index, radars] = await Promise.all([
+    getSearchIndex(),
+    getSupabase().from("players").select("id, full_name, position, team_id, radar_attributes").eq("is_active", true).not("team_id", "is", null),
+  ]);
+  if (radars.error) throw new Error(`Error cargando jugadores: ${radars.error.message}`);
+
+  const stars = (radars.data as Pick<Player, "id" | "full_name" | "position" | "team_id" | "radar_attributes">[])
+    .map((p) => ({ p, radar: getRadar(p) }))
+    .filter(({ radar }) => radar !== null)
+    .map(({ p, radar }) => ({ id: p.id, name: p.full_name, position: p.position, teamId: p.team_id!, overall: overallRating(radar!) }))
+    .sort((a, b) => b.overall - a.overall || a.name.localeCompare(b.name, "es"))
+    .slice(0, 12);
+  const legends = index.players.filter((p) => !p.is_active).map((p) => ({ id: p.id, name: p.full_name }));
+  return { index, stars, legends };
+}
+
 export async function getSearchIndex(): Promise<SearchIndex> {
   "use cache";
   // Las plantillas cambian con traspasos y fichajes: refresco horario.

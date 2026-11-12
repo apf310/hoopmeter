@@ -121,7 +121,7 @@ export function SocialCardExporter({
             type="button"
             onClick={() => exportAs(format)}
             disabled={pending !== null}
-            aria-label={`Descargar imagen ${label} para ${hint}`}
+            aria-label={`${label} ${hint}: descargar imagen`}
             className={cn(
               "flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-orange-500 hover:text-slate-950 disabled:cursor-wait disabled:opacity-60",
               i > 0 && "border-l border-white/25"

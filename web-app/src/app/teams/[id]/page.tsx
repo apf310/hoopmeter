@@ -81,6 +81,8 @@ function TeamHero({ team }: { team: Team }) {
         width={420}
         height={420}
         unoptimized
+        loading="eager"
+        fetchPriority="high"
         className="pointer-events-none absolute -right-20 top-1/2 size-[420px] -translate-y-1/2 opacity-15"
       />
 

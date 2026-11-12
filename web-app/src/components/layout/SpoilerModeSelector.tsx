@@ -79,7 +79,7 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
                   ? level === 3
                     ? "bg-orange-500 text-slate-950 shadow-[0_0_14px] shadow-orange-500/50"
                     : "bg-emerald-500 text-slate-950 shadow-[0_0_14px] shadow-emerald-500/50"
-                  : "text-slate-500 hover:text-slate-200"
+                  : "text-slate-400 hover:text-slate-200"
               )}
             >
               {/* Relleno de progreso mientras se mantiene pulsado */}
