@@ -9,7 +9,8 @@ Por consola solo se muestra la nota (sin marcadores): el watcher tampoco te dest
 
 Uso (desde backend-data/):
     python watcher.py                          # bucle continuo (cada 60 s)
-    python watcher.py --once                   # una sola pasada (GitHub Actions)
+    python watcher.py --once                   # una sola pasada
+    python watcher.py --once --skip-schedule   # GitHub Actions: sin calendario (lo baja el job diario)
     python watcher.py --backfill --once        # también los partidos ya jugados de la temporada
     python watcher.py --game-id 0022600170 --dry-run   # un partido concreto, sin escribir
 """
@@ -57,7 +58,9 @@ def process_game(client, game_id: str, dry_run: bool) -> None:
 
 def run_pass(client, state: dict, args) -> None:
     if not args.dry_run:
-        if time.time() - state["schedule_synced_at"] > SCHEDULE_REFRESH_SECONDS:
+        # El calendario sale de stats.nba.com, que bloquea a menudo las IPs de la nube: en GitHub Actions
+        # (cada 5 min) se salta y lo descarga una vez al día daily_stats_sync. El directo y la nota usan la CDN.
+        if not args.skip_schedule and time.time() - state["schedule_synced_at"] > SCHEDULE_REFRESH_SECONDS:
             n = sync_schedule(client, state["team_ids"])
             state["schedule_synced_at"] = time.time()
             print(f"Calendario sincronizado: {n} partidos")
@@ -86,6 +89,7 @@ def main() -> None:
     parser.add_argument("--game-id", action="append", help="procesa solo este partido (repetible)")
     parser.add_argument("--limit", type=int, help="procesa como mucho N partidos por pasada")
     parser.add_argument("--dry-run", action="store_true", help="no escribe en Supabase")
+    parser.add_argument("--skip-schedule", action="store_true", help="no descarga el calendario de la temporada")
     args = parser.parse_args()
 
     client = None
@@ -108,6 +112,8 @@ def main() -> None:
                 run_pass(client, state, args)
             except Exception as exc:  # un corte de red no debe tumbar el watcher
                 print(f"! Pasada fallida: {exc!r}")
+                if args.once:  # en GitHub Actions, el código 1 manda un aviso por email
+                    sys.exit(1)
             if args.once:
                 break
             time.sleep(POLL_SECONDS)

@@ -296,6 +296,8 @@ def main() -> None:
         print("    python -m extractors.fetch_career_awards --resume")
     elif failed:
         print("Reintentar con: " + " ".join(f"--player-id {pid}" for pid in failed))
+    if blocked:
+        sys.exit(1)  # en GitHub Actions, el código 1 manda un aviso por email
 
 
 if __name__ == "__main__":

@@ -1,0 +1,37 @@
+# Pone la nota (1-10) a cada partido en cuanto termina. Solo usa la CDN de la NBA (live):
+# el calendario, que sale de stats.nba.com, lo descarga daily_stats_sync una vez al día.
+# El registro es público: el watcher solo imprime la nota, nunca marcadores.
+name: Watcher de partidos
+
+on:
+  schedule:
+    - cron: "*/5 * * * *" # lo mínimo que permite GitHub; a veces lo retrasa unos minutos
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-game-watcher
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend-data
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend-data/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python watcher.py --once --skip-schedule

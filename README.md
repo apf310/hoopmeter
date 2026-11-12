@@ -236,7 +236,7 @@ erDiagram
 ## 📂 6. Estructura de Carpetas del Proyecto (Monorepo)
 
 ```text
-nba-app/
+hoopmeter/
 ├── README.md                        # Este documento maestro del proyecto NBA
 ├── CLAUDE.md                        # Reglas operativas de bajo consumo de tokens para Claude Code
 ├── .gitignore
