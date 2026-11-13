@@ -4,7 +4,14 @@
 import { cacheLife } from "next/cache";
 import type { Game } from "@/lib/spoilers";
 
-const SCOREBOARD_URL = "https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json";
+/**
+ * Orígenes de los JSON en directo de la NBA, por orden. cdn.nba.com (Akamai) rechaza las IPs de Vercel
+ * (AWS) con 403; su origen en S3 es público, igual de actualizado y no las bloquea. La CDN queda de respaldo.
+ */
+const LIVE_DATA_ORIGINS = [
+  "https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData",
+  "https://cdn.nba.com/static/json/liveData",
+];
 
 // Mismas cabeceras que envía nba_api: sin ellas la CDN rechaza la petición
 export const NBA_HEADERS = {
@@ -15,6 +22,28 @@ export const NBA_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
 };
+
+/**
+ * JSON en directo de la NBA (`path` relativo a liveData, p. ej. "boxscore/boxscore_0022600222.json").
+ * null si aún no existe (la NBA responde 403/404 antes de que empiece el partido); lanza si ningún
+ * origen responde.
+ */
+export async function fetchLiveData<T>(path: string): Promise<T | null> {
+  let missing = false;
+  let lastError: unknown = null;
+  for (const origin of LIVE_DATA_ORIGINS) {
+    try {
+      const res = await fetch(`${origin}/${path}`, { headers: NBA_HEADERS });
+      if (res.ok) return (await res.json()) as T;
+      if (res.status === 403 || res.status === 404) missing = true;
+      else lastError = new Error(`NBA ${res.status} (${path})`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (missing) return null;
+  throw lastError ?? new Error(`NBA sin respuesta (${path})`);
+}
 
 export type LivePeriod = { period: number; label: string; score: number };
 
@@ -149,9 +178,8 @@ export async function getLiveScoreboard(): Promise<LiveScoreboard> {
   "use cache";
   cacheLife({ stale: 30, revalidate: 30, expire: 300 });
 
-  const res = await fetch(SCOREBOARD_URL, { headers: NBA_HEADERS });
-  if (!res.ok) throw new Error(`NBA scoreboard ${res.status}`);
-  const data = (await res.json()) as RawScoreboard;
+  const data = await fetchLiveData<RawScoreboard>("scoreboard/todaysScoreboard_00.json");
+  if (!data) throw new Error("NBA scoreboard no disponible");
 
   return {
     gameDate: data.scoreboard.gameDate,

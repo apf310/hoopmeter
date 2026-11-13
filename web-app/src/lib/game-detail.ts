@@ -4,10 +4,9 @@
 // Los componentes del cliente solo importan sus tipos (`import type`).
 import { cacheLife } from "next/cache";
 import { periodName } from "@/lib/game-format";
-import { buildPeriodText, NBA_HEADERS } from "@/lib/live";
+import { buildPeriodText, fetchLiveData } from "@/lib/live";
 import type { Game } from "@/lib/spoilers";
 
-const CDN = "https://cdn.nba.com/static/json/liveData";
 
 const REGULATION_PERIOD_S = 12 * 60;
 const OVERTIME_PERIOD_S = 5 * 60;
@@ -270,12 +269,9 @@ type RawAction = {
 
 // --- Descarga ---
 
-/** JSON de la CDN; null si aún no existe (antes del salto inicial la NBA responde 403/404). */
+/** JSON de la NBA; null si aún no existe (antes del salto inicial la NBA responde 403/404). */
 async function fetchCdn<T>(path: string): Promise<T | null> {
-  const res = await fetch(`${CDN}/${path}`, { headers: NBA_HEADERS });
-  if (res.status === 403 || res.status === 404) return null;
-  if (!res.ok) throw new Error(`NBA CDN ${res.status} (${path})`);
-  return (await res.json()) as T;
+  return fetchLiveData<T>(path);
 }
 
 /**
