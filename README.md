@@ -119,6 +119,7 @@ flowchart TD
    * Nuestro proceso detector ve que el partido `ID` ha pasado a `Final` y aún no tiene calculado su `excitement_score`.
    * **Al instante (tarde o madrugada):** Descarga el *Boxscore* final y el *Play-by-Play*, calcula la nota del `1.0` al `10.0` y la guarda en Supabase.
    * Así, si un partido del domingo acaba a las 23:45 o uno entre semana acaba a las 03:30 AM, **minutos después ya tiene su nota lista** (GitHub Actions lanza el watcher cada 5 minutos).
+   * Quien lanza el watcher a la hora exacta es Supabase (`pg_cron`, `backend-data/cron.sql`): el programador de GitHub se retrasa horas en repos gratuitos y queda solo como respaldo.
    * En la misma pasada guarda el boxscore del partido y recalcula la clasificación (victorias, casa/fuera, rachas y puesto con los desempates oficiales de la NBA).
 3. **Sincronización de Consolidación (Diaria / Semanal):**
    * **Sin `stats.nba.com` (Tarea 5.2b):** la NBA bloquea las IPs de la nube, así que todo lo automático sale de la CDN y de las páginas públicas de nba.com. Las estadísticas de temporada, la carrera, los récords y el radar se calculan con los boxscores guardados; las cifras se comparan con las correcciones oficiales de nba.com (la CDN no las recoge) y cada partido se vuelve a comprobar una vez por semana. Validado con la temporada 2025-26 completa frente a las cifras oficiales.

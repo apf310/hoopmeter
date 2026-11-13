@@ -5,6 +5,8 @@
 # promedios en el Nivel 1 y no deben cambiar minutos después de que termine.
 # Cada paso es independiente (si uno falla, los demás siguen y el job queda en rojo), salvo los tests:
 # si fallan, no se escribe nada. El registro es público: ningún paso imprime marcadores ni resultados.
+# Lo lanza Supabase a la hora exacta (pg_cron -> workflow_dispatch, backend-data/cron.sql): el programador de
+# GitHub retrasa o se salta ejecuciones en repos gratuitos. El `schedule` de abajo es solo el respaldo.
 name: Estadísticas diarias
 
 on:

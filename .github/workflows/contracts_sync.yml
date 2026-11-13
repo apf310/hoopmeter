@@ -3,6 +3,8 @@
 # GitHub manda un aviso por email. Desde el 1 de julio los dos scripts se paran y avisan hasta que se
 # actualice processors/cba.py (y trade-rules.ts) y se aplique el cambio de temporada.
 # En la fecha límite de traspasos conviene subir la frecuencia (p. ej. "*/10 * * * *").
+# Lo lanza Supabase a la hora exacta (pg_cron -> workflow_dispatch, backend-data/cron.sql): el programador de
+# GitHub retrasa o se salta ejecuciones en repos gratuitos. El `schedule` de abajo es solo el respaldo.
 name: Contratos
 
 on:

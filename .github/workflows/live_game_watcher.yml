@@ -1,6 +1,8 @@
-# Pone la nota (1-10) a cada partido en cuanto termina. Solo usa la CDN de la NBA (live):
-# el calendario, que sale de stats.nba.com, lo descarga daily_stats_sync una vez al día.
+# Pone la nota (1-10) a cada partido en cuanto termina, guarda su boxscore y recalcula la clasificación.
+# Solo usa la CDN de la NBA; el calendario completo lo sincroniza daily_stats_sync una vez al día.
 # El registro es público: el watcher solo imprime la nota, nunca marcadores.
+# Lo lanza Supabase a la hora exacta (pg_cron -> workflow_dispatch, backend-data/cron.sql): el programador de
+# GitHub retrasa o se salta ejecuciones en repos gratuitos. El `schedule` de abajo es solo el respaldo.
 name: Watcher de partidos
 
 on:
