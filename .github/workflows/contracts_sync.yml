@@ -28,6 +28,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       PYTHONUTF8: "1"
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6

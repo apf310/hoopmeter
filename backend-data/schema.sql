@@ -151,6 +151,54 @@ create table if not exists public.news_items (
     fetched_at    timestamptz not null default now()
 );
 
+-- ---------- Tarea 5.2b: datos sin stats.nba.com (bloquea las IPs de la nube) ----------
+-- Partido en campo neutral (calendario de la CDN): cuenta en el balance, pero ni en casa ni fuera
+alter table public.games add column if not exists is_neutral boolean not null default false;
+
+-- Totales exactos de cada fila: la carrera se recalcula sumando, sin errores de redondeo.
+-- En las filas "Career": {..., "history": totales antes de la temporada en curso, "history_through": "2025-26"}
+alter table public.player_season_stats add column if not exists totals jsonb;
+
+-- Boxscore de cada jugador en cada partido (CDN de la NBA). De aquí salen las estadísticas de la
+-- temporada, la carrera, los récords y el radar. Solo jugadores que llegaron a jugar.
+create table if not exists public.player_game_stats (
+    id                text primary key,              -- "{game_id}_{player_id}"
+    game_id           text not null references public.games (id) on delete cascade,
+    player_id         integer not null,              -- sin FK: se crea en players justo antes, pero no debe bloquear
+    team_id           integer not null references public.teams (id),
+    opponent_id       integer not null references public.teams (id),
+    season_id         text not null,                 -- "2026-27"
+    game_type         text not null,                 -- prefijo del gameId: 002 regular, 004 playoffs, 005 play-in, 006 final de la Copa
+    game_date         date not null,                 -- fecha del partido en la costa Este (la que usa la NBA)
+    starter           boolean not null,
+    seconds           double precision not null,
+    pts integer not null, fgm integer not null, fga integer not null, fg3m integer not null, fg3a integer not null,
+    ftm integer not null, fta integer not null, oreb integer not null, dreb integer not null, reb integer not null,
+    ast integer not null, stl integer not null, blk integer not null, tov integer not null, pf integer not null,
+    plus_minus        integer not null,
+    on_court_pts      integer not null,              -- puntos del equipo con él en pista
+    on_court_opp_pts  integer not null,              -- puntos del rival con él en pista
+    fetched_at        timestamptz not null default now()
+);
+
+-- Totales de cada equipo en cada partido (posesiones, rebotes y pérdidas de equipo incluidas)
+create table if not exists public.team_game_stats (
+    id           text primary key,                   -- "{game_id}_{team_id}"
+    game_id      text not null references public.games (id) on delete cascade,
+    team_id      integer not null references public.teams (id),
+    opponent_id  integer not null references public.teams (id),
+    is_home      boolean not null,
+    season_id    text not null,
+    game_type    text not null,
+    game_date    date not null,
+    seconds      double precision not null,          -- minutos de todos sus jugadores (240 sin prórroga)
+    pts integer not null, fgm integer not null, fga integer not null, fg3m integer not null, fg3a integer not null,
+    ftm integer not null, fta integer not null, oreb integer not null, dreb integer not null, reb integer not null,
+    ast integer not null, stl integer not null, blk integer not null, tov integer not null, pf integer not null,
+    team_tov     integer not null,                   -- pérdidas de equipo (24 s, campo atrás...): cuentan para las posesiones
+    fetched_at   timestamptz not null default now()
+);
+
 -- =============================================================
 -- Índices para las consultas más habituales
 -- =============================================================
@@ -165,6 +213,11 @@ create index if not exists idx_awards_player_id           on public.player_award
 create index if not exists idx_transactions_player_id     on public.transactions (player_id);
 create index if not exists idx_transactions_date          on public.transactions (transaction_date);
 create index if not exists idx_news_items_published       on public.news_items (published_at);
+create index if not exists idx_pgs_player_id              on public.player_game_stats (player_id);
+create index if not exists idx_pgs_season                 on public.player_game_stats (season_id, game_type);
+create index if not exists idx_pgs_game_id                on public.player_game_stats (game_id);
+create index if not exists idx_tgs_season                 on public.team_game_stats (season_id, game_type);
+create index if not exists idx_tgs_game_id                on public.team_game_stats (game_id);
 
 -- =============================================================
 -- Seguridad (RLS): lectura pública con la anon key; escritura solo
@@ -179,6 +232,8 @@ alter table public.player_contracts    enable row level security;
 alter table public.transactions        enable row level security;
 alter table public.sync_status         enable row level security;
 alter table public.news_items          enable row level security;  -- sin policy: solo el backend (service_role)
+alter table public.player_game_stats   enable row level security;  -- sin policy: solo el backend (service_role)
+alter table public.team_game_stats     enable row level security;  -- sin policy: solo el backend (service_role)
 
 drop policy if exists "public read teams"               on public.teams;
 drop policy if exists "public read players"             on public.players;

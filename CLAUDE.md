@@ -19,11 +19,17 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Instalar dependencias:** `pip install -r requirements.txt`
 - **Verificar sintaxis rápida (sin gastar API):** `python -m py_compile <archivo.py>`
 - **Ejecutar extractor/procesador:** `python -m extractors.<script>` o `python -m processors.<script>`
-- **Vigilar partidos terminados y poner la nota al instante:** `python watcher.py` (`--once`, `--backfill`, `--game-id X --dry-run`)
-- **Calendario completo de la temporada + directo de hoy:** `python -m extractors.fetch_live_and_final`
+- **Vigilar partidos terminados, poner la nota al instante, guardar su boxscore y recalcular la clasificación:** `python watcher.py` (`--once`, `--backfill`, `--skip-schedule`, `--game-id X --dry-run`)
+- **Calendario completo de la temporada (CDN) + directo de hoy:** `python -m extractors.fetch_live_and_final`
+- **Boxscores (CDN + correcciones oficiales de nba.com):** `python -m extractors.fetch_boxscores` (`--all`, `--game-id X`, `--cdn-only`, `--dry-run`)
+- **Clasificación calculada con desempates oficiales:** `python -m processors.standings_calc` (`--dry-run`)
+- **Estadísticas de temporada, carrera y récords desde los boxscores:** `python -m processors.season_stats_calc` (`--dry-run`)
+- **Radares (0-99) desde los boxscores:** `python -m processors.player_radar_calc` (`--dry-run`; `--official` = stats.nba.com, solo desde un PC)
+- **Ficha (altura, peso, draft...) de jugadores nuevos desde nba.com:** `python -m extractors.fetch_player_bios` (`--dry-run`)
 - **Aplicar el registro oficial de movimientos de la NBA a los contratos (fichajes, cortes, traspasos):** `python -m extractors.fetch_transactions` (`--dry-run`)
 - **Cifras de los contratos desde las noticias (RSS de Hoops Rumors y RealGM), justo después del anterior:** `python -m extractors.fetch_contract_news` (`--dry-run`)
-- **Tests del motor de contratos (sin red ni base de datos):** `python -m unittest discover -s tests -t .`
+- **Tests (contratos, clasificación, estadísticas; sin red ni base de datos):** `python -m unittest discover -s tests -t .`
+- **Solo desde un PC (stats.nba.com), de vez en cuando:** `python -m extractors.fetch_career_awards` (premios en febrero/mayo/junio; `--player-id X` para los "pending_history" de `sync_status.season_stats`; `--totals-only` = solo totales exactos)
 - **Carga completa de contratos desde Basketball-Reference (solo carga inicial: NO programar):** `python -m extractors.scrape_salaries` (`--dry-run`)
 - **Cargar leyendas retiradas (lista `LEGENDS`, ~8 min):** `python -m extractors.fetch_legends` (`--resume`, `--name "Michael Jordan"`)
 
@@ -65,6 +71,9 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Ficha del partido (`/games/[id]`):** boxscore, tiros y jugada a jugada salen de `/api/games/[id]` (`lib/game-detail.ts`: CDN `liveData` de la NBA reducida en el servidor y con métricas avanzadas; caché compartida de 30 s en directo y de horas si es `Final`). Es Nivel 3: el cliente solo la pide en ese nivel (`useGameDetail`).
 - **Cálculo Inmediato Post-Partido:** No se espera a las 07:00 AM. En cuanto un partido pasa a `Final` y `is_processed == False`, `watcher.py` calcula `excitement_score` inmediatamente (sea domingo por la tarde o de madrugada).
 - **Rate Limiting en Python:** Añade siempre `time.sleep(0.6)` entre llamadas consecutivas a endpoints estadísticos de `nba_api` y usa `.upsert(..., on_conflict="id")` en Supabase.
+- **`stats.nba.com/stats/*` bloquea las IPs de la nube (GitHub, Vercel):** nada automático puede usarlo. Desde GitHub Actions solo funcionan `cdn.nba.com` (`extractors/nba_cdn.py`), las páginas de nba.com (`extractors/nba_web.py`) y los estáticos de `stats.nba.com/js/data`. Lo que solo exista en `stats.nba.com/stats` (premios, historial de veteranos nuevos) se carga a mano desde un PC.
+- **Cifras oficiales (Tarea 5.2b):** la CDN no recoge las correcciones que la NBA hace días después; la página del partido de nba.com sí. `fetch_boxscores` combina las dos (`box_stats.apply_official`) y vuelve a comprobar cada partido una vez por semana. Validado con 2025-26 completa frente a stats.nba.com.
+- **Promedios de jugadores, una vez al día:** la ficha de un partido enseña promedios en el Nivel 1; si cambiaran minutos después de acabar, delatarían el partido. `season_stats_calc` y el radar van solo en el job diario. La clasificación sí se recalcula al acabar cada partido (no está en pantallas sin spoilers).
 
 ### C. Multimedia, Tarjetas RRSS y Diseño UI
 - **CDN Oficial NBA:** Fotos en `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png` y logos en `https://cdn.nba.com/logos/nba/${teamId}/global/L/logo.svg`.
@@ -102,9 +111,11 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - `teams`: `id` (PK int), `name`, `abbreviation`, `conference`, `division`, `primary_color`, `secondary_color`, `wins`, `losses`, `conf_rank`, `standings_extra` (jsonb), `dead_money` (jsonb `[{name, salaries[4], waived, pending?, player_id?, waived_on?, txn?, contract?}]`; `pending` = cifra no segura).
 - `players`: `id` (PK int), `team_id` (FK), `full_name`, `position`, `height`, `weight`, `country`, `birth_date`, `draft_year`, `draft_number`, `is_active`, `radar_attributes` (jsonb).
 - `games`: `id` (PK text), `game_datetime_utc` (timestamptz), `home_team_id` (FK), `away_team_id` (FK), `home_score`, `away_score`, `status` (`Scheduled`/`Live`/`Final`), `live_period_text`, `excitement_score` (float), `ai_teaser_level2`/`ai_summary_full` (sin uso por ahora), `quarters_score` (jsonb `{"home": [...], "away": [...]}`, un valor por periodo), `is_processed` (bool).
-- `player_season_stats`: `id` (PK text `"{player_id}_{season_id}_{season_type}"`), `player_id` (FK), `season_id`, `team_id`, `season_type`, `games_played`, `pts`, `reb`, `ast`, `fg_pct`, `fg3_pct`, `advanced_stats` (jsonb).
+- `player_season_stats`: `id` (PK text `"{player_id}_{season_id}_{season_type}"`), `player_id` (FK), `season_id`, `team_id`, `season_type`, `games_played`, `pts`, `reb`, `ast`, `fg_pct`, `fg3_pct`, `advanced_stats` (jsonb), `totals` (jsonb, totales exactos; en "Career" además `history` = antes de la temporada en curso y `history_through`).
+- `player_game_stats` (PRIVADA): `id` (PK `"{game_id}_{player_id}"`), `game_id` (FK), `player_id`, `team_id`, `opponent_id`, `season_id`, `game_type` (prefijo del gameId: `002` regular, `004` playoffs, `005` play-in, `006` final de la Copa), `game_date` (ET), `starter`, `seconds`, totales (`pts`...`pf`), `plus_minus`, `on_court_pts`, `on_court_opp_pts`, `fetched_at`.
+- `team_game_stats` (PRIVADA): `id` (PK `"{game_id}_{team_id}"`), mismos totales que la anterior + `is_home`, `team_tov`.
 - `player_awards`: `id` (PK serial), `player_id` (FK), `award_name`, `season`.
 - `player_contracts`: `player_id` (PK/FK int), `salary_current` (NULL si `pending`), `salary_year_2`, `salary_year_3`, `salary_year_4`, `contract_option` (próxima opción pendiente o NULL), `signed_on`, `signed_kind`, `acquired_on`, `status` (`confirmed`/`pending`/`pending_future`), `source` (jsonb; NULL = carga inicial de BR), `updated_at`.
 - `transactions`: `id` (PK text `"{GroupSort}:{PLAYER_ID}:{TEAM_ID}"`), `transaction_date`, `type`, `contract_type`, `player_id`, `team_id`, `other_team_id`, `description`, `outcome`, `details` (jsonb), `applied_at`. Registro oficial tal como se aplicó.
-- `sync_status`: `id` (PK text: `contracts`, `contract_news`), `last_run_at`, `last_success_at`, `last_error`, `details` (jsonb).
+- `sync_status` (lectura pública: nunca resultados en `details`): `id` (PK text: `contracts`, `contract_news`, `boxscores`, `standings`, `season_stats`), `last_run_at`, `last_success_at`, `last_error`, `details` (jsonb; `boxscores.uncorrected` = partidos aún sin cifras oficiales, `season_stats.pending_history` = jugadores sin carrera).
 - `news_items` (PRIVADA, sin lectura pública): `id` (PK text `"{fuente}:{guid}"`), `source`, `url`, `title`, `published_at`, `body` (solo el principio), `fetched_at`. Se borran a los 150 días.

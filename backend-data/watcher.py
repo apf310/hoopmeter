@@ -4,6 +4,9 @@ Cada pasada:
   1. Sincroniza el calendario de la temporada (al arrancar y cada 6 h) y el directo de hoy.
   2. Para cada partido `Final` con `is_processed == False`: calcula la nota 1.0-10.0 y la
      guarda con `is_processed = True`.
+  3. Tarea 5.2b: guarda el boxscore de ese mismo partido (`player_game_stats`, `team_game_stats`) y, si
+     ha terminado alguno, recalcula la clasificación. Un fallo aquí no frena las notas, pero con --once
+     sale con código 1 para que GitHub avise; el job diario rellena lo que falte.
 
 Por consola solo se muestra la nota (sin marcadores): el watcher tampoco te destripa nada.
 
@@ -20,8 +23,11 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from config import SUPABASE_SERVICE_KEY, SUPABASE_URL
+from extractors.fetch_boxscores import save_new_game
 from extractors.fetch_live_and_final import sync_schedule, sync_today, team_ids
-from processors.excitement_calculator import analyze_game
+from processors import standings_calc
+from processors.box_stats import BoxScoreError
+from processors.excitement_calculator import compute, fetch_game
 
 POLL_SECONDS = 60
 SCHEDULE_REFRESH_SECONDS = 6 * 3600
@@ -38,8 +44,11 @@ def load_pending(client, backfill: bool) -> list[str]:
     return [r["id"] for r in query.order("game_datetime_utc", desc=True).execute().data]
 
 
-def process_game(client, game_id: str, dry_run: bool) -> None:
-    result = analyze_game(game_id)
+def process_game(client, game_id: str, dry_run: bool, state: dict | None = None) -> None:
+    box, actions = fetch_game(game_id)
+    if box["gameStatus"] != 3:
+        raise ValueError(f"El partido {game_id} aún no ha terminado (gameStatus={box['gameStatus']})")
+    result = compute(box, actions)
     row = {
         "excitement_score": result["excitement_score"],
         "home_score": result["home_score"],
@@ -54,6 +63,16 @@ def process_game(client, game_id: str, dry_run: bool) -> None:
         print("    desglose:", result["breakdown"])
         return
     client.table("games").update(row).eq("id", game_id).execute()
+    # Mismo boxscore, sin volver a pedirlo: estadísticas de jugadores y equipos del partido (solo si aún no
+    # estaba guardado; el job diario lo sustituye por las cifras oficiales corregidas de nba.com)
+    try:
+        save_new_game(client, box)
+    except BoxScoreError as exc:  # recién terminado puede no cuadrar aún: el job diario lo reintenta y avisa
+        print(f"    ~ boxscore de {game_id} pendiente: {exc}")
+    except Exception as exc:  # red o base de datos
+        print(f"    ! boxscore de {game_id} sin guardar: {exc!r}")
+        if state is not None:
+            state["errors"].append(f"boxscore {game_id}")
 
 
 def run_pass(client, state: dict, args) -> None:
@@ -73,12 +92,23 @@ def run_pass(client, state: dict, args) -> None:
         pending = pending[:args.limit]
     if pending:
         print(f"Procesando {len(pending)} partidos terminados...")
+    processed = 0
     for game_id in pending:
         try:
-            process_game(client, game_id, args.dry_run)
+            process_game(client, game_id, args.dry_run, state)
+            processed += 1
         except Exception as exc:  # p. ej. la CDN aún no tiene el boxscore final: se reintenta luego
             print(f"  ! {game_id}: {exc!r}")
             state["failures"][game_id] = state["failures"].get(game_id, 0) + 1
+
+    # La clasificación cambia en cuanto termina un partido (se muestra siempre, sin modo sin spoilers)
+    if processed and not args.dry_run:
+        try:
+            standings_calc.update(client)
+            print("Clasificación actualizada")
+        except Exception as exc:
+            print(f"! Clasificación sin actualizar: {exc!r}")
+            state["errors"].append("clasificación")
 
 
 def main() -> None:
@@ -105,7 +135,7 @@ def main() -> None:
             process_game(client, game_id, args.dry_run)
         return
 
-    state = {"schedule_synced_at": 0.0, "team_ids": team_ids(), "failures": {}}
+    state = {"schedule_synced_at": 0.0, "team_ids": team_ids(), "failures": {}, "errors": []}
     try:
         while True:
             try:
@@ -115,7 +145,10 @@ def main() -> None:
                 if args.once:  # en GitHub Actions, el código 1 manda un aviso por email
                     sys.exit(1)
             if args.once:
+                if state["errors"]:  # boxscore o clasificación: GitHub avisa por email
+                    sys.exit(1)
                 break
+            state["errors"].clear()
             time.sleep(POLL_SECONDS)
     except KeyboardInterrupt:
         print("\nWatcher detenido")

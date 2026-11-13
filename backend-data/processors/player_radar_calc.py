@@ -1,7 +1,8 @@
 """Tarea 2.1 — Percentiles 0-99 del radar de 6 atributos de cada jugador.
 
-Con 2 llamadas a nba_api (LeagueDashPlayerStats Base + Advanced, toda la liga) calcula
-y guarda en `players.radar_attributes`:
+Las métricas de cada jugador salen de los boxscores guardados (`player_game_stats`, Tarea 5.2b:
+stats.nba.com bloquea la nube), con las mismas claves que LeagueDashPlayerStats Base + Advanced, y se
+guarda en `players.radar_attributes`:
 
     {"season": "2025-26", "scoring": 91, "shooting": 64, "playmaking": 99,
      "defense": 72, "rebounding": 97, "efficiency": 95,
@@ -15,8 +16,9 @@ se usa la anterior (salvo que se pase --season).
 
 Uso (desde backend-data/):
     python -m processors.player_radar_calc                    # temporada actual
-    python -m processors.player_radar_calc --season 2025-26
+    python -m processors.player_radar_calc --season 2026-27
     python -m processors.player_radar_calc --dry-run          # muestra el top sin escribir
+    python -m processors.player_radar_calc --official         # métricas de stats.nba.com (solo desde un PC)
 """
 import argparse
 import sys
@@ -105,6 +107,23 @@ def radar_payload(r, season: str, updated_at: str) -> dict:
     }
 
 
+def fetch_league_from_boxscores(client, season: str) -> pd.DataFrame:
+    """Mismas columnas que `fetch_league`, calculadas con los boxscores guardados de la temporada."""
+    from db import select_all
+    from processors import season_stats
+
+    games = select_all(client, "player_game_stats", "*", lambda q: q.eq("season_id", season))
+    teams = select_all(client, "team_game_stats", "*", lambda q: q.eq("season_id", season))
+    seasons = season_stats.aggregate(games)
+    rows = season_stats.season_frame_rows(seasons, season, season_stats.group_team_games(teams))
+    if not rows:
+        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    names = load_player_names(client)
+    df["PLAYER_NAME"] = df["PLAYER_ID"].map(lambda pid: names.get(int(pid), str(pid)))
+    return df
+
+
 def load_player_names(client) -> dict[int, str]:
     names, start = {}, 0
     while True:
@@ -121,17 +140,36 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--season", help="temporada 'YYYY-YY' (por defecto la actual)")
     parser.add_argument("--dry-run", action="store_true", help="no escribe en Supabase")
+    parser.add_argument("--official", action="store_true", help="métricas de stats.nba.com (bloquea la nube: solo desde un PC)")
     args = parser.parse_args()
 
-    season = args.season or Season.default
-    print(f"Descargando estadísticas de la liga {season}...")
-    df = fetch_league(season)
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        sys.exit("Faltan SUPABASE_URL y/o SUPABASE_KEY en backend-data/.env")
+    from supabase import create_client
+
+    client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    if args.official:
+        season = args.season or Season.default
+        load = fetch_league
+    else:
+        from processors.season_stats_calc import current_season
+
+        season = args.season or current_season(client)
+        if season is None:
+            print("Sin partidos terminados: el radar no cambia")
+            return
+        load = lambda s: fetch_league_from_boxscores(client, s)  # noqa: E731
+
+    print(f"Estadísticas de la liga {season}{' (stats.nba.com)' if args.official else ' (boxscores)'}...")
+    df = load(season)
     if not args.season and (df.empty or df["GP"].max() < MIN_SEASON_GAMES):
         season = previous_season(season)
         print(f"  pocos partidos jugados: se usa la temporada {season}")
-        df = fetch_league(season)
+        df = load(season)
     if df.empty:
-        sys.exit(f"Sin estadísticas para {season}")
+        # Sin datos (p. ej. la temporada anterior a la Tarea 5.2b): se conserva el radar guardado
+        print(f"Sin estadísticas para {season}: el radar no cambia")
+        return
 
     df = compute_radar(df)
     print(f"  {len(df)} jugadores · {int(df['qualified'].sum())} cualificados")
@@ -142,12 +180,6 @@ def main() -> None:
         print(top[["PLAYER_NAME", "GP", *CATEGORIES]].to_string(index=False))
         return
 
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        sys.exit("Faltan SUPABASE_URL y/o SUPABASE_KEY en backend-data/.env")
-
-    from supabase import create_client
-
-    client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     names = load_player_names(client)
     updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     # full_name va incluido porque el upsert valida NOT NULL antes de resolver el conflicto

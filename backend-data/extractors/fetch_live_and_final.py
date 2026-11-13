@@ -1,8 +1,9 @@
 """Tarea 3.2 — Calendario completo de la temporada y estado en directo de los partidos de hoy.
 
-- Calendario (`ScheduleLeagueV2`): todos los partidos de la temporada en `games`, para que la
-  web pueda mostrar cualquier jornada (ayer, mañana, dentro de 3 días...). Partidos ya jugados
-  con su marcador final; los futuros como `Scheduled`.
+- Calendario (`scheduleLeagueV2_1.json` de la CDN, el mismo que daba `ScheduleLeagueV2` de stats.nba.com,
+  que bloquea la nube): todos los partidos de la temporada en `games`, para que la web pueda mostrar
+  cualquier jornada (ayer, mañana, dentro de 3 días...). Partidos ya jugados con su marcador final; los
+  futuros como `Scheduled`.
 - Hoy (`live.nba.endpoints.scoreboard`): estado, marcador, `live_period_text` y `quarters_score`.
 
 Nunca escribe `excitement_score`, los textos IA ni `is_processed`: eso es cosa de `watcher.py`.
@@ -18,10 +19,10 @@ import re
 import sys
 
 from nba_api.live.nba.endpoints import scoreboard
-from nba_api.stats.endpoints import scheduleleaguev2
 from nba_api.stats.static import teams as static_teams
 
 from config import SUPABASE_SERVICE_KEY, SUPABASE_URL
+from extractors import nba_cdn
 from extractors.fetch_teams_players import to_int, upsert
 
 TIMEOUT = 60
@@ -40,23 +41,28 @@ def is_valid_game(game_id: str, home_id, away_id, valid_teams: set[int]) -> bool
 
 def build_schedule(valid_teams: set[int]) -> list[dict]:
     """Todas las filas del calendario de la temporada actual (mismas claves en todas)."""
-    df = scheduleleaguev2.ScheduleLeagueV2(timeout=TIMEOUT).get_data_frames()[0]
+    games = [g for day in nba_cdn.schedule()["gameDates"] for g in day.get("games") or []]
     rows = []
-    for r in df.to_dict("records"):
-        home_id, away_id = to_int(r["homeTeam_teamId"]), to_int(r["awayTeam_teamId"])
-        if not is_valid_game(r["gameId"], home_id, away_id, valid_teams):
+    for g in games:
+        home, away = g["homeTeam"], g["awayTeam"]
+        home_id, away_id = to_int(home.get("teamId")), to_int(away.get("teamId"))
+        if not is_valid_game(g["gameId"], home_id, away_id, valid_teams):
             continue
-        status = STATUS.get(to_int(r["gameStatus"]), "Scheduled")
+        status = STATUS.get(to_int(g["gameStatus"]), "Scheduled")
         played = status != "Scheduled"
         rows.append({
-            "id": r["gameId"],
-            "game_datetime_utc": r["gameDateTimeUTC"],
+            "id": g["gameId"],
+            "game_datetime_utc": g["gameDateTimeUTC"],
             "home_team_id": home_id,
             "away_team_id": away_id,
-            "home_score": to_int(r["homeTeam_score"]) if played else None,
-            "away_score": to_int(r["awayTeam_score"]) if played else None,
+            "home_score": to_int(home.get("score")) if played else None,
+            "away_score": to_int(away.get("score")) if played else None,
             "status": status,
+            # Campo neutral (México, París, Las Vegas...): desde 2024-25 la NBA no lo cuenta en casa/fuera
+            "is_neutral": bool(g.get("isNeutral")),
         })
+    if len(rows) < 100:  # un calendario casi vacío es un archivo roto: mejor no tocar nada
+        raise RuntimeError(f"El calendario de la NBA solo trae {len(rows)} partidos válidos")
     return rows
 
 

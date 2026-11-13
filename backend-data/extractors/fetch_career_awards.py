@@ -8,12 +8,21 @@ Llena `player_season_stats` (Regular Season y Playoffs, promedios por partido) y
   equipo de esa temporada y el desglose va en `advanced_stats.teams`.
 - Fila de carrera: season_id = "Career" con los promedios totales y, en Regular Season,
   los récords personales en `advanced_stats.career_highs`.
+- Tarea 5.2b: cada fila guarda también sus totales exactos en `totals`, y la de carrera, en
+  `totals.history`, los de las temporadas anteriores a la actual. Con ellos `season_stats_calc.py`
+  mantiene la carrera al día desde GitHub Actions sin volver a pedir nada a stats.nba.com.
+
+stats.nba.com bloquea la nube: este script solo funciona desde un PC. Ya no hace falta programarlo;
+basta con ejecutarlo de vez en cuando para los premios (All-Star en febrero, premios en mayo, campeón
+en junio) y para los veteranos que lleguen nuevos a la base de datos ("pending_history").
 
 Uso (desde backend-data/):
-    python -m extractors.fetch_career_awards                       # todos los activos (~25 min)
+    python -m extractors.fetch_career_awards                       # todos los activos (~40 min)
     python -m extractors.fetch_career_awards --resume              # solo los que aún no están guardados
     python -m extractors.fetch_career_awards --player-id 2544 --player-id 203999  # jugadores concretos
     python -m extractors.fetch_career_awards --limit 20 --dry-run  # prueba sin escribir
+    python -m extractors.fetch_career_awards --totals-only         # solo los totales (carga inicial, ~15 min)
+    python -m extractors.fetch_career_awards --totals-only --resume  # los que aún no tienen totales
 
 Si stats.nba.com empieza a bloquear (varios jugadores seguidos fallan), el script se
 detiene solo: espera un rato (15-30 min) y relánzalo con --resume.
@@ -24,6 +33,7 @@ import sys
 import time
 
 from nba_api.stats.endpoints import playerawards, playercareerstats
+from nba_api.stats.library.parameters import Season
 from nba_api.stats.static import teams as static_teams
 from requests.exceptions import RequestException
 
@@ -108,6 +118,61 @@ def stats_row(player_id: int, season_id: str, season_type: str, r, team_id, extr
     }
 
 
+# Totales exactos (`player_season_stats.totals`) -> columna de PlayerCareerStats en modo Totals
+TOTALS_COLUMNS = {"gp": "GP", "gs": "GS", "min": "MIN", "pts": "PTS", "fgm": "FGM", "fga": "FGA", "fg3m": "FG3M",
+                  "fg3a": "FG3A", "ftm": "FTM", "fta": "FTA", "oreb": "OREB", "dreb": "DREB", "reb": "REB",
+                  "ast": "AST", "stl": "STL", "blk": "BLK", "tov": "TOV", "pf": "PF"}
+
+
+def totals_of(r) -> dict:
+    out = {}
+    for key, column in TOTALS_COLUMNS.items():
+        value = clean(r.get(column))
+        out[key] = None if value is None else (round(float(value), 2) if key == "min" else int(round(float(value))))
+    return out
+
+
+def subtract_totals(a: dict, b: dict) -> dict:
+    """a - b campo a campo (desconocido si falta en cualquiera)."""
+    out = {}
+    for key in TOTALS_COLUMNS:
+        if a.get(key) is None or b.get(key) is None:
+            out[key] = None
+        else:
+            out[key] = round(a[key] - b[key], 2) if key == "min" else a[key] - b[key]
+    return out
+
+
+def previous_season(season: str) -> str:
+    start = int(season[:4]) - 1
+    return f"{start}-{(start + 1) % 100:02d}"
+
+
+def build_totals(player_id: int, current_season: str) -> dict[str, dict]:
+    """{id de fila: totales} de cada temporada (la combinada si hubo traspaso) y de la carrera, con su
+    historial (carrera menos la temporada en curso) para que la carrera se pueda mantener sumando."""
+    data = nba_call(playercareerstats.PlayerCareerStats, player_id=player_id, per_mode36="Totals")
+    out = {}
+    for season_type, (seasons_key, career_key) in SEASON_TYPES.items():
+        current = None
+        df = data.get(seasons_key)
+        if df is not None and not df.empty:
+            for season_id, group in df.groupby("SEASON_ID", sort=False):
+                records = group.to_dict("records")
+                row = next((r for r in records if not to_int(r["TEAM_ID"])), None) or records[-1]  # TOT si hubo traspaso
+                totals = totals_of(row)
+                out[f"{player_id}_{season_id}_{season_type}"] = totals
+                if str(season_id) == current_season:
+                    current = totals
+        career = data.get(career_key)
+        if career is not None and not career.empty and to_int(career.iloc[0].get("GP")):
+            career_totals = totals_of(career.iloc[0].to_dict())
+            history = subtract_totals(career_totals, current) if current else dict(career_totals)
+            out[f"{player_id}_Career_{season_type}"] = {**career_totals, "history": history,
+                                                        "history_through": previous_season(current_season)}
+    return out
+
+
 def season_rows(player_id: int, season_type: str, df, team_ids: set[int]) -> list[dict]:
     rows = []
     if df is None or df.empty:
@@ -154,7 +219,7 @@ def career_highs(df) -> dict:
     return highs
 
 
-def build_stats(player_id: int, team_ids: set[int]) -> list[dict]:
+def build_stats(player_id: int, team_ids: set[int], totals: dict[str, dict] | None = None) -> list[dict]:
     data = nba_call(playercareerstats.PlayerCareerStats, player_id=player_id, per_mode36="PerGame")
     rows = []
     for season_type, (seasons_key, career_key) in SEASON_TYPES.items():
@@ -163,6 +228,9 @@ def build_stats(player_id: int, team_ids: set[int]) -> list[dict]:
         if career is not None and not career.empty and to_int(career.iloc[0].get("GP")):
             extra = {"career_highs": career_highs(data.get("CareerHighs"))} if season_type == "Regular Season" else {}
             rows.append(stats_row(player_id, "Career", season_type, career.iloc[0].to_dict(), None, extra))
+    if totals is not None:
+        for row in rows:
+            row["totals"] = totals.get(row["id"])
     return rows
 
 
@@ -203,17 +271,37 @@ def load_active_players(client, columns: str = "id, full_name") -> list[dict]:
         start += PAGE_SIZE
 
 
-def load_processed_ids(client) -> set[int]:
-    """Jugadores ya guardados: los que tienen su fila de carrera de Regular Season."""
+def load_processed_ids(client, with_totals: bool = False) -> set[int]:
+    """Jugadores ya guardados: los que tienen su fila de carrera de Regular Season (con totales si se pide)."""
     ids, start = set(), 0
     while True:
-        page = (client.table("player_season_stats").select("player_id")
-                .eq("season_id", "Career").eq("season_type", "Regular Season")
-                .order("player_id").range(start, start + PAGE_SIZE - 1).execute().data)
+        query = (client.table("player_season_stats").select("player_id")
+                 .eq("season_id", "Career").eq("season_type", "Regular Season"))
+        if with_totals:
+            query = query.not_.is_("totals", "null")
+        page = query.order("player_id").range(start, start + PAGE_SIZE - 1).execute().data
         ids.update(r["player_id"] for r in page)
         if len(page) < PAGE_SIZE:
             return ids
         start += PAGE_SIZE
+
+
+def load_row_ids(client, player_id: int) -> set[str]:
+    return {r["id"] for r in client.table("player_season_stats").select("id").eq("player_id", player_id).execute().data}
+
+
+def save_totals(client, player_id: int, totals: dict[str, dict]) -> int:
+    """Solo añade `totals` a filas que ya existen (nunca crea filas sin promedios)."""
+    existing = load_row_ids(client, player_id)
+    rows = []
+    for row_id, value in totals.items():
+        if row_id not in existing:
+            continue
+        _, season_id, season_type = row_id.split("_", 2)
+        rows.append({"id": row_id, "player_id": player_id, "season_id": season_id, "season_type": season_type, "totals": value})
+    if rows:
+        upsert(client, "player_season_stats", rows)
+    return len(rows)
 
 
 def save_player(client, player_id: int, stats: list[dict], awards: list[dict]) -> None:
@@ -232,7 +320,9 @@ def main() -> None:
     parser.add_argument("--limit", type=int, help="procesa como mucho N jugadores")
     parser.add_argument("--dry-run", action="store_true", help="no escribe en Supabase")
     parser.add_argument("--resume", action="store_true", help="salta los jugadores que ya están guardados")
+    parser.add_argument("--totals-only", action="store_true", help="solo los totales exactos de las filas ya guardadas")
     args = parser.parse_args()
+    current_season = Season.current_season
 
     client = None
     if not args.dry_run or not args.player_id:
@@ -247,7 +337,7 @@ def main() -> None:
     else:
         players = load_active_players(client)
     if args.resume:
-        done = load_processed_ids(client)
+        done = load_processed_ids(client, with_totals=args.totals_only)
         players = [p for p in players if p["id"] not in done]
         print(f"--resume: {len(done)} jugadores ya guardados, se saltan")
     if args.limit:
@@ -261,7 +351,19 @@ def main() -> None:
     try:
         for i, p in enumerate(players, 1):
             try:
-                stats = build_stats(p["id"], team_ids)
+                totals = build_totals(p["id"], current_season)
+                time.sleep(API_SLEEP_SECONDS)
+                if args.totals_only:
+                    if args.dry_run:
+                        if i == 1:
+                            print("\n[dry-run] Totales:", {k: v for k, v in totals.items() if "Career" in k})
+                    else:
+                        n_stats += save_totals(client, p["id"], totals)
+                    consecutive = 0
+                    if i % 25 == 0:
+                        print(f"  {i}/{len(players)}")
+                    continue
+                stats = build_stats(p["id"], team_ids, totals)
                 time.sleep(API_SLEEP_SECONDS)
                 awards = build_awards(p["id"])
                 time.sleep(API_SLEEP_SECONDS)

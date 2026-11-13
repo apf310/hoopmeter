@@ -3,7 +3,7 @@ import type { SignedKind } from "@/lib/trade-rules";
 
 export type GameResult = "W" | "L";
 
-/** `teams.standings_extra`, rellenado por `fetch_teams_players.py`. */
+/** `teams.standings_extra`, calculado con los resultados por `standings_calc.py` (Tarea 5.2b). */
 export type StandingsExtra = {
   streak?: string | null; // "W3" / "L1"
   l10?: string | null; // "3-4" (con menos de 10 partidos, los que haya)
@@ -74,7 +74,7 @@ export type SeasonType = "Regular Season" | "Playoffs";
 /** Récord personal de `advanced_stats.career_highs` (clave = STAT de nba_api: PTS, REB, AST, FG3M…). */
 export type CareerHigh = { value: number | null; date: string | null; vs: string | null; game_id: string | null };
 
-/** `player_season_stats.advanced_stats`, rellenado por `fetch_career_awards.py`. */
+/** `player_season_stats.advanced_stats`: `season_stats_calc.py` (temporada en curso y carrera) o `fetch_career_awards.py` (temporadas anteriores). */
 export type SeasonAdvancedStats = {
   gs?: number | null;
   min?: number | null;

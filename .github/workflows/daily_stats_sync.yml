@@ -1,19 +1,16 @@
-# Una vez al día, con todos los partidos de la noche ya terminados: calendario de la temporada,
-# clasificación y plantillas, y radares (0-99). Los lunes, además, la trayectoria y el palmarés
-# de todos los jugadores activos (~25 min). Todo sale de stats.nba.com: si bloquea, el job falla
-# y GitHub manda un aviso por email.
+# Una vez al día, con todos los partidos de la noche ya terminados. Todo sale de la CDN de la NBA y de
+# nuestra base de datos (stats.nba.com bloquea las IPs de la nube, Tarea 5.2b):
+#   calendario -> notas pendientes -> boxscores -> clasificación -> estadísticas y carrera -> radar -> fichas
+# Las estadísticas de los jugadores se recalculan solo aquí (una vez al día): la ficha de un partido enseña
+# promedios en el Nivel 1 y no deben cambiar minutos después de que termine.
+# Cada paso es independiente (si uno falla, los demás siguen y el job queda en rojo), salvo los tests:
+# si fallan, no se escribe nada. El registro es público: ningún paso imprime marcadores ni resultados.
 name: Estadísticas diarias
 
 on:
   schedule:
     - cron: "30 10 * * *" # 10:30 UTC
-    - cron: "30 11 * * 1" # lunes 11:30 UTC: trayectorias y palmarés
   workflow_dispatch:
-    inputs:
-      careers:
-        description: "Incluir trayectorias y palmarés (~25 min)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -25,7 +22,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: backend-data
@@ -33,6 +30,7 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       PYTHONUTF8: "1"
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -41,16 +39,28 @@ jobs:
           cache: pip
           cache-dependency-path: backend-data/requirements.txt
       - run: pip install -r requirements.txt
-      # Cada paso es independiente: si uno falla, los demás se ejecutan igual (y el job queda en rojo)
+      - name: Tests (sin red)
+        id: tests
+        run: python -m unittest discover -s tests -t .
       - name: Calendario y partidos de hoy
-        if: ${{ github.event.schedule != '30 11 * * 1' }}
         run: python -m extractors.fetch_live_and_final
-      - name: Clasificación y plantillas
-        if: ${{ !cancelled() && github.event.schedule != '30 11 * * 1' }}
-        run: python -m extractors.fetch_teams_players
+      # Los partidos que el watcher no llegó a puntuar (más de 2 días): nota, boxscore y clasificación
+      - name: Notas pendientes
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
+        run: python watcher.py --once --backfill --skip-schedule
+      # Lo que falte y los últimos 3 días (la NBA corrige a veces estadísticas al día siguiente)
+      - name: Boxscores
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
+        run: python -m extractors.fetch_boxscores
+      - name: Clasificación
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
+        run: python -m processors.standings_calc
+      - name: Estadísticas de temporada, carrera y récords
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
+        run: python -m processors.season_stats_calc
       - name: Radares
-        if: ${{ !cancelled() && github.event.schedule != '30 11 * * 1' }}
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
         run: python -m processors.player_radar_calc
-      - name: Trayectorias y palmarés
-        if: ${{ !cancelled() && (github.event.schedule == '30 11 * * 1' || inputs.careers) }}
-        run: python -m extractors.fetch_career_awards
+      - name: Fichas de jugadores nuevos
+        if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
+        run: python -m extractors.fetch_player_bios

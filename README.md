@@ -118,9 +118,12 @@ flowchart TD
 2. **En el instante en que un partido termina (`status == "Final"`):**
    * Nuestro proceso detector ve que el partido `ID` ha pasado a `Final` y aún no tiene calculado su `excitement_score`.
    * **Al instante (tarde o madrugada):** Descarga el *Boxscore* final y el *Play-by-Play*, calcula la nota del `1.0` al `10.0` y la guarda en Supabase.
-   * Así, si un partido del domingo acaba a las 23:45 o uno entre semana acaba a las 03:30 AM, **1 minuto después ya tiene su nota lista**.
+   * Así, si un partido del domingo acaba a las 23:45 o uno entre semana acaba a las 03:30 AM, **minutos después ya tiene su nota lista** (GitHub Actions lanza el watcher cada 5 minutos).
+   * En la misma pasada guarda el boxscore del partido y recalcula la clasificación (victorias, casa/fuera, rachas y puesto con los desempates oficiales de la NBA).
 3. **Sincronización de Consolidación (Diaria / Semanal):**
-   * Un job diario recalcula los percentiles globales de los radares de todos los jugadores (`0-99`) y actualiza récords personales.
+   * **Sin `stats.nba.com` (Tarea 5.2b):** la NBA bloquea las IPs de la nube, así que todo lo automático sale de la CDN y de las páginas públicas de nba.com. Las estadísticas de temporada, la carrera, los récords y el radar se calculan con los boxscores guardados; las cifras se comparan con las correcciones oficiales de nba.com (la CDN no las recoge) y cada partido se vuelve a comprobar una vez por semana. Validado con la temporada 2025-26 completa frente a las cifras oficiales.
+   * Un job diario (10:30 UTC) sincroniza el calendario, pone las notas pendientes, refresca boxscores, clasificación, estadísticas, carrera, récords y radares (`0-99`), y completa la ficha de los jugadores nuevos. Los promedios cambian solo aquí: la ficha de un partido los enseña en el Nivel 1.
+   * Desde un PC, solo de vez en cuando: `fetch_career_awards.py` para los premios (All-Star, premios de final de temporada, campeón) y para el historial de veteranos que lleguen nuevos a la base de datos.
    * Varias veces al día (cada pocos minutos en julio y en la fecha límite), `fetch_transactions.py` aplica a los contratos el registro oficial de movimientos de la NBA y, justo después, `fetch_contract_news.py` pone las cifras que publican los medios fiables. `scrape_salaries.py` (Basketball-Reference) solo se usó para la carga inicial.
 
 ---
@@ -242,18 +245,23 @@ hoopmeter/
 ├── .gitignore
 ├── .github/
 │   └── workflows/
-│       ├── live_game_watcher.yml    # Revisa partidos terminados y dispara nota + IA al instante
-│       ├── daily_stats_sync.yml     # Consolida estadísticas de temporada y radares (0-99)
+│       ├── live_game_watcher.yml    # Cada 5 min: nota, boxscore y clasificación de cada partido que termina
+│       ├── daily_stats_sync.yml     # Diario: calendario, boxscores corregidos, estadísticas, carrera, radares y fichas
 │       └── contracts_sync.yml       # Aplica el registro oficial de movimientos (varias veces al día)
 │
 ├── backend-data/                    # 🐍 MOTOR DE DATOS, TIEMPO REAL E IA (PYTHON)
 │   ├── requirements.txt
 │   ├── .env.example
 │   ├── config.py
+│   ├── db.py                        # Utilidades de Supabase (paginación, upsert, sync_status)
 │   ├── extractors/
-│   │   ├── fetch_teams_players.py   # Equipos y jugadores activos/históricos
-│   │   ├── fetch_live_and_final.py  # Detecta partidos en curso y recién terminados
-│   │   ├── fetch_career_awards.py   # Trayectoria y palmarés de jugadores
+│   │   ├── nba_cdn.py               # CDN de la NBA (calendario, boxscores, índice de jugadores), con reintentos
+│   │   ├── nba_web.py               # Páginas de nba.com: boxscore oficial corregido y ficha del jugador
+│   │   ├── fetch_teams_players.py   # Equipos y jugadores activos (stats.nba.com: solo desde un PC)
+│   │   ├── fetch_live_and_final.py  # Calendario (CDN) y partidos de hoy en directo
+│   │   ├── fetch_boxscores.py       # Boxscores CDN + correcciones oficiales -> player/team_game_stats
+│   │   ├── fetch_player_bios.py     # Ficha de los jugadores nuevos (altura, peso, draft...)
+│   │   ├── fetch_career_awards.py   # Trayectoria, totales exactos y palmarés (stats.nba.com: solo desde un PC)
 │   │   ├── fetch_legends.py         # Leyendas retiradas para el comparador y sus fichas
 │   │   ├── fetch_transactions.py    # Registro oficial de movimientos de la NBA -> contratos del GM
 │   │   ├── fetch_contract_news.py   # Cifras de los contratos desde los RSS de Hoops Rumors y RealGM
@@ -264,6 +272,11 @@ hoopmeter/
 │   │   ├── contract_news.py         # Lee en una noticia las condiciones del contrato de un jugador
 │   │   ├── contract_resolver.py     # Decide las cifras (exactas, ≈ o sin cifra) a partir de las noticias
 │   │   ├── excitement_calculator.py # Calcula la nota numérica pura (1.0 - 10.0) al acabar el partido
+│   │   ├── box_stats.py             # Boxscore -> filas por jugador y equipo, con comprobaciones (puro)
+│   │   ├── standings.py             # Clasificación y desempates oficiales de la NBA (puro)
+│   │   ├── standings_calc.py        # Calcula y guarda la clasificación (una sola transacción)
+│   │   ├── season_stats.py          # Temporada, carrera, récords y métricas del radar (puro)
+│   │   ├── season_stats_calc.py     # Calcula y guarda temporada, carrera y récords
 │   │   ├── player_radar_calc.py     # Calcula percentiles (0-99) de cada jugador
 │   │   ├── ai_chronicler.py         # APARCADO: textos IA con Gemini (fuera del pipeline)
 │   │   └── social_bot.py            # Publica alertas en X/Twitter o Telegram (opcional)
@@ -351,4 +364,5 @@ hoopmeter/
 ### 📱 Fase 5: App Móvil (PWA + Capacitor), Bot de Redes y Despliegue
 * [ ] **Tarea 5.1:** Configurar PWA y **Capacitor.js** para instalar la app en Android/iOS.
 * [ ] **Tarea 5.2:** Desplegar la web en **Vercel** y activar los workflows automáticos en GitHub Actions.
+  * [ ] **Tarea 5.2b:** Datos sin `stats.nba.com` (bloquea la nube): calendario desde la CDN, boxscores con correcciones oficiales de nba.com, clasificación con desempates oficiales, estadísticas, carrera, récords, radar y fichas calculados desde GitHub Actions.
 * [ ] **Tarea 5.3:** (Opcional) Conectar `social_bot.py` a la API gratuita de X/Twitter o Telegram para publicar automáticamente las notas sin spoilers de la jornada.
