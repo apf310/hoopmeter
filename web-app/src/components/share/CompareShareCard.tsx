@@ -29,6 +29,8 @@ export function CompareCardExport(props: ShareProps) {
     <SocialCardExporter
       fileName={`${slugify(props.a.name)}-vs-${slugify(props.b.name)}`}
       caption="Cara a cara"
+      title={`${props.a.name} vs ${props.b.name}`}
+      includes={[`${period(props.seasonA)} frente a ${period(props.seasonB)}`, "Radar comparado", "Puntos, rebotes, asistencias, robos, tapones y TS%"]}
       renderCard={(format) => <CompareShareCard format={format} {...props} />}
     />
   );

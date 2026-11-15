@@ -50,6 +50,12 @@ export function TradeCardExport(props: ShareProps) {
     <SocialCardExporter
       fileName={`traspaso-${props.teams.map((team) => team.abbreviation).join("-")}`.toLowerCase()}
       caption={`Traspaso simulado · ${SEASON}`}
+      title={`Traspaso ${props.teams.map((team) => team.abbreviation).join(" · ")}`}
+      includes={[
+        "Jugadores y rondas que recibe cada equipo",
+        "Veredicto del convenio",
+        ...(props.evaluation ? ["Notas y resumen de la IA"] : []),
+      ]}
       renderCard={(format) => <TradeShareCard format={format} {...props} />}
     />
   );

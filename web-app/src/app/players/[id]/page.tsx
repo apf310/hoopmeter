@@ -166,7 +166,7 @@ function PlayerHero({
         {lastName}
       </span>
 
-      <div className="relative flex flex-col-reverse px-4 pt-6 md:flex-row md:items-end md:justify-between md:gap-6 md:px-8 md:pt-10">
+      <div className="relative flex flex-col-reverse px-4 pt-3 md:flex-row md:items-end md:justify-between md:gap-6 md:px-8 md:pt-10">
         <div className="min-w-0 pb-7 pt-2 md:pb-9">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-display text-xs font-semibold uppercase tracking-[0.3em] text-white/75">
             {team ? (
@@ -213,7 +213,7 @@ function PlayerHero({
           width={520}
           height={380}
           priority
-          className="mx-auto h-auto w-[300px] shrink-0 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)] sm:w-[380px] md:mx-0 lg:w-[480px]"
+          className="mx-auto h-auto w-[210px] shrink-0 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)] sm:w-[380px] md:mx-0 lg:w-[480px]"
         />
       </div>
       {/* Franja inferior con el color secundario de la franquicia */}

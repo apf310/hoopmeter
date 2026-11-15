@@ -32,6 +32,13 @@ type ShareProps = {
   featured: KeyPlayer[];
 };
 
+/** Qué sale en la imagen según el nivel (el usuario lo ve antes de compartirla). */
+function includes(view: GameShareView): string[] {
+  if (view.level === 1) return ["Equipos, fecha y hora de España", "Máximo anotador de cada equipo (temporada)", "Sin nota ni resultado"];
+  if (view.level === 2) return ["Nota de espectáculo", "Máximo anotador de cada equipo (temporada)", "Sin marcador ni ganador"];
+  return ["Marcador y parciales", "Nota del partido", "Jugador del partido"];
+}
+
 function caption(view: GameShareView): string {
   if (view.level === 1) return "Previa · Hora de España";
   if (view.level === 2) return "Nota sin spoilers";
@@ -46,6 +53,9 @@ export function GameCardExport({ className, ...props }: ShareProps & { className
       className={className}
       fileName={`${away.abbreviation}-${home.abbreviation}-${day}`.toLowerCase()}
       caption={caption(view)}
+      title={`${away.abbreviation} @ ${home.abbreviation} · ${caption(view)}`}
+      includes={includes(view)}
+      spoiler={view.level === 3}
       renderCard={(format) => <GameShareCard format={format} {...props} />}
     />
   );

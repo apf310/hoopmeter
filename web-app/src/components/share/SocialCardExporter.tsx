@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { toBlob } from "html-to-image";
-import { LoaderCircle, RectangleHorizontal, RectangleVertical } from "lucide-react";
+import { Check, Download, ImageIcon, LoaderCircle, RectangleHorizontal, RectangleVertical, Share2, TriangleAlert, X } from "lucide-react";
 import { LogoMark } from "@/components/layout/LogoMark";
 import { BRAND } from "@/lib/brand";
 import { isNativeApp, shareImageNatively } from "@/lib/native";
@@ -20,8 +20,8 @@ export const CARD_SIZE: Record<CardFormat, { width: number; height: number }> = 
 export const WATERMARK_HEIGHT: Record<CardFormat, number> = { "16:9": 84, "9:16": 112 };
 
 const FORMATS: { format: CardFormat; label: string; hint: string; Icon: typeof RectangleHorizontal }[] = [
-  { format: "16:9", label: "16:9", hint: "X / YouTube", Icon: RectangleHorizontal },
   { format: "9:16", label: "9:16", hint: "Stories / TikTok", Icon: RectangleVertical },
+  { format: "16:9", label: "16:9", hint: "X / YouTube", Icon: RectangleHorizontal },
 ];
 
 // Si una imagen no carga, se deja hueco transparente en vez de abortar la exportación
@@ -44,31 +44,42 @@ function imagesReady(node: HTMLElement): Promise<unknown> {
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
 /** En móvil y en la app nativa se abre el menú de compartir del sistema; en escritorio, descarga directa. */
-async function deliver(blob: Blob, fileName: string) {
-  if (isNativeApp()) return shareImageNatively(blob, fileName);
+async function deliver(blob: Blob, fileName: string): Promise<"shared" | "downloaded"> {
+  if (isNativeApp()) {
+    await shareImageNatively(blob, fileName);
+    return "shared";
+  }
   const file = new File([blob], fileName, { type: "image/png" });
-  const touch = window.matchMedia("(pointer: coarse)").matches;
-  if (touch && navigator.canShare?.({ files: [file] })) {
+  if (canShareFiles() && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
-      return;
+      return "shared";
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
+      if (error instanceof DOMException && error.name === "AbortError") return "shared";
     }
   }
   const url = URL.createObjectURL(blob);
   const link = Object.assign(document.createElement("a"), { href: url, download: fileName });
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return "downloaded";
+}
+
+function canShareFiles(): boolean {
+  return isNativeApp() || (typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches && "share" in navigator);
 }
 
 /**
- * Modo Creador: exporta en 1 clic una tarjeta HD (16:9 o 9:16) con la marca de agua de la app.
- * La tarjeta solo se monta (fuera de pantalla y a tamaño real) mientras se genera la imagen.
+ * Modo Creador: botón "Compartir imagen" que abre una ventana con la vista previa exacta de la tarjeta HD
+ * (16:9 o 9:16, con la marca de agua de la app), qué incluye y el botón para compartirla o descargarla.
+ * El usuario ve siempre qué está sacando antes de sacarlo.
  */
 export function SocialCardExporter({
   fileName,
   caption,
+  title,
+  includes,
+  spoiler = false,
   renderCard,
   className,
 }: {
@@ -76,17 +87,83 @@ export function SocialCardExporter({
   fileName: string;
   /** Texto a la derecha de la marca de agua (p. ej. "Ficha de jugador · 2025-26"). */
   caption?: string;
+  /** Qué se comparte, tal como lo verá el usuario (p. ej. "Ficha de LeBron James"). */
+  title: string;
+  /** Lo que sale en la imagen (y lo que no, si importa por los spoilers). */
+  includes?: string[];
+  /** La imagen contiene resultados: se avisa antes de compartirla. */
+  spoiler?: boolean;
   renderCard: (format: CardFormat) => ReactNode;
   className?: string;
 }) {
-  const [pending, setPending] = useState<CardFormat | null>(null);
-  const [failed, setFailed] = useState(false);
-  const cardRef = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
 
-  async function exportAs(format: CardFormat) {
-    if (pending) return;
-    setFailed(false);
-    flushSync(() => setPending(format));
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Compartir imagen: ${title}`}
+        className={cn(
+          "inline-flex items-center gap-2 border border-white/25 bg-slate-950/60 px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950",
+          className
+        )}
+      >
+        <Share2 className="size-4" />
+        Compartir imagen
+      </button>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+        <Dialog.Popup
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-50 flex max-h-[94dvh] flex-col border-t border-slate-800 bg-slate-950 outline-none transition-all duration-150",
+            "pb-[env(safe-area-inset-bottom)] data-[ending-style]:translate-y-4 data-[ending-style]:opacity-0 data-[starting-style]:translate-y-4 data-[starting-style]:opacity-0",
+            "md:inset-x-0 md:bottom-auto md:top-[6vh] md:mx-auto md:max-h-[88vh] md:w-[min(34rem,calc(100vw-4rem))] md:border md:shadow-2xl md:shadow-black/60"
+          )}
+        >
+          <span aria-hidden className="h-[3px] shrink-0 bg-orange-500" />
+          {open && <SharePanel fileName={fileName} caption={caption} title={title} includes={includes} spoiler={spoiler} renderCard={renderCard} />}
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
+function SharePanel({
+  fileName,
+  caption,
+  title,
+  includes,
+  spoiler,
+  renderCard,
+}: {
+  fileName: string;
+  caption?: string;
+  title: string;
+  includes?: string[];
+  spoiler: boolean;
+  renderCard: (format: CardFormat) => ReactNode;
+}) {
+  const [format, setFormat] = useState<CardFormat>("9:16");
+  const [state, setState] = useState<"idle" | "working" | "done" | "failed">("idle");
+  const [delivered, setDelivered] = useState<"shared" | "downloaded" | null>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const share = canShareFiles();
+
+  // Las tarjetas se diseñan con la letra base de 16 px; en móvil la app usa 14 px (globals.css) y la imagen
+  // saldría más pequeña. Mientras la ventana está abierta (la página queda tapada) se vuelve a 16 px.
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const previous = root.style.fontSize;
+    root.style.fontSize = "16px";
+    return () => {
+      root.style.fontSize = previous;
+    };
+  }, []);
+
+  async function exportCard() {
+    if (state === "working") return;
+    setState("working");
     try {
       const node = cardRef.current;
       if (!node) throw new Error("Tarjeta no montada");
@@ -102,49 +179,129 @@ export function SocialCardExporter({
         imagePlaceholder: TRANSPARENT_PIXEL,
       });
       if (!blob) throw new Error("No se pudo generar la imagen");
-      await deliver(blob, `${fileName}-${format.replace(":", "x")}.png`);
+      setDelivered(await deliver(blob, `${fileName}-${format.replace(":", "x")}.png`));
+      setState("done");
     } catch (error) {
       console.error(error);
-      setFailed(true);
-    } finally {
-      setPending(null);
+      setState("failed");
     }
   }
 
   return (
-    <div className={className}>
-      <p className="font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">Exportar imagen para redes</p>
-      <div className="mt-2 flex w-fit border border-white/25 bg-slate-950/60">
-        {FORMATS.map(({ format, label, hint, Icon }, i) => (
-          <button
-            key={format}
-            type="button"
-            onClick={() => exportAs(format)}
-            disabled={pending !== null}
-            aria-label={`${label} ${hint}: descargar imagen`}
-            className={cn(
-              "flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-orange-500 hover:text-slate-950 disabled:cursor-wait disabled:opacity-60",
-              i > 0 && "border-l border-white/25"
-            )}
-          >
-            {pending === format ? <LoaderCircle className="size-5 animate-spin" /> : <Icon className="size-5" />}
-            <span className="flex flex-col leading-none">
-              <span className="font-display text-base font-extrabold">{label}</span>
-              <span className="text-[10px] uppercase tracking-wider opacity-75">{hint}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-      {failed && <p className="mt-2 text-xs text-red-400">No se pudo generar la imagen. Inténtalo de nuevo.</p>}
-
-      {pending && (
-        // Fuera de pantalla pero renderizada (con display:none la captura saldría vacía)
-        <div className="pointer-events-none fixed left-[-20000px] top-0" aria-hidden>
-          <CardFrame ref={cardRef} format={pending} caption={caption}>
-            {renderCard(pending)}
-          </CardFrame>
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      <div className="flex items-start gap-3 px-4 pb-3 pt-3">
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-orange-400">
+            <ImageIcon className="size-3.5" />
+            Compartir imagen
+          </p>
+          <Dialog.Title className="mt-0.5 font-display text-xl font-extrabold uppercase leading-tight text-white">{title}</Dialog.Title>
         </div>
-      )}
+        <Dialog.Close
+          aria-label="Cerrar"
+          className="flex size-9 shrink-0 items-center justify-center text-slate-400 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400"
+        >
+          <X className="size-5" />
+        </Dialog.Close>
+      </div>
+
+      {/* Vista previa: la misma tarjeta que se exporta, a escala */}
+      <CardPreview format={format}>
+        <CardFrame ref={cardRef} format={format} caption={caption}>
+          {renderCard(format)}
+        </CardFrame>
+      </CardPreview>
+
+      <div className="space-y-3 px-4 pb-4 pt-3">
+        {spoiler && (
+          <p className="flex items-center gap-2 border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
+            <TriangleAlert className="size-4 shrink-0 text-orange-400" />
+            Esta imagen muestra el resultado: quien la vea se enterará de cómo acabó.
+          </p>
+        )}
+        {includes && includes.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5" aria-label="Qué incluye la imagen">
+            {includes.map((item) => (
+              <li key={item} className="flex items-center gap-1 bg-slate-900 px-2 py-1 text-xs text-slate-300">
+                <Check className="size-3 text-emerald-400" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="grid grid-cols-2 border border-slate-800" role="radiogroup" aria-label="Formato">
+          {FORMATS.map(({ format: value, label, hint, Icon }, i) => (
+            <button
+              key={value}
+              type="button"
+              role="radio"
+              aria-checked={format === value}
+              onClick={() => {
+                setFormat(value);
+                setState("idle");
+              }}
+              className={cn(
+                "flex items-center gap-2 px-3 py-2 text-left transition-colors",
+                i > 0 && "border-l border-slate-800",
+                format === value ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-900 hover:text-white"
+              )}
+            >
+              <Icon className={cn("size-5 shrink-0", format === value && "text-orange-400")} />
+              <span className="flex flex-col leading-none">
+                <span className="font-display text-base font-extrabold">{label}</span>
+                <span className="mt-0.5 text-[10px] uppercase tracking-wider opacity-75">{hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={exportCard}
+          disabled={state === "working"}
+          className="flex w-full items-center justify-center gap-2 bg-orange-500 py-3 font-display text-lg font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-orange-400 disabled:cursor-wait disabled:opacity-70"
+        >
+          {state === "working" ? <LoaderCircle className="size-5 animate-spin" /> : share ? <Share2 className="size-5" /> : <Download className="size-5" />}
+          {state === "working" ? "Generando imagen…" : share ? "Compartir" : "Descargar imagen"}
+        </button>
+        <p aria-live="polite" className="min-h-4 text-center text-xs">
+          {state === "failed" && <span className="text-red-400">No se pudo generar la imagen. Inténtalo de nuevo.</span>}
+          {state === "done" && delivered === "downloaded" && <span className="text-emerald-400">Imagen descargada ({format}).</span>}
+          {state === "idle" && <span className="text-slate-500">Imagen HD {CARD_SIZE[format].width}×{CARD_SIZE[format].height} con la marca de {BRAND.name}</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Encaja la tarjeta (1920×1080 o 1080×1920) en el ancho disponible y en ~la mitad de la altura de la pantalla. */
+function CardPreview({ format, children }: { format: CardFormat; children: ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState({ width: 320, height: 480 });
+  const { width, height } = CARD_SIZE[format];
+
+  useLayoutEffect(() => {
+    const node = boxRef.current;
+    if (!node) return;
+    // Ancho útil: sin el margen interior del contenedor (si no, la tarjeta se recorta por la derecha)
+    const measure = () => {
+      const style = getComputedStyle(node);
+      const width = node.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      setBox({ width, height: window.innerHeight * 0.48 });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const scale = Math.min(box.width / width, box.height / height);
+  return (
+    <div ref={boxRef} className="flex justify-center bg-slate-900/60 px-4 py-3">
+      <div className="overflow-hidden shadow-xl shadow-black/50 ring-1 ring-white/10" style={{ width: width * scale, height: height * scale }}>
+        <div style={{ width, height, transform: `scale(${scale})`, transformOrigin: "top left" }}>{children}</div>
+      </div>
     </div>
   );
 }

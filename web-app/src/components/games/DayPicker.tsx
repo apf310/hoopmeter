@@ -35,14 +35,14 @@ export function DayPicker({ day, today, gameDays, onSelect }: DayPickerProps) {
                 aria-current={selected ? "date" : undefined}
                 onClick={() => onSelect(d)}
                 className={cn(
-                  "relative flex w-full flex-col items-center py-2.5 font-display uppercase leading-none transition-colors",
+                  "relative flex w-full flex-col items-center py-1.5 font-display uppercase leading-none transition-colors md:py-2.5",
                   selected ? "text-white" : gameDays.has(d) ? "text-slate-400 hover:text-slate-200" : "text-slate-600 hover:text-slate-400"
                 )}
               >
                 <span className={cn("text-[11px] font-semibold tracking-[0.15em]", relative === "Hoy" && !selected && "text-orange-400")}>
                   {relative === "Hoy" ? "Hoy" : formatWeekday(d)}
                 </span>
-                <span className="mt-1 text-2xl font-extrabold tabular-nums">{dayOfMonth(d)}</span>
+                <span className="mt-0.5 text-xl font-extrabold tabular-nums md:mt-1 md:text-2xl">{dayOfMonth(d)}</span>
                 <span
                   aria-hidden
                   className={cn("absolute inset-x-3 bottom-0 h-0.5 transition-colors", selected ? "bg-orange-500" : "bg-transparent")}

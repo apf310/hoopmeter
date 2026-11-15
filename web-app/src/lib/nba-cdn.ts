@@ -3,7 +3,8 @@
 const CDN_ORIGIN = "https://cdn.nba.com";
 
 export function teamLogoUrl(teamId: number): string {
-  return `${CDN_ORIGIN}/logos/nba/${teamId}/global/L/logo.svg`;
+  // Versión para fondo oscuro (D): toda la app es oscura y con la clara (L) los logos negros no se ven
+  return `${CDN_ORIGIN}/logos/nba/${teamId}/global/D/logo.svg`;
 }
 
 export function playerHeadshotUrl(playerId: number): string {

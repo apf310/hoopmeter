@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState, type TouchEvent }
 import { Eye, EyeOff, Star, WifiOff, type LucideIcon } from "lucide-react";
 import { DayPicker } from "@/components/games/DayPicker";
 import { LiveGameCard, type CardView } from "@/components/games/LiveGameCard";
+import { DayCardExport } from "@/components/share/DayShareCard";
 import { onLevelIntent, useSpoilerLevel } from "@/context/SpoilerContext";
 import {
   addDays,
@@ -192,19 +193,29 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
 
   return (
     <>
-      <header className="border-b border-slate-800 px-4 pb-5 pt-6 md:px-8 md:pt-10">
-        <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400">Jornada NBA · Hora de España</p>
-        {/* Interlineado holgado: los acentos de las mayúsculas (Ñ, Á…) no pisan el antetítulo */}
-        <h1 className="mt-3 font-display text-5xl font-extrabold uppercase leading-tight text-white md:text-6xl">
-          {relative ?? formatWeekday(day, "long")}
-        </h1>
-        <p className="mt-1 font-display text-lg font-semibold uppercase tracking-wide text-slate-300">
-          {relative && `${formatWeekday(day, "long")}, `}
-          {formatDayMonth(day)}
-          {games && (
-            <span className="text-slate-400"> · {games.length === 1 ? "1 partido" : `${games.length} partidos`}</span>
-          )}
-        </p>
+      {/* Móvil: una franja compacta (título y fecha a la izquierda, compartir a la derecha). Escritorio: cabecera completa */}
+      <header className="flex items-center justify-between gap-3 border-b border-slate-800 px-4 py-2 md:items-end md:px-8 md:pb-5 md:pt-10">
+        <div className="min-w-0">
+          <p className="hidden font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400 md:block">Jornada NBA · Hora de España</p>
+          {/* Interlineado holgado: los acentos de las mayúsculas (Ñ, Á…) no pisan el antetítulo */}
+          <h1 className="truncate font-display text-3xl font-extrabold uppercase leading-tight text-white md:mt-3 md:text-6xl">
+            {relative ?? formatWeekday(day, "long")}
+          </h1>
+          <p className="truncate font-display text-xs font-semibold uppercase tracking-wide text-slate-300 md:mt-1 md:text-lg">
+            {relative && `${formatWeekday(day, "long")}, `}
+            {formatDayMonth(day)}
+            {games && <span className="text-slate-400"> · {games.length === 1 ? "1 partido" : `${games.length} partidos`}</span>}
+            <span className="text-slate-500 md:hidden"> · Hora de España</span>
+          </p>
+        </div>
+        {games && games.length > 0 && (
+          <DayCardExport
+            className="shrink-0"
+            day={day}
+            level={level}
+            games={games.map((game) => ({ game, away: teamsById.get(game.away_team_id), home: teamsById.get(game.home_team_id), view: viewFor(game) }))}
+          />
+        )}
       </header>
 
       <DayPicker day={day} today={today} gameDays={gameDaySet} onSelect={selectDay} />

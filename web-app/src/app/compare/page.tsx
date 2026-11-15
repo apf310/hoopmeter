@@ -18,9 +18,9 @@ export default function ComparePage({ searchParams }: PageProps<"/compare">) {
   return (
     // Márgenes negativos: el comparador ocupa todo el ancho del área de contenido
     <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
-      <header className="border-b border-slate-800 px-4 pb-5 pt-6 md:px-8 md:pt-10">
+      <header className="border-b border-slate-800 px-4 pb-3 pt-4 md:px-8 md:pb-5 md:pt-10">
         <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400">Cara a cara</p>
-        <h1 className="font-display text-5xl font-extrabold uppercase leading-none text-white md:text-6xl">Comparador</h1>
+        <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Comparador</h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-300">Enfrenta a dos jugadores de cualquier época, temporada contra temporada o carrera contra carrera.</p>
       </header>
       <Suspense fallback={<CompareSkeleton />}>

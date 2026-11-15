@@ -356,14 +356,36 @@ hoopmeter/
 * [X] **Tarea 4.1:** Programar `scrape_salaries.py` para actualizar contratos de jugadores.
 * [X] **Tarea 4.2:** Programar el motor de reglas salariales CBA (`trade-rules.ts`) y la pantalla interactiva `/gm-simulator` con evaluación del traspaso por IA y exportación de imagen del traspaso para redes.
 * [X] **Tarea 4.3:** Construir el Comparador Cara a Cara (`/compare`) con radares superpuestos y tarjeta descargable.
-* [ ] **Tarea 4.4:** Contratos automáticos y fiables sin raspar Basketball-Reference:
+* [X] **Tarea 4.4:** Contratos automáticos y fiables sin raspar Basketball-Reference:
   * [X] **Fase 1 — Movimientos oficiales:** `fetch_transactions.py` aplica el registro oficial de la NBA (fichajes, cortes, traspasos, reclamados y conversiones) con las reglas de `contract_engine.py` (tests incluidos). Un contrato firmado sin cifra pública queda "pendiente": el GM lo marca, pide la estimación del usuario y la señala como tal en el veredicto, en la IA y en la imagen. El dinero muerto dudoso (garantías, *stretch*) queda "por confirmar".
-  * [X] **Fase 2 — Cifras desde noticias:** `fetch_contract_news.py` lee los RSS de Hoops Rumors y RealGM (respetando su *crawl-delay*). `contract_news.py` extrae solo lo que la noticia afirma de ese jugador y ese equipo: ignora el pasado, las suposiciones, las cifras de opciones viejas y las frases sobre otros jugadores o equipos. `contract_resolver.py` decide: mínimos y excepciones completas exactos con las tablas del convenio (`cba.py`), cifras redondeadas de la prensa como aproximadas (≈), y ante cualquier contradicción, sin cifra. Prueba con los fichajes de julio de 2026: 12 de 12 cifras exactas correctas.
-  * [ ] **Fase 3 — Cambio de temporada (antes del 1 de julio de 2027):** pasar los contratos a 2027-28, opciones ejercidas o rechazadas y garantías de los cortes. Ese día los procesos se paran y avisan hasta que se haga, junto con la revisión anual de cifras de `cba.py` y `trade-rules.ts`.
+  * [X] **Fase 2 — Cifras desde noticias:** `fetch_contract_news.py` lee los RSS de Hoops Rumors y RealGM (respetando su *crawl-delay*). `contract_news.py` extrae solo lo que la noticia afirma de ese jugador y ese equipo. `contract_resolver.py` decide: mínimos y excepciones completas exactos con las tablas del convenio (`cba.py`), cifras redondeadas de la prensa como aproximadas (≈), y ante cualquier contradicción, sin cifra. Prueba con los fichajes de julio de 2026: 12 de 12 cifras exactas correctas.
+  * La fase 3 (cambio de temporada) pasa a la **Tarea 7.1**.
   * Descartado: Gemini con búsqueda de Google. Sus condiciones prohíben guardar sus resultados o crear una base de datos con ellos.
 
-### 📱 Fase 5: App Móvil (PWA + Capacitor), Bot de Redes y Despliegue
-* [ ] **Tarea 5.1:** Configurar PWA y **Capacitor.js** para instalar la app en Android/iOS.
-* [ ] **Tarea 5.2:** Desplegar la web en **Vercel** y activar los workflows automáticos en GitHub Actions.
-  * [ ] **Tarea 5.2b:** Datos sin `stats.nba.com` (bloquea la nube): calendario desde la CDN, boxscores con correcciones oficiales de nba.com, clasificación con desempates oficiales, estadísticas, carrera, récords, radar y fichas calculados desde GitHub Actions.
+### 📱 Fase 5: App Móvil (PWA + Capacitor), Despliegue y Automatización
+* [X] **Tarea 5.1:** PWA (manifiesto, service worker, página sin conexión) y **Capacitor.js** para Android con la web desplegada (`server.url`). *La prueba del APK en un móvil real es la Tarea 6.2.*
+* [X] **Tarea 5.2:** Web en **Vercel** con el dominio **hoopmeter.com** y workflows de GitHub Actions (watcher cada 5 min, contratos cada hora, estadísticas a diario).
+  * [X] **Tarea 5.2b:** Datos sin `stats.nba.com` (bloquea la nube): calendario desde la CDN, boxscores con las correcciones oficiales de nba.com, clasificación con desempates oficiales, estadísticas, carrera, récords, radar y fichas calculados desde GitHub Actions. Validado con la temporada 2025-26 completa y con la actual frente a las cifras oficiales.
+  * [X] Supabase (`pg_cron`, `backend-data/cron.sql`) lanza los workflows a la hora exacta: el programador de GitHub se retrasaba horas.
+  * [X] La web lee los datos en directo del origen S3 de la NBA: `cdn.nba.com` bloquea los servidores de Vercel.
 * [ ] **Tarea 5.3:** (Opcional) Conectar `social_bot.py` a la API gratuita de X/Twitter o Telegram para publicar automáticamente las notas sin spoilers de la jornada.
+
+### 🚀 Fase 6: Lanzamiento (antes de publicitar la app)
+* [X] **Tarea 6.1:** Pulido para móvil y Modo Creador para todo: letra base más compacta en móvil, cabecera de la jornada en una franja, filas de partidos y clasificación más bajas, logos para fondo oscuro. Botón "Compartir imagen" en todas las pantallas con **vista previa exacta**, qué incluye la imagen y aviso de spoilers; tarjetas nuevas de **jornada** (según el nivel), **clasificación** y **equipo**. Recorrido de la web publicada: GM con IA, comparador, buscador y auditoría de spoilers correctos.
+* [ ] **Tarea 6.2:** Probar la app nativa (APK) en el Galaxy S24 contra la web publicada (`CAPACITOR_SERVER_URL=https://hoopmeter.com`): arranque siempre en Nivel 1 (también al volver de segundo plano), exportar y compartir imágenes desde Android, botón atrás, modo sin conexión y aspecto en pantalla completa.
+* [ ] **Tarea 6.3:** Cupo de imágenes de Vercel (plan Hobby): *loader* propio para `next/image` que pida a la CDN de la NBA el tamaño justo, sin pasar por la optimización de Vercel.
+* [ ] **Tarea 6.4:** Evaluación del GM con IA más rápida (hoy ~35 s): progreso visible paso a paso o respuesta por partes, y revisar modelo y *prompt*.
+* [ ] **Tarea 6.5:** SEO y enlaces compartidos: metadatos Open Graph por página (imagen de previsualización al pegar un enlace en WhatsApp o X, sin spoilers), `sitemap.xml` y `robots.txt`.
+* [ ] **Tarea 6.6:** Páginas legales: aviso de que la app no está afiliada a la NBA, privacidad y cookies, y "Acerca de". Necesarias para Google Play y para la publicidad.
+* [ ] **Tarea 6.7:** Analítica respetuosa con la privacidad y aviso de errores en producción (web y watcher).
+* [ ] **Tarea 6.8:** Publicar en Google Play: ficha, capturas, icono y política de privacidad. Revisar el riesgo de rechazo por app que solo carga una web.
+
+### 🔧 Fase 7: Mantenimiento con fecha
+* [ ] **Tarea 7.1 (antes del 1 de julio de 2027):** Cambio de temporada de los contratos a 2027-28 (opciones ejercidas o rechazadas, garantías de los cortes) y revisión anual de cifras de `cba.py` y `trade-rules.ts` (`npm test` y tests de Python). Ese día los procesos de contratos se paran y avisan hasta que se haga.
+* [ ] **Tarea 7.2 (febrero, mayo y junio):** Premios desde el PC: `python -m extractors.fetch_career_awards` (All-Star, premios de final de temporada y campeón).
+* [ ] **Tarea 7.3 (antes de noviembre de 2027):** Renovar el token `hoopmeter-cron` de GitHub y cambiarlo en el Vault de Supabase (instrucción al principio de `backend-data/cron.sql`).
+
+### 💡 Ideas para después del lanzamiento
+* [ ] Defensa del radar con posesiones contadas jugada a jugada (hoy, a unos 3 puntos de media del valor oficial).
+* [ ] Notificaciones push al acabar un partido, con la nota y sin spoilers, de los equipos favoritos.
+* [ ] Equipos y jugadores favoritos en la portada.

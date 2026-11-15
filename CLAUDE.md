@@ -40,6 +40,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Tests del motor de reglas del GM y del comparador (`node --test`, sin dependencias):** `npm test`
 - **Sincronizar con móvil (Capacitor):** `npm run cap:sync` (lee `CAPACITOR_SERVER_URL` de `.env.local`; compilar Android exige JDK 21 y SDK 36)
 - **Regenerar iconos y splash desde `assets/logo.svg`:** `npm run icons`
+- **Captura como en el Galaxy S24 (o escritorio), con nivel de spoilers y clics:** `node scripts/screenshot.mjs <url> <salida.png> [nivel] [ancho] [alto]` (ver cabecera del script; avisa si algo se sale por la derecha)
 
 ---
 
@@ -78,8 +79,9 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Promedios de jugadores, una vez al día:** la ficha de un partido enseña promedios en el Nivel 1; si cambiaran minutos después de acabar, delatarían el partido. `season_stats_calc` y el radar van solo en el job diario. La clasificación sí se recalcula al acabar cada partido (no está en pantallas sin spoilers).
 
 ### C. Multimedia, Tarjetas RRSS y Diseño UI
-- **CDN Oficial NBA:** Fotos en `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png` y logos en `https://cdn.nba.com/logos/nba/${teamId}/global/L/logo.svg`.
-- **Modo Creador (`SocialCardExporter`):** Los perfiles, comparativas, notas sin spoiler y traspasos deben poder exportarse en 1 clic a imagen PNG (`16:9` y `9:16`) con marca de agua de la app.
+- **CDN Oficial NBA:** Fotos en `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png` y logos en `https://cdn.nba.com/logos/nba/${teamId}/global/D/logo.svg` (versión para fondo oscuro: con la L los logos negros no se ven).
+- **Modo Creador (`SocialCardExporter`):** perfiles, comparativas, partidos (según el nivel de spoilers), jornada, clasificación, equipo y traspasos se exportan a PNG (`16:9` y `9:16`) con marca de agua. Siempre con el botón "Compartir imagen", que abre la vista previa exacta, el título de lo que se comparte, qué incluye (`includes`) y aviso si lleva resultados (`spoiler`). Las tarjetas reciben datos ya filtrados por nivel. Mientras la ventana está abierta la letra base vuelve a 16 px (las tarjetas usan rem).
+- **Móvil compacto:** por debajo de 640 px la letra base es 87,5 % (`globals.css`) y todo escala en proporción; cabeceras de página de una franja en móvil (título `text-4xl`, jornada en una línea).
 - **Estilo Visual "Grafismo TV":** Dark Mode deportivo sobre `bg-slate-950`, `Sidebar` en escritorio y `BottomNav` en móvil. Referencia: `/standings` y `/teams/[id]`.
   - **NO** tarjetas flotantes con `rounded-xl` + borde: secciones a todo el ancho (márgenes negativos `-mx-4 -mt-4 md:-mx-8 md:-mt-8` dentro de `main`) separadas por líneas finas `border-slate-800`.
   - Tipografía: `font-display` (Barlow Condensed, `uppercase`, `font-extrabold`) para títulos, cifras y cabeceras de tabla; antetítulos con `tracking-[0.25em]`; texto corrido en Geist (`font-sans`).

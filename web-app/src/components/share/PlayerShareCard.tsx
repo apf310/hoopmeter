@@ -39,6 +39,8 @@ export function PlayerCardExport({ className, ...data }: CardData & { className?
       className={className}
       fileName={slugify(data.player.full_name)}
       caption="Ficha de jugador"
+      title={`Ficha de ${data.player.full_name}`}
+      includes={["Foto y equipo", "Radar de la temporada", "Promedios de la temporada"]}
       renderCard={(format) => <PlayerShareCard format={format} {...data} />}
     />
   );

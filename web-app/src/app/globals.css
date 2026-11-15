@@ -130,3 +130,19 @@
     @apply font-sans;
   }
 }
+/* Móvil: todo un 12,5 % más compacto para ver más contenido de un vistazo. Tailwind mide textos, márgenes
+   e iconos en rem, así que basta con el tamaño base. */
+@media (max-width: 639px) {
+  html {
+    font-size: 87.5%;
+  }
+}
+
+/* iOS amplía la página al enfocar un campo con letra de menos de 16 px */
+@supports (-webkit-touch-callout: none) {
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}

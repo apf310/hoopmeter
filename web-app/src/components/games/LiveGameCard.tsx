@@ -46,11 +46,11 @@ export function LiveGameCard({ game, day, home, away, view }: LiveGameCardProps)
         href={`/games/${game.id}`}
         onPointerEnter={prefetchDetail}
         onFocus={prefetchDetail}
-        className="group grid grid-cols-[4.25rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 px-4 py-3 transition-colors hover:bg-slate-900/70 md:gap-x-5 md:px-8"
+        className="group grid grid-cols-[4.25rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 px-4 py-2 transition-colors md:py-3 hover:bg-slate-900/70 md:gap-x-5 md:px-8"
       >
         <StatusCell game={game} day={day} result={result} />
 
-        <div className="space-y-1.5">
+        <div className="space-y-1 md:space-y-1.5">
           <TeamLine team={away} dimmed={homeWins} />
           <TeamLine team={home} dimmed={awayWins} />
         </div>
@@ -100,9 +100,9 @@ function StatusCell({ game, day, result }: { game: GameMatchup; day: string; res
 
 function TeamLine({ team, dimmed }: { team: TeamLite | undefined; dimmed: boolean }) {
   return (
-    <div className="flex h-8 min-w-0 items-center gap-2.5">
+    <div className="flex h-7 min-w-0 items-center gap-2.5 md:h-8">
       <span aria-hidden className="h-6 w-1 shrink-0" style={{ backgroundColor: team?.accent ?? "#475569" }} />
-      {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />}
+      {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-6 shrink-0 md:size-7" />}
       <span className={cn("truncate font-semibold", dimmed ? "text-slate-400" : "text-white")}>
         <span className="md:hidden">{team?.abbreviation ?? "—"}</span>
         <span className="hidden md:inline">{team?.name ?? "—"}</span>
@@ -118,7 +118,7 @@ function ScoreCell({ score, upcoming }: { score: number | null | undefined; upco
 }
 
 function ResultCell({ result, homeWins, awayWins }: { result: GameResult | undefined; homeWins: boolean; awayWins: boolean }) {
-  if (!result) return <Placeholder className="h-[4.375rem] w-10" />;
+  if (!result) return <Placeholder className="h-[3.75rem] w-10 md:h-[4.375rem]" />;
   if (result.status === "Scheduled") return null;
 
   const periods = Math.max(result.away.periods.length, result.home.periods.length);
@@ -153,12 +153,12 @@ function ResultCell({ result, homeWins, awayWins }: { result: GameResult | undef
           </tbody>
         </table>
       )}
-      <div className="space-y-1.5 text-right">
+      <div className="space-y-1 text-right md:space-y-1.5">
         {rows.map(({ side, wins, lost }, row) => (
           <span
             key={row}
             className={cn(
-              "flex h-8 items-center justify-end font-display text-2xl font-extrabold tabular-nums",
+              "flex h-7 items-center justify-end font-display text-2xl font-extrabold tabular-nums md:h-8",
               wins ? "text-white" : lost ? "text-slate-400" : live ? "text-white" : "text-slate-300"
             )}
           >

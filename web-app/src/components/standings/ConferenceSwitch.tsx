@@ -29,12 +29,12 @@ export function ConferenceSwitch({ east, west }: { east: ReactNode; west: ReactN
               aria-controls={`panel-${value}`}
               onClick={() => setConference(value)}
               className={cn(
-                "flex flex-col items-center py-3 transition-colors md:py-4",
+                "flex flex-col items-center py-2 transition-colors md:py-4",
                 selected ? "text-white" : "text-slate-500 hover:text-slate-300"
               )}
             >
-              <span className="font-display text-[11px] font-semibold uppercase tracking-[0.25em]">Conferencia</span>
-              <span className="font-display text-3xl font-extrabold uppercase leading-none md:text-4xl">{label}</span>
+              <span className="hidden font-display text-[11px] font-semibold uppercase tracking-[0.25em] md:block">Conferencia</span>
+              <span className="font-display text-2xl font-extrabold uppercase leading-none md:text-4xl">{label}</span>
             </button>
           );
         })}

@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TeamCardExport, type TeamCardData } from "@/components/share/TeamShareCard";
 import { FormStrip, PointDiff, Streak } from "@/components/standings/TeamForm";
 import { BRAND } from "@/lib/brand";
 import { getTeamRoster, getTeams, getUpcomingGames, type UpcomingGame } from "@/lib/queries";
@@ -40,11 +41,35 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   const [roster, upcoming] = await Promise.all([getTeamRoster(teamId), getUpcomingGames(teamId)]);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
   const accent = teamAccent(team);
+  const extra = team.standings_extra ?? {};
+  const card: TeamCardData = {
+    id: team.id,
+    name: team.name,
+    primary: team.primary_color ?? "#334155",
+    secondary: team.secondary_color ?? team.primary_color ?? "#334155",
+    accent,
+    conference: team.conference ? CONFERENCE_LABEL[team.conference] : null,
+    division: team.division,
+    wins: team.wins,
+    losses: team.losses,
+    confRank: team.conf_rank,
+    streak: extra.streak ?? null,
+    l10: extra.l10 ?? null,
+    form: extra.form ?? [],
+    home: extra.home ?? null,
+    road: extra.road ?? null,
+    diff: extra.diff_ppg ?? null,
+    upcoming: upcoming.map((g) => {
+      const home = g.home_team_id === teamId;
+      const rivalId = home ? g.away_team_id : g.home_team_id;
+      return { id: g.id, utc: g.game_datetime_utc, home, rivalId, rival: teamsById.get(rivalId)?.abbreviation ?? "—" };
+    }),
+  };
 
   return (
     <>
       <title>{`${team.name} · ${BRAND.name}`}</title>
-      <TeamHero team={team} />
+      <TeamHero team={team} card={card} />
       <div className="mt-8 grid gap-10 lg:grid-cols-3">
         <section className="lg:col-span-2">
           <SectionTitle accent={accent} count={roster.length}>
@@ -61,7 +86,7 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   );
 }
 
-function TeamHero({ team }: { team: Team }) {
+function TeamHero({ team, card }: { team: Team; card: TeamCardData }) {
   const primary = team.primary_color ?? "#334155";
   const conference = team.conference ? CONFERENCE_LABEL[team.conference] : null;
   const extra = team.standings_extra ?? {};
@@ -135,6 +160,7 @@ function TeamHero({ team }: { team: Team }) {
             <PointDiff value={extra.diff_ppg} />
           </HeroStat>
         </dl>
+        <TeamCardExport team={card} className="mt-6" />
       </div>
       {/* Franja inferior con el color secundario de la franquicia */}
       <div className="relative h-1" style={{ background: team.secondary_color ?? primary }} aria-hidden />
