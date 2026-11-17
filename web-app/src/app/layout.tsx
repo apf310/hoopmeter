@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
+import { NativeBackButton } from "@/components/layout/NativeBackButton";
 import { ServiceWorkerRegistrar } from "@/components/layout/ServiceWorkerRegistrar";
 import { SpoilerModeSelector } from "@/components/layout/SpoilerModeSelector";
 import { Wordmark } from "@/components/layout/Wordmark";
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </SearchProvider>
         </SpoilerProvider>
         <ServiceWorkerRegistrar />
+        <NativeBackButton />
       </body>
     </html>
   );

@@ -25,6 +25,43 @@ export function onNativeAppState(listener: (active: boolean) => void): () => voi
   };
 }
 
+/**
+ * Botón atrás de Android. Capacitor, sin este aviso, solo retrocede en el historial: en la
+ * portada no hacía nada. Ahora cierra el diálogo abierto (Base UI se cierra con Escape), vuelve
+ * a la página anterior o, en la primera, pasa la app a segundo plano como cualquier app de
+ * Android (la regla de los 15 minutos de SpoilerContext sigue valiendo).
+ */
+export function onNativeBackButton(): () => void {
+  if (!isNativeApp()) return () => {};
+
+  let stopped = false;
+  let remove: (() => Promise<void>) | undefined;
+  import("@capacitor/app")
+    .then(({ App }) =>
+      App.addListener("backButton", ({ canGoBack }) => {
+        if (document.querySelector("[role=dialog][data-open]")) {
+          (document.activeElement ?? document.body).dispatchEvent(
+            new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
+          );
+        } else if (canGoBack) {
+          window.history.back();
+        } else {
+          void App.minimizeApp();
+        }
+      })
+    )
+    .then((handle) => {
+      if (stopped) void handle.remove();
+      else remove = handle.remove;
+    })
+    .catch(console.error);
+
+  return () => {
+    stopped = true;
+    void remove?.();
+  };
+}
+
 function toBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
