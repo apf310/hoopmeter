@@ -15,6 +15,18 @@ export type StandingsExtra = {
   form?: GameResult[]; // Últimos ≤10 resultados, del más antiguo al más reciente
 };
 
+/**
+ * `teams.standings_before` (Tarea 6.6): la clasificación sin la última jornada con partidos terminados,
+ * escrita por `standings_calc.py` junto con la de al día. Es la que ven los Niveles 1 y 2.
+ */
+export type StandingsSnapshot = {
+  day: string; // Jornada NBA que no incluye ("2026-11-16")
+  wins: number;
+  losses: number;
+  conf_rank: number | null;
+  standings_extra: StandingsExtra;
+};
+
 /** Nómina no traspasable (`teams.dead_money`): cortados y sueldos de jugadores que no están en `players`. */
 export type DeadMoney = {
   name: string;
@@ -39,6 +51,8 @@ export type Team = {
   losses: number;
   conf_rank: number | null;
   standings_extra: StandingsExtra;
+  /** Null hasta que `standings_calc.py` la calcula por primera vez: entonces no hay clasificación sin spoilers. */
+  standings_before: StandingsSnapshot | null;
   dead_money: DeadMoney[];
 };
 

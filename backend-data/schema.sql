@@ -155,6 +155,10 @@ create table if not exists public.news_items (
 -- Partido en campo neutral (calendario de la CDN): cuenta en el balance, pero ni en casa ni fuera
 alter table public.games add column if not exists is_neutral boolean not null default false;
 
+-- Tarea 6.6: clasificación de antes de la última jornada con partidos terminados (la que ven los Niveles 1 y 2)
+-- {"day": "2026-11-16", "wins", "losses", "conf_rank", "standings_extra"}; la escribe standings_calc.py
+alter table public.teams add column if not exists standings_before jsonb;
+
 -- Totales exactos de cada fila: la carrera se recalcula sumando, sin errores de redondeo.
 -- En las filas "Career": {..., "history": totales antes de la temporada en curso, "history_through": "2025-26"}
 alter table public.player_season_stats add column if not exists totals jsonb;

@@ -3,18 +3,12 @@
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { slugify } from "@/components/share/PlayerShareCard";
+import { formatShortDay } from "@/lib/game-day";
 import { sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 
-/** Datos del equipo para la tarjeta (calculados en el servidor). */
-export type TeamCardData = {
-  id: number;
-  name: string;
-  primary: string;
-  secondary: string;
-  accent: string;
-  conference: string | null;
-  division: string | null;
+/** Balance y puesto del equipo en el nivel de spoilers actual (Tarea 6.6). */
+export type TeamCardRecord = {
   wins: number;
   losses: number;
   confRank: number | null;
@@ -24,6 +18,21 @@ export type TeamCardData = {
   home: string | null;
   road: string | null;
   diff: number | null;
+};
+
+/** Datos del equipo para la tarjeta. */
+export type TeamCardData = {
+  id: number;
+  name: string;
+  primary: string;
+  secondary: string;
+  accent: string;
+  conference: string | null;
+  division: string | null;
+  /** Null: en este nivel no se puede enseñar (ver `StandingsBefore`). */
+  record: TeamCardRecord | null;
+  /** El balance es el de antes de esta jornada (Niveles 1 y 2); null = al día. */
+  beforeDay: string | null;
   /** Próximos partidos (sin resultado: solo rival, fecha y hora). */
   upcoming: { id: string; utc: string; home: boolean; rivalId: number; rival: string }[];
 };
@@ -33,14 +42,19 @@ const dayFormat = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "num
 const timeFormat = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 
 /** Botón de exportación de la ficha del equipo. */
-export function TeamCardExport({ team, className }: { team: TeamCardData; className?: string }) {
+export function TeamCardExport({ team, spoiler, className }: { team: TeamCardData; spoiler: boolean; className?: string }) {
+  const when = team.beforeDay ? ` antes de la jornada del ${formatShortDay(team.beforeDay)}` : " al día";
   return (
     <SocialCardExporter
       className={className}
       fileName={slugify(team.name)}
       caption="Ficha de equipo"
       title={`Ficha de ${team.name}`}
-      includes={["Balance y puesto", "Racha, últimos 10, casa y fuera", ...(team.upcoming.length ? ["Próximos partidos"] : [])]}
+      includes={[
+        ...(team.record ? [`Balance y puesto${when}`, "Racha, últimos 10, casa y fuera"] : []),
+        ...(team.upcoming.length ? ["Próximos partidos"] : []),
+      ]}
+      spoiler={spoiler && "Incluye los resultados de la última jornada: quien la vea sabrá quién ganó."}
       renderCard={(format) => <TeamShareCard format={format} team={team} />}
     />
   );
@@ -49,14 +63,17 @@ export function TeamCardExport({ team, className }: { team: TeamCardData; classN
 function TeamShareCard({ format, team }: { format: CardFormat; team: TeamCardData }) {
   const vertical = format === "9:16";
   const contentHeight = CARD_SIZE[format].height - WATERMARK_HEIGHT[format];
-  const stats: { label: string; value: string }[] = [
-    { label: "Balance", value: `${team.wins}-${team.losses}` },
-    ...(team.confRank && team.conference ? [{ label: "Posición", value: `${team.confRank}º ${team.conference}` }] : []),
-    { label: "Racha", value: team.streak ?? "–" },
-    { label: "Casa", value: team.home ?? "–" },
-    { label: "Fuera", value: team.road ?? "–" },
-    { label: "Dif. puntos", value: team.diff === null ? "–" : `${team.diff > 0 ? "+" : ""}${team.diff.toFixed(1)}` },
-  ];
+  const record = team.record;
+  const stats: { label: string; value: string }[] = record
+    ? [
+        { label: "Balance", value: `${record.wins}-${record.losses}` },
+        ...(record.confRank && team.conference ? [{ label: "Posición", value: `${record.confRank}º ${team.conference}` }] : []),
+        { label: "Racha", value: record.streak ?? "–" },
+        { label: "Casa", value: record.home ?? "–" },
+        { label: "Fuera", value: record.road ?? "–" },
+        { label: "Dif. puntos", value: record.diff === null ? "–" : `${record.diff > 0 ? "+" : ""}${record.diff.toFixed(1)}` },
+      ]
+    : [];
   const upcoming = team.upcoming.slice(0, vertical ? 4 : 2);
 
   return (
@@ -91,14 +108,20 @@ function TeamShareCard({ format, team }: { format: CardFormat; team: TeamCardDat
           ))}
         </dl>
 
-        {team.form.length > 0 && (
+        {record && team.beforeDay && (
+          <p className="mt-8 font-display text-2xl font-semibold uppercase tracking-[0.25em] text-white/60">
+            Antes de la jornada del {formatShortDay(team.beforeDay)}
+          </p>
+        )}
+
+        {record && record.form.length > 0 && (
           <div className="mt-12">
             <p className="font-display text-2xl font-semibold uppercase tracking-[0.25em] text-white/70">
-              {team.form.length < 10 ? `Últimos ${team.form.length}` : "Últimos 10"}
-              {team.l10 ? ` · ${team.l10}` : ""}
+              {record.form.length < 10 ? `Últimos ${record.form.length}` : "Últimos 10"}
+              {record.l10 ? ` · ${record.l10}` : ""}
             </p>
             <div className="mt-3 flex gap-3">
-              {team.form.map((r, i) => (
+              {record.form.map((r, i) => (
                 <span key={i} className={cn("h-16 w-10", r === "W" ? "bg-emerald-500" : "bg-red-500")} />
               ))}
             </div>

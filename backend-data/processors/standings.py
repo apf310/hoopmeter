@@ -19,11 +19,33 @@ orden alfabético: solo puede darse con todo idéntico, incluida la diferencia d
 """
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from fractions import Fraction
+from zoneinfo import ZoneInfo
 
 # Puestos que cuentan como "equipos de playoffs" en los desempates (con el play-in, del 1 al 10)
 PLAYOFF_SPOTS = 10
+
+# Una jornada NBA es la fecha en Nueva York (como `gameDayOf` en web-app/src/lib/game-day.ts)
+NBA_TZ = ZoneInfo("America/New_York")
+
+
+def game_day(utc: str) -> str:
+    """Jornada a la que pertenece un partido ("2026-11-16"), a partir de su fecha y hora UTC."""
+    return datetime.fromisoformat(utc.replace("Z", "+00:00")).astimezone(NBA_TZ).date().isoformat()
+
+
+def before_last_day(games: list[dict]) -> tuple[str | None, list[dict]]:
+    """Tarea 6.6: última jornada con partidos terminados y los partidos de las jornadas anteriores.
+
+    La web enseña en los Niveles 1 y 2 la clasificación de antes de la última jornada empezada. Si esa
+    jornada ya tiene algún partido terminado, es esta; si no, la clasificación al día ya es la de antes.
+    """
+    if not games:
+        return None, []
+    last = max(game_day(g["game_datetime_utc"]) for g in games)
+    return last, [g for g in games if game_day(g["game_datetime_utc"]) < last]
 
 
 @dataclass

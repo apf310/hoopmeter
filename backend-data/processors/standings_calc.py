@@ -1,6 +1,10 @@
 """Tarea 5.2b — Clasificación (`teams.wins`, `losses`, `conf_rank`, `standings_extra`) calculada a partir de
 los partidos terminados de `games`, con los desempates oficiales (processors/standings.py).
 
+Tarea 6.6: en la misma escritura guarda `standings_before`, la clasificación sin la última jornada con
+partidos terminados ({day, wins, losses, conf_rank, standings_extra}). Es lo que ve la web en los Niveles 1
+y 2 mientras esa jornada sea la última empezada: así nunca delata un partido que aún no has visto.
+
 Se ejecuta al final de cada pasada del watcher en la que algún partido termina y en el job diario. Antes de
 escribir comprueba que todo cuadra (30 equipos, victorias = derrotas = partidos, puestos 1-15 sin huecos):
 si algo falla, se conserva la clasificación anterior y el proceso sale con error.
@@ -28,7 +32,8 @@ def season_code(client) -> str | None:
     return last[0]["id"][3:5] if last else None
 
 
-def compute(client) -> tuple[dict[int, dict], list[dict], dict[int, dict]] | None:
+def compute(client) -> tuple[dict[int, dict], dict, list[dict], dict[int, dict]] | None:
+    """(clasificación al día, {day, teams: clasificación de antes de esa jornada}, partidos, equipos)."""
     code = season_code(client)
     if code is None:
         return None
@@ -39,7 +44,10 @@ def compute(client) -> tuple[dict[int, dict], list[dict], dict[int, dict]] | Non
     names = {t["id"]: t["name"] for t in team_rows}
     result = standings.compute(games, teams, names)
     standings.check(result, games, teams)
-    return result, games, teams
+    day, earlier = standings.before_last_day(games)
+    before = standings.compute(earlier, teams, names)
+    standings.check(before, earlier, teams)
+    return result, {"day": day, "teams": before}, games, teams
 
 
 def update(client) -> int:
@@ -47,10 +55,13 @@ def update(client) -> int:
     computed = compute(client)
     if computed is None:
         return 0
-    result, games, teams = computed
-    # Una sola petición = una sola transacción: o se actualizan los 30 equipos o ninguno. name y
-    # abbreviation van porque el upsert valida NOT NULL antes de resolver el conflicto (no cambian).
-    rows = [{"id": tid, "name": teams[tid]["name"], "abbreviation": teams[tid]["abbreviation"], **row} for tid, row in result.items()]
+    result, before, games, teams = computed
+    # Una sola petición = una sola transacción: o se actualizan los 30 equipos o ninguno (también la
+    # clasificación de antes, que tiene que cuadrar siempre con la de al día). name y abbreviation van
+    # porque el upsert valida NOT NULL antes de resolver el conflicto (no cambian).
+    rows = [{"id": tid, "name": teams[tid]["name"], "abbreviation": teams[tid]["abbreviation"], **row,
+             "standings_before": {"day": before["day"], **before["teams"][tid]}}
+            for tid, row in result.items()]
     client.table("teams").upsert(rows, on_conflict="id").execute()
     save_status(client, SYNC_ID, {"games": len(games), "teams": len(result)}, None)
     return len(result)
@@ -66,7 +77,8 @@ def main() -> None:
     try:
         if args.dry_run:
             computed = compute(client)
-            print("Sin partidos terminados" if computed is None else f"Clasificación correcta: {len(computed[1])} partidos, 30 equipos")
+            print("Sin partidos terminados" if computed is None else
+                  f"Clasificación correcta: {len(computed[2])} partidos, 30 equipos; antes de la jornada {computed[1]['day']}")
             return
         n = update(client)
         print(f"Clasificación actualizada: {n} equipos")

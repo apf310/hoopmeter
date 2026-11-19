@@ -308,13 +308,16 @@ hoopmeter/
         │   ├── players/
         │   │   ├── page.tsx
         │   │   └── [id]/page.tsx
-        │   ├── teams/[id]/page.tsx
+        │   ├── teams/
+        │   │   ├── page.tsx             # Los 30 equipos por conferencia y división
+        │   │   └── [id]/page.tsx        # Ficha: plantilla ordenable, últimos y próximos partidos
         │   ├── gm-simulator/page.tsx
         │   └── compare/page.tsx
         ├── components/
         │   ├── layout/              # Sidebar, BottomNav, SpoilerModeSelector
         │   ├── games/               # LiveGameCard, PureScoreBadge (Nivel 2), BoxScore
         │   ├── players/             # PlayerRadarChart, TrophyCabinet, CareerTable
+        │   ├── teams/               # RosterTable, TeamRecentGames (según el nivel), TeamGameRow
         │   ├── gm/                  # TradeMachine, SalaryCapBar, TradeEvaluationCard
         │   ├── compare/             # CompareView, DuelRadar, DuelRows, PlayerPicker
         │   └── share/               # SocialCardExporter (Generador de imágenes 16:9 y 9:16 con marca de agua)
@@ -378,8 +381,8 @@ hoopmeter/
 * [X] **Tarea 6.3:** Retoques rápidos de interfaz: en la lista de partidos, marcar quién es visitante y quién local (`LiveGameCard.tsx`, hoy el visitante va arriba sin indicarlo); botón "← Volver" visible en la ficha del partido (iPhone con la web instalada y escritorio no tienen otro); texto corto junto a los iconos del selector de spoilers en móvil (Ocultar · Nota · Resultados, sin salirse a 360 px); el subtítulo de la portada en móvil se corta ("HORA DE E…"); el botón "Compartir imagen" pasa a ser solo el icono (con `aria-label` y *tooltip*) en todas las pantallas, actualizando CLAUDE.md §4.C.
 * [X] **Tarea 6.4:** Comparador: la barra de "Pérdidas" ya es más larga para quien pierde menos, y "Defensa" suma desviaciones típicas de robos y tapones en vez de percentiles, que topaban en 99 (2026-27: Wembanyama 99 y Jokić 93, antes 94 y 97; Mutombo pasa de 49 a 96 en su carrera). "Tiro exterior" sigue con percentiles: con desviaciones el volumen de triples se comía el porcentaje.
 * [X] **Tarea 6.5:** Nota justa: `excitement_score` rehecho sobre la probabilidad de victoria segundo a segundo (ajustada con 1.527 partidos de 2025-26 y 2026-27) con el desglose vivo al último cuarto · final en el aire · final de infarto · igualdad · remontada · ataque · individual, calibrado con notas puestas a mano a 112 partidos. 2025-26: mediana 3,6 → 6,0, suspensos 66 % → 35 %, 8+ 4 % → 21 %; ORL-BOS `0022600245` 4,6 → 6,7. Sin plus por prórroga para que el 9+ no la delate. Colores 🟢 8+ · 🟡 5-7,9 · 🔴 <5 y leyenda en el Nivel 2; tests en `tests/test_excitement.py` y `spoilers.test.ts`; notas guardadas recalculadas con `python -m processors.excitement_calculator --rescore`.
-* [ ] **Tarea 6.6:** Clasificación y equipos según el nivel de spoilers, sin botones ni confirmaciones nuevas: en Niveles 1 y 2, clasificación y cabecera de equipo (balance, posición, racha, últimos 10, casa/fuera, diferencia) **antes de la última jornada empezada**, con la línea "Antes de la jornada del lun 16 · mantén pulsado Resultados para verla al día"; en Nivel 3, al día. Los datos al día solo se piden en Nivel 3 (como `/api/live`) y las tarjetas de compartir siguen el nivel. Actualizar el alcance de CLAUDE.md §4.A.
-* [ ] **Tarea 6.7:** Ficha de equipo estilo BeSoccer y página de los 30 equipos: plantilla ordenada por minutos (no por nombre) con MIN, PTS, REB, AST, %T3 y salario 2026-27 y columnas ordenables; últimos partidos encima de los próximos (Nivel 1: rival y fecha; Nivel 2: + nota; Nivel 3: + resultado); página `/teams` con los 30 equipos por conferencia y división, enlazada desde la clasificación.
+* [X] **Tarea 6.6:** Clasificación y equipos según el nivel de spoilers, sin botones ni confirmaciones nuevas: en Niveles 1 y 2, clasificación y cabecera de equipo (balance, posición, racha, últimos 10, casa/fuera, diferencia) **antes de la última jornada empezada**, con la línea "Antes de la jornada del lun 16 · mantén pulsado Resultados para verla al día"; en Nivel 3, al día. Los datos al día solo se piden en Nivel 3 (como `/api/live`) y las tarjetas de compartir siguen el nivel. Actualizar el alcance de CLAUDE.md §4.A.
+* [X] **Tarea 6.7:** Ficha de equipo estilo BeSoccer y página de los 30 equipos: plantilla ordenada por minutos con PJ, MIN, PTS, REB, AST, %T3 y salario 2026-27 (≈ aproximado, "Sin cifra" si está pendiente) y columnas ordenables (`lib/team-roster.ts`, con tests); últimos partidos encima de los próximos (Nivel 1: rival y fecha en el HTML; Nivel 2: + nota; Nivel 3: + resultado, desde `/api/teams/[id]/games` filtrado con `redactGame`); página `/teams` con los 30 equipos por conferencia y división, enlazada desde la clasificación.
 * [ ] **Tarea 6.8:** Ficha de jugador: contrato año a año (opciones, `pending` sin cifra y "≈" en las aproximadas, nunca inventadas) con botón "Simular traspaso" que lo lleva al GM; últimos partidos según el nivel (como en 6.7; la línea de estadísticas solo en Nivel 3) y máximos de la temporada (de carrera solo si hay boxscores de toda ella).
 * [ ] **Tarea 6.9:** GM: el traspaso en la URL (solo ids) para compartirlo por enlace; al abrirlo se reconstruye y se revalida con `trade-rules.ts`.
 * [ ] **Tarea 6.10:** Equipo y jugadores favoritos, sin cuenta (guardados en el dispositivo): marcarlos desde su ficha; en la portada, los partidos de tus favoritos primero y destacados; acceso rápido a tu equipo y tus jugadores. Los favoritos nunca cambian el nivel de spoilers.

@@ -144,5 +144,33 @@ class Extras(unittest.TestCase):
         self.assertIsNone(extra["streak"])
 
 
+
+class BeforeLastDay(unittest.TestCase):
+    """Tarea 6.6: clasificación de antes de la última jornada con partidos terminados."""
+
+    def test_game_day_is_new_york_date(self):
+        # 00:30 UTC = 19:30 en Nueva York del día anterior; con horario de verano, 23:30 UTC sigue en el día
+        self.assertEqual(S.game_day("2026-11-17T00:30:00+00:00"), "2026-11-16")
+        self.assertEqual(S.game_day("2026-04-01T03:59:00Z"), "2026-03-31")
+        self.assertEqual(S.game_day("2026-04-01T04:00:00Z"), "2026-04-01")
+
+    def test_drops_only_the_last_day(self):
+        g = lambda gid, utc: {"id": gid, "game_datetime_utc": utc}
+        games = [g("a", "2026-11-15T00:00:00Z"), g("b", "2026-11-16T01:00:00Z"),
+                 g("c", "2026-11-17T00:30:00+00:00"), g("d", "2026-11-17T03:30:00+00:00")]
+        day, earlier = S.before_last_day(games)
+        self.assertEqual(day, "2026-11-16")
+        self.assertEqual([x["id"] for x in earlier], ["a", "b"])  # b: 01:00 UTC = jornada del 15
+        self.assertEqual(S.before_last_day([]), (None, []))
+
+    def test_before_first_day_is_valid_standings(self):
+        teams = league()
+        day, earlier = S.before_last_day([Game.make(101, 102, 100, 90)])
+        result = S.compute(earlier, teams)
+        S.check(result, earlier, teams)
+        self.assertIsNotNone(day)
+        self.assertEqual(sum(t["wins"] for t in result.values()), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

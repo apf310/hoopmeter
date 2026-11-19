@@ -91,8 +91,8 @@ export function SocialCardExporter({
   title: string;
   /** Lo que sale en la imagen (y lo que no, si importa por los spoilers). */
   includes?: string[];
-  /** La imagen contiene resultados: se avisa antes de compartirla. */
-  spoiler?: boolean;
+  /** La imagen contiene resultados: se avisa antes de compartirla (un texto sustituye al aviso del partido). */
+  spoiler?: boolean | string;
   renderCard: (format: CardFormat) => ReactNode;
   className?: string;
 }) {
@@ -141,7 +141,7 @@ function SharePanel({
   caption?: string;
   title: string;
   includes?: string[];
-  spoiler: boolean;
+  spoiler: boolean | string;
   renderCard: (format: CardFormat) => ReactNode;
 }) {
   const [format, setFormat] = useState<CardFormat>("9:16");
@@ -216,7 +216,7 @@ function SharePanel({
         {spoiler && (
           <p className="flex items-center gap-2 border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
             <TriangleAlert className="size-4 shrink-0 text-orange-400" />
-            Esta imagen muestra el resultado: quien la vea se enterará de cómo acabó.
+            {typeof spoiler === "string" ? spoiler : "Esta imagen muestra el resultado: quien la vea se enterará de cómo acabó."}
           </p>
         )}
         {includes && includes.length > 0 && (

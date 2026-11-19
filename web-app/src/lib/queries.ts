@@ -1,12 +1,14 @@
 // Consultas de lectura a Supabase para Server Components, cacheadas con "use cache".
 import { cacheLife } from "next/cache";
-import { gameDayOf, gameDayUtcRange, type GameMatchup } from "@/lib/game-day";
+import { gameDayOf, gameDayUtcRange, previousSeason, seasonOf, type GameMatchup } from "@/lib/game-day";
 import type { GmData, GmPlayer, GmTeam } from "@/lib/gm";
 import { ageFrom, getRadar, overallRating } from "@/lib/player-profile";
 import type { SearchIndex } from "@/lib/search";
 import type { Game } from "@/lib/spoilers";
+import { lastStartedDay, pickStandingsBefore, type StandingsBefore } from "@/lib/standings";
 import { getSupabase, type DeadMoney, type Player, type PlayerAward, type PlayerContract, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { teamAccent } from "@/lib/team-colors";
+import type { RosterRow } from "@/lib/team-roster";
 
 export type UpcomingGame = GameMatchup;
 
@@ -22,6 +24,19 @@ export async function getTeams(): Promise<Team[]> {
   const { data, error } = await getSupabase().from("teams").select("*");
   if (error) throw new Error(`Error cargando equipos: ${error.message}`);
   return data as Team[];
+}
+
+/**
+ * Clasificación sin spoilers (Niveles 1 y 2, Tarea 6.6): la de antes de la última jornada empezada. Es la
+ * única que viaja en el HTML de `/standings` y `/teams/[id]`; la de al día, solo por `/api/standings`.
+ * Si la caché se queda atrás, enseña una más antigua: nunca una más nueva.
+ */
+export async function getStandingsBefore(): Promise<StandingsBefore> {
+  "use cache";
+  cacheLife("minutes");
+
+  const [teams, schedule] = await Promise.all([getTeams(), getSchedule()]);
+  return pickStandingsBefore(teams, lastStartedDay(schedule, Date.now(), gameDayOf));
 }
 
 export async function getTeamRoster(teamId: number): Promise<Player[]> {
@@ -53,6 +68,99 @@ export async function getUpcomingGames(teamId: number, limit = 5): Promise<Upcom
     .limit(limit);
   if (error) throw new Error(`Error cargando calendario: ${error.message}`);
   return data as UpcomingGame[];
+}
+
+/**
+ * Últimos partidos ya empezados de un equipo, del más reciente al más antiguo. Solo emparejamiento y fecha:
+ * es lo que viaja en el HTML de `/teams/[id]` (Nivel 1). Nota y resultado, por `/api/teams/[id]/games`.
+ */
+export async function getRecentMatchups(teamId: number, limit = 5): Promise<GameMatchup[]> {
+  "use cache";
+  cacheLife("minutes");
+
+  const { data, error } = await getSupabase()
+    .from("games")
+    .select(MATCHUP_COLUMNS)
+    .neq("status", "Scheduled")
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .lte("game_datetime_utc", new Date().toISOString())
+    .order("game_datetime_utc", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Error cargando últimos partidos: ${error.message}`);
+  return data as GameMatchup[];
+}
+
+/** Los mismos partidos completos (con marcadores): pasar SIEMPRE por `redactGame` antes de servirlos. */
+export async function getRecentGames(teamId: number, limit = 5): Promise<Game[]> {
+  "use cache";
+  cacheLife({ stale: 30, revalidate: 30, expire: 300 });
+
+  const { data, error } = await getSupabase()
+    .from("games")
+    .select("*")
+    .neq("status", "Scheduled")
+    .or(`home_team_id.eq.${teamId},away_team_id.eq.${teamId}`)
+    .lte("game_datetime_utc", new Date().toISOString())
+    .order("game_datetime_utc", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Error cargando últimos partidos: ${error.message}`);
+  return data as Game[];
+}
+
+/**
+ * Plantilla con promedios de la temporada y salario (Tarea 6.7). Promedios de la temporada en curso; si aún
+ * no ha jugado nadie (verano, pretemporada), los de la anterior. Cambian una vez al día: sin spoilers.
+ */
+export async function getTeamRosterStats(teamId: number): Promise<{ season: string; rows: RosterRow[] }> {
+  "use cache";
+  cacheLife("hours");
+
+  const roster = await getTeamRoster(teamId);
+  const ids = roster.map((p) => p.id);
+  const current = seasonOf(new Date().toISOString());
+  const previous = previousSeason(current);
+  if (ids.length === 0) return { season: current, rows: [] };
+
+  const supabase = getSupabase();
+  const [stats, contracts] = await Promise.all([
+    supabase
+      .from("player_season_stats")
+      .select("player_id, season_id, team_id, games_played, pts, reb, ast, fg3_pct, advanced_stats")
+      .in("player_id", ids)
+      .eq("season_type", "Regular Season")
+      .in("season_id", [current, previous]),
+    supabase.from("player_contracts").select("player_id, salary_current, status, source").in("player_id", ids),
+  ]);
+  if (stats.error) throw new Error(`Error cargando promedios: ${stats.error.message}`);
+  if (contracts.error) throw new Error(`Error cargando contratos: ${contracts.error.message}`);
+
+  type StatRow = Pick<PlayerSeasonStats, "player_id" | "season_id" | "team_id" | "games_played" | "pts" | "reb" | "ast" | "fg3_pct" | "advanced_stats">;
+  const statRows = stats.data as StatRow[];
+  const season = statRows.some((r) => r.season_id === current && (r.games_played ?? 0) > 0) ? current : previous;
+  const bySeason = new Map(statRows.filter((r) => r.season_id === season).map((r) => [r.player_id, r]));
+  const byContract = new Map(
+    (contracts.data as Pick<PlayerContract, "player_id" | "salary_current" | "status" | "source">[]).map((c) => [c.player_id, c])
+  );
+
+  const rows = roster.map((player): RosterRow => {
+    const s = bySeason.get(player.id);
+    const c = byContract.get(player.id);
+    const pending = c !== undefined && (c.status === "pending" || c.salary_current === null);
+    return {
+      id: player.id,
+      name: player.full_name,
+      position: player.position,
+      gp: s?.games_played ?? null,
+      min: s?.advanced_stats?.min ?? null,
+      pts: s?.pts ?? null,
+      reb: s?.reb ?? null,
+      ast: s?.ast ?? null,
+      fg3Pct: s?.fg3_pct ?? null,
+      salary: c && !pending ? c.salary_current : null,
+      salaryStatus: !c ? null : pending ? "pending" : c.source?.precision === "approx" ? "approx" : "confirmed",
+    };
+  });
+  return { season, rows };
 }
 
 /** Calendario completo de la temporada sin spoilers: solo emparejamiento y fecha (base del Nivel 1). */

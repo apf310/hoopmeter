@@ -4,8 +4,13 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { teamAccent } from "@/lib/team-colors";
+import type { StandingsRow } from "@/lib/standings";
 import type { Team } from "@/lib/supabase";
 import { FormStrip, PointDiff, Streak } from "./TeamForm";
+
+/** Lo fijo del equipo + su clasificación en el nivel actual (Tarea 6.6). */
+export type TeamIdentity = Pick<Team, "id" | "name" | "abbreviation" | "conference" | "primary_color" | "secondary_color">;
+export type StandingsTeam = TeamIdentity & StandingsRow;
 
 type Zone = "playoffs" | "playin" | "lottery";
 
@@ -20,20 +25,20 @@ function getZone(rank: number) {
   return [...ZONES].reverse().find((z) => rank >= z.from)!;
 }
 
-function winPct(team: Team): number {
+function winPct(team: StandingsTeam): number {
   const games = team.wins + team.losses;
   return games === 0 ? 0 : team.wins / games;
 }
 
 /** Ordena por `conf_rank` oficial; si falta, por porcentaje de victorias. */
-export function sortStandings(teams: Team[]): Team[] {
+export function sortStandings(teams: StandingsTeam[]): StandingsTeam[] {
   return [...teams].sort(
     (a, b) =>
       (a.conf_rank ?? Infinity) - (b.conf_rank ?? Infinity) || winPct(b) - winPct(a)
   );
 }
 
-function gamesBehind(team: Team, leader: Team): string {
+function gamesBehind(team: StandingsTeam, leader: StandingsTeam): string {
   const gb = (leader.wins - team.wins + (team.losses - leader.losses)) / 2;
   return gb <= 0 ? "–" : gb.toFixed(1);
 }
@@ -45,7 +50,7 @@ const COLUMN_COUNT = 11;
 
 const TH = "px-3 py-3 font-display text-xs font-semibold uppercase tracking-wider text-slate-300";
 
-export function StandingsTable({ teams }: { teams: Team[] }) {
+export function StandingsTable({ teams }: { teams: StandingsTeam[] }) {
   const sorted = sortStandings(teams);
   const leader = sorted[0];
 

@@ -6,6 +6,7 @@ import type { GameDetail } from "@/lib/game-detail";
 import type { ScheduleTuple } from "@/lib/game-day";
 import type { LiveScoreboard } from "@/lib/live";
 import type { GameLevel2, GameLevel3, SpoilerLevel } from "@/lib/spoilers";
+import type { StandingsRow } from "@/lib/standings";
 
 export type Entry<T> = { data?: T; at: number; error?: boolean };
 
@@ -14,6 +15,9 @@ export type Level2Payload = { day: string; level: 2; games: GameLevel2[] };
 export type Level3Payload = { day: string; level: 3; games: GameLevel3[] };
 /** `detail: null` = el partido aún no ha empezado. */
 export type GameDetailPayload = { detail: GameDetail | null };
+export type StandingsPayload = { teams: StandingsRow[] };
+export type TeamGamesLevel2Payload = { level: 2; games: GameLevel2[] };
+export type TeamGamesLevel3Payload = { level: 3; games: GameLevel3[] };
 
 /** Antigüedad máxima de una jornada en juego (igual que la caché de 30 s del servidor). */
 export const LIVE_MAX_AGE_MS = 30_000;
@@ -110,4 +114,28 @@ export function loadGameDetail(gameId: string, maxAgeMs = LIVE_MAX_AGE_MS): Prom
 
 export function useGameDetail(level: SpoilerLevel, gameId: string): Entry<GameDetailPayload> | undefined {
   return useEntry<GameDetailPayload>(level === 3 ? detailKey(gameId) : null);
+}
+
+const teamGamesKey = (level: 2 | 3, teamId: number) => `team:${level}:${teamId}`;
+
+/** Últimos partidos de un equipo con nota (Nivel 2) o resultado (Nivel 3) (`/api/teams/[id]/games`, Tarea 6.7). */
+export function loadTeamGames(level: 2 | 3, teamId: number, maxAgeMs = LIVE_MAX_AGE_MS): Promise<void> {
+  return load(teamGamesKey(level, teamId), `/api/teams/${teamId}/games?level=${level}`, maxAgeMs);
+}
+
+export function useTeamGamesLevel2(level: SpoilerLevel, teamId: number): Entry<TeamGamesLevel2Payload> | undefined {
+  return useEntry<TeamGamesLevel2Payload>(level === 2 ? teamGamesKey(2, teamId) : null);
+}
+
+export function useTeamGamesLevel3(level: SpoilerLevel, teamId: number): Entry<TeamGamesLevel3Payload> | undefined {
+  return useEntry<TeamGamesLevel3Payload>(level === 3 ? teamGamesKey(3, teamId) : null);
+}
+
+/** Clasificación al día (`/api/standings`, Tarea 6.6). Solo para Nivel 3: los Niveles 1 y 2 usan la de antes de la jornada. */
+export function loadStandings(): Promise<void> {
+  return load("standings", "/api/standings", LIVE_MAX_AGE_MS);
+}
+
+export function useStandingsNow(level: SpoilerLevel): Entry<StandingsPayload> | undefined {
+  return useEntry<StandingsPayload>(level === 3 ? "standings" : null);
 }

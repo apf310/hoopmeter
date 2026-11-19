@@ -95,6 +95,11 @@ export function dayOfMonth(day: string): number {
   return utcNoon(day).getUTCDate();
 }
 
+/** "lun 16". */
+export function formatShortDay(day: string): string {
+  return `${formatWeekday(day)} ${dayOfMonth(day)}`;
+}
+
 /** Hora de inicio en España: "01:30". */
 export function formatGameTime(utc: string): string {
   return timeFormat.format(new Date(utc));
@@ -103,7 +108,7 @@ export function formatGameTime(utc: string): string {
 /** "jue 5" si en España el partido cae en otro día que la jornada (madrugada); si no, null. */
 export function madridDayIfDifferent(utc: string, day: string): string | null {
   const madrid = madridDayFormat.format(new Date(utc));
-  return madrid === day ? null : `${formatWeekday(madrid)} ${dayOfMonth(madrid)}`;
+  return madrid === day ? null : formatShortDay(madrid);
 }
 
 export function toScheduleTuple(game: GameMatchup): ScheduleTuple {

@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
+import { formatShortDay } from "@/lib/game-day";
 import { sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 
@@ -26,21 +27,39 @@ function sorted(teams: StandingsCardTeam[]): StandingsCardTeam[] {
   return [...teams].sort((a, b) => (a.conf_rank ?? Infinity) - (b.conf_rank ?? Infinity) || pct(b) - pct(a));
 }
 
-/** Botón de exportación de la clasificación (las dos conferencias). */
-export function StandingsCardExport({ teams, className }: { teams: StandingsCardTeam[]; className?: string }) {
+/**
+ * Botón de exportación de la clasificación (las dos conferencias), la misma que se ve en el nivel actual
+ * (Tarea 6.6): con `beforeDay`, la de antes de esa jornada; si no, la de al día.
+ */
+export function StandingsCardExport({
+  teams,
+  beforeDay,
+  spoiler,
+  className,
+}: {
+  teams: StandingsCardTeam[];
+  beforeDay: string | null;
+  spoiler: boolean;
+  className?: string;
+}) {
   return (
     <SocialCardExporter
       className={className}
       fileName="clasificacion-nba"
       caption="Clasificación · Fase regular"
       title="Clasificación NBA"
-      includes={["Las dos conferencias", "Puesto y balance de cada equipo", "Zonas de playoffs y play-in"]}
-      renderCard={(format) => <StandingsShareCard format={format} teams={teams} />}
+      includes={[
+        beforeDay ? `Clasificación antes de la jornada del ${formatShortDay(beforeDay)}` : "Clasificación al día",
+        "Puesto y balance de cada equipo",
+        "Zonas de playoffs y play-in",
+      ]}
+      spoiler={spoiler && "Incluye los resultados de la última jornada: quien la vea sabrá quién ganó."}
+      renderCard={(format) => <StandingsShareCard format={format} teams={teams} beforeDay={beforeDay} />}
     />
   );
 }
 
-function StandingsShareCard({ format, teams }: { format: CardFormat; teams: StandingsCardTeam[] }) {
+function StandingsShareCard({ format, teams, beforeDay }: { format: CardFormat; teams: StandingsCardTeam[]; beforeDay: string | null }) {
   const vertical = format === "9:16";
   const contentHeight = CARD_SIZE[format].height - WATERMARK_HEIGHT[format];
   const header = vertical ? 280 : 190;
@@ -55,7 +74,7 @@ function StandingsShareCard({ format, teams }: { format: CardFormat; teams: Stan
       <div className="flex flex-col" style={{ height: contentHeight }}>
         <header className={cn("shrink-0 border-b-4 border-orange-500", vertical ? "px-14 pt-24" : "px-20 pt-14")} style={{ height: header }}>
           <p className="font-display text-3xl font-semibold uppercase tracking-[0.3em] text-orange-400">
-            NBA · Fase regular · {updatedFormat.format(new Date())}
+            NBA · {beforeDay ? `Antes de la jornada del ${formatShortDay(beforeDay)}` : `Fase regular · ${updatedFormat.format(new Date())}`}
           </p>
           <p className={cn("mt-2 font-display font-extrabold uppercase leading-none text-white", vertical ? "text-8xl" : "text-7xl")}>Clasificación</p>
         </header>

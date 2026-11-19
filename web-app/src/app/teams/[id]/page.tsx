@@ -1,25 +1,20 @@
 import { Suspense, type ReactNode } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { TeamCardExport, type TeamCardData } from "@/components/share/TeamShareCard";
-import { FormStrip, PointDiff, Streak } from "@/components/standings/TeamForm";
+import type { TeamCardData } from "@/components/share/TeamShareCard";
+import { TeamRecordStats } from "@/components/standings/TeamRecordStats";
 import { BRAND } from "@/lib/brand";
-import { getTeamRoster, getTeams, getUpcomingGames, type UpcomingGame } from "@/lib/queries";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
-import { formatDraft } from "@/lib/player-profile";
+import { RosterTable } from "@/components/teams/RosterTable";
+import { TeamGameRow, type RivalLite } from "@/components/teams/TeamGameRow";
+import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
+import { getRecentMatchups, getStandingsBefore, getTeamRosterStats, getTeams, getUpcomingGames } from "@/lib/queries";
+import { teamLogoUrl } from "@/lib/nba-cdn";
+import type { StandingsBefore } from "@/lib/standings";
 import { teamAccent } from "@/lib/team-colors";
-import type { Player, Team } from "@/lib/supabase";
-import { cn } from "@/lib/utils";
+import type { Team } from "@/lib/supabase";
+import { SEASON } from "@/lib/trade-rules";
 
 const CONFERENCE_LABEL: Record<string, string> = { East: "Este", West: "Oeste" };
-
-// Horarios siempre en hora de España (incluye cambio de horario verano/invierno).
-const TZ = "Europe/Madrid";
-const dayFormat = new Intl.DateTimeFormat("es-ES", { weekday: "short", day: "numeric", month: "short", timeZone: TZ });
-const timeFormat = new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: TZ });
-
-const TH = "px-2 py-3 font-display text-xs font-semibold uppercase tracking-wider text-slate-300";
 
 export default function TeamPage({ params }: PageProps<"/teams/[id]">) {
   return (
@@ -38,11 +33,24 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   const team = teams.find((t) => t.id === teamId);
   if (!team) notFound();
 
-  const [roster, upcoming] = await Promise.all([getTeamRoster(teamId), getUpcomingGames(teamId)]);
+  const [roster, recent, upcoming, standings] = await Promise.all([
+    getTeamRosterStats(teamId),
+    getRecentMatchups(teamId),
+    getUpcomingGames(teamId),
+    getStandingsBefore(),
+  ]);
   const teamsById = new Map(teams.map((t) => [t.id, t]));
+  // Rivales de los partidos: solo lo que se pinta (al navegador no viajan balances ni nóminas)
+  const rivals: Record<number, RivalLite> = Object.fromEntries(
+    [...recent, ...upcoming]
+      .map((g) => teamsById.get(g.home_team_id === teamId ? g.away_team_id : g.home_team_id))
+      .filter((t): t is Team => t !== undefined)
+      .map((t) => [t.id, { id: t.id, name: t.name, abbreviation: t.abbreviation }])
+  );
   const accent = teamAccent(team);
-  const extra = team.standings_extra ?? {};
-  const card: TeamCardData = {
+  // Al navegador solo viaja el balance de antes de la jornada (Tarea 6.6); el de al día, desde /api/standings en Nivel 3
+  const before: StandingsBefore = { day: standings.day, teams: standings.teams?.filter((t) => t.id === teamId) ?? null };
+  const card: Omit<TeamCardData, "record" | "beforeDay"> = {
     id: team.id,
     name: team.name,
     primary: team.primary_color ?? "#334155",
@@ -50,15 +58,6 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
     accent,
     conference: team.conference ? CONFERENCE_LABEL[team.conference] : null,
     division: team.division,
-    wins: team.wins,
-    losses: team.losses,
-    confRank: team.conf_rank,
-    streak: extra.streak ?? null,
-    l10: extra.l10 ?? null,
-    form: extra.form ?? [],
-    home: extra.home ?? null,
-    road: extra.road ?? null,
-    diff: extra.diff_ppg ?? null,
     upcoming: upcoming.map((g) => {
       const home = g.home_team_id === teamId;
       const rivalId = home ? g.away_team_id : g.home_team_id;
@@ -69,28 +68,49 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   return (
     <>
       <title>{`${team.name} · ${BRAND.name}`}</title>
-      <TeamHero team={team} card={card} />
-      <div className="mt-8 grid gap-10 lg:grid-cols-3">
-        <section className="lg:col-span-2">
-          <SectionTitle accent={accent} count={roster.length}>
+      <TeamHero team={team} card={card} before={before} />
+      {/* minmax(0, 1fr): ninguna tabla ni fila ensancha la página en móvil (la plantilla se desplaza dentro) */}
+      <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-3">
+        <section className="min-w-0 lg:col-span-2">
+          <SectionTitle accent={accent} count={roster.rows.length}>
             Plantilla
           </SectionTitle>
-          <RosterTable roster={roster} accent={accent} />
+          <RosterTable rows={roster.rows} accent={accent} salarySeason={SEASON} />
+          <p className="mt-3 text-xs text-slate-400">
+            Promedios de la fase regular {roster.season} · Salario {SEASON} (≈ = aproximado) · Pulsa una columna para ordenar
+          </p>
         </section>
-        <section>
-          <SectionTitle accent={accent}>Próximos partidos</SectionTitle>
-          <UpcomingGames teamId={teamId} games={upcoming} teamsById={teamsById} />
-        </section>
+        <div className="min-w-0 space-y-10">
+          <section>
+            <SectionTitle accent={accent}>Últimos partidos</SectionTitle>
+            <TeamRecentGames teamId={teamId} games={recent} rivals={rivals} />
+          </section>
+          <section>
+            <SectionTitle accent={accent}>Próximos partidos</SectionTitle>
+            {upcoming.length === 0 ? (
+              <p className="py-4 text-sm text-slate-400">No hay partidos programados.</p>
+            ) : (
+              <ul>
+                {upcoming.map((game) => (
+                  <TeamGameRow
+                    key={game.id}
+                    teamId={teamId}
+                    game={game}
+                    rival={rivals[game.home_team_id === teamId ? game.away_team_id : game.home_team_id]}
+                  />
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
     </>
   );
 }
 
-function TeamHero({ team, card }: { team: Team; card: TeamCardData }) {
+function TeamHero({ team, card, before }: { team: Team; card: Omit<TeamCardData, "record" | "beforeDay">; before: StandingsBefore }) {
   const primary = team.primary_color ?? "#334155";
   const conference = team.conference ? CONFERENCE_LABEL[team.conference] : null;
-  const extra = team.standings_extra ?? {};
-  const form = extra.form ?? [];
 
   return (
     // Márgenes negativos: la cabecera ocupa todo el ancho del área de contenido
@@ -134,46 +154,11 @@ function TeamHero({ team, card }: { team: Team; card: TeamCardData }) {
           </div>
         </div>
 
-        <dl className="mt-8 flex flex-wrap gap-x-10 gap-y-5">
-          <HeroStat label="Balance">
-            {team.wins}-{team.losses}
-          </HeroStat>
-          {team.conf_rank && conference && (
-            <HeroStat label="Posición">
-              <Link href="/standings" className="hover:text-orange-300">
-                {team.conf_rank}º <span className="text-xl text-white/75">{conference}</span>
-              </Link>
-            </HeroStat>
-          )}
-          <HeroStat label="Racha">
-            <Streak streak={extra.streak} />
-          </HeroStat>
-          <HeroStat label={form.length < 10 ? `Últimos ${form.length}` : "Últimos 10"}>
-            <span className="flex h-9 items-center gap-3">
-              <FormStrip form={form} size="lg" />
-              {extra.l10 && <span className="text-2xl">{extra.l10}</span>}
-            </span>
-          </HeroStat>
-          <HeroStat label="Casa">{extra.home ?? "–"}</HeroStat>
-          <HeroStat label="Fuera">{extra.road ?? "–"}</HeroStat>
-          <HeroStat label="Dif. puntos">
-            <PointDiff value={extra.diff_ppg} />
-          </HeroStat>
-        </dl>
-        <TeamCardExport team={card} className="mt-6" />
+        <TeamRecordStats teamId={team.id} conference={conference} before={before} card={card} />
       </div>
       {/* Franja inferior con el color secundario de la franquicia */}
       <div className="relative h-1" style={{ background: team.secondary_color ?? primary }} aria-hidden />
     </header>
-  );
-}
-
-function HeroStat({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div>
-      <dt className="font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">{label}</dt>
-      <dd className="font-display text-4xl font-bold leading-tight text-white tabular-nums">{children}</dd>
-    </div>
   );
 }
 
@@ -187,99 +172,16 @@ function SectionTitle({ accent, count, children }: { accent: string; count?: num
   );
 }
 
-function RosterTable({ roster, accent }: { roster: Player[]; accent: string }) {
-  if (roster.length === 0) return <p className="py-4 text-sm text-slate-400">Sin jugadores registrados.</p>;
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead className="border-b border-slate-800">
-          <tr>
-            <th className={cn(TH, "pl-0 text-left")}>Jugador</th>
-            <th className={cn(TH, "text-left")}>Pos.</th>
-            <th className={cn(TH, "hidden text-left sm:table-cell")}>Altura</th>
-            <th className={cn(TH, "hidden text-left sm:table-cell")}>Peso</th>
-            <th className={cn(TH, "hidden text-left md:table-cell")}>País</th>
-            <th className={cn(TH, "hidden pr-0 text-left md:table-cell")}>Draft</th>
-          </tr>
-        </thead>
-        <tbody>
-          {roster.map((player) => (
-            <tr key={player.id} className="border-b border-slate-800/80 transition-colors hover:bg-slate-900">
-              <td className="py-1.5 pr-2">
-                <Link href={`/players/${player.id}`} className="group flex items-center gap-3">
-                  {/* Fondo teñido con el color del equipo detrás de la foto */}
-                  <span className="flex h-11 w-[60px] shrink-0 items-end overflow-hidden" style={{ background: `${accent}26` }}>
-                    <Image
-                      src={playerHeadshotUrl(player.id)}
-                      alt=""
-                      width={60}
-                      height={44}
-                      className="h-11 w-[60px] object-cover object-top"
-                    />
-                  </span>
-                  <span className="font-semibold text-white group-hover:text-orange-400">{player.full_name}</span>
-                </Link>
-              </td>
-              <td className="px-2 font-display text-base font-semibold uppercase text-slate-200">{player.position ?? "–"}</td>
-              <td className="hidden px-2 text-slate-300 tabular-nums sm:table-cell">{player.height ?? "–"}</td>
-              <td className="hidden px-2 text-slate-300 tabular-nums sm:table-cell">{player.weight ?? "–"}</td>
-              <td className="hidden px-2 text-slate-300 md:table-cell">{player.country ?? "–"}</td>
-              <td className="hidden pl-2 text-slate-300 tabular-nums md:table-cell">{formatDraft(player)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function UpcomingGames({
-  teamId,
-  games,
-  teamsById,
-}: {
-  teamId: number;
-  games: UpcomingGame[];
-  teamsById: Map<number, Team>;
-}) {
-  if (games.length === 0) return <p className="py-4 text-sm text-slate-400">No hay partidos programados.</p>;
-
-  return (
-    <ul>
-      {games.map((game) => {
-        const isHome = game.home_team_id === teamId;
-        const rival = teamsById.get(isHome ? game.away_team_id : game.home_team_id);
-        const date = new Date(game.game_datetime_utc);
-        return (
-          <li key={game.id} className="flex items-center gap-4 border-b border-slate-800/80 py-3">
-            <time dateTime={game.game_datetime_utc} className="w-20 shrink-0 font-display uppercase leading-tight">
-              <span className="block text-sm font-semibold text-slate-300">{dayFormat.format(date)}</span>
-              <span className="block text-xl font-bold text-white">{timeFormat.format(date)}</span>
-            </time>
-            <span className="w-6 text-center font-display text-sm font-bold uppercase text-slate-400">
-              {isHome ? "vs" : "@"}
-            </span>
-            {rival && (
-              <Link href={`/teams/${rival.id}`} className="flex min-w-0 items-center gap-2 font-semibold text-white hover:text-orange-400">
-                <Image src={teamLogoUrl(rival.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />
-                <span className="truncate">{rival.name}</span>
-              </Link>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 function TeamSkeleton() {
   return (
     <div className="animate-pulse" aria-busy>
       <div className="-mx-4 -mt-4 h-72 bg-slate-900 md:-mx-8 md:-mt-8" />
       <div className="mt-8 grid gap-10 lg:grid-cols-3">
         <div className="h-96 bg-slate-900/60 lg:col-span-2" />
-        <div className="h-48 bg-slate-900/60" />
+        <div className="space-y-10">
+          <div className="h-56 bg-slate-900/60" />
+          <div className="h-56 bg-slate-900/60" />
+        </div>
       </div>
     </div>
   );
