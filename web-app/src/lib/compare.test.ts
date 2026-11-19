@@ -33,6 +33,15 @@ describe("radar histórico", () => {
     assert.ok(balanced > onlySteals);
   });
 
+  it("en defensa, un récord de tapones no topa en 99: supera a quien hace bien las dos cosas", () => {
+    // Robos como casi todos y tapones de récord frente a muy bueno en las dos (Wembanyama y Jokić en 2026-27)
+    const league = Array.from({ length: 100 }, (_, i) => line({ stl: 0.5 + (i % 10) * 0.15, blk: 0.2 + Math.floor(i / 10) * 0.12 }));
+    const leagueScale = buildRadarScale(league);
+    const blocker = radarOf(line({ stl: 1.1, blk: 4.3 }), leagueScale).defense!;
+    const allRound = radarOf(line({ stl: 1.8, blk: 1.1 }), leagueScale).defense!;
+    assert.ok(blocker > allRound, `${blocker} > ${allRound}`);
+  });
+
   it("deja en null lo que esa época no registraba", () => {
     const wilt = radarOf(line({ stl: null, blk: null, fg3m: null, fg3a: null, fg3Pct: null, pts: 90 }), scale);
     assert.equal(wilt.defense, null);
@@ -85,6 +94,11 @@ describe("filas del duelo", () => {
   it("en pérdidas gana quien tiene menos", () => {
     const row = statRows(line({ tov: 2.7 }), line({ tov: 3.5 })).find((r) => r.key === "tov")!;
     assert.equal(row.winner, "a");
+  });
+
+  it("en pérdidas, la barra es más larga para quien pierde menos", () => {
+    const row = statRows(line({ tov: 1 }), line({ tov: 3 })).find((r) => r.key === "tov")!;
+    assert.equal(row.share, 0.75);
   });
 
   it("un empate no da punto a nadie", () => {

@@ -195,7 +195,7 @@ function PlayerHero({
             <HeroStat label="Draft">{formatDraft(player)}</HeroStat>
           </dl>
 
-          <div className="mt-7 flex flex-wrap items-end gap-x-8 gap-y-4">
+          <div className="mt-7 flex flex-wrap items-center gap-3">
             <PlayerCardExport player={player} team={team} radar={radar} season={season} age={age} />
             <Link
               href={`/compare?a=${player.id}`}

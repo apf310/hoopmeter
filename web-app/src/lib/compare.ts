@@ -28,24 +28,37 @@ export type Radar = Record<RadarCategory, number | null>;
 
 type Metric = { value: (line: StatLine) => number | null; weight: number };
 
+/**
+ * Cómo se suman las métricas de una categoría. "percentile": percentil de cada una. "spread": desviaciones
+ * típicas sobre la media, sin techo. En defensa, con percentiles, un récord de tapones (Wembanyama, Mutombo)
+ * valía lo mismo que ser el 1 % mejor y quien hacía bien las dos cosas a secas les pasaba por delante.
+ * En el tiro no sirve: el volumen de triples se comería el porcentaje.
+ */
+type Category = { metrics: Metric[]; combine: "percentile" | "spread" };
+
 // Con menos de 1 triple por partido, el porcentaje no dice nada: un pívot con 1 de 2 no es un tirador
 const threePointAccuracy = ({ fg3a, fg3Pct }: StatLine) => (fg3a === null ? null : fg3a >= 1 ? fg3Pct : 0);
 
+const single = (value: Metric["value"]): Category => ({ metrics: [{ value, weight: 1 }], combine: "percentile" });
+
 /** Solo lo que existe en todas las épocas: `player_radar_calc.py` usa métricas avanzadas que no llegan a 1996. */
-const METRICS: Record<RadarCategory, Metric[]> = {
-  scoring: [{ value: (s) => s.pts, weight: 1 }],
-  shooting: [{ value: (s) => s.fg3m, weight: 0.5 }, { value: threePointAccuracy, weight: 0.5 }],
-  playmaking: [{ value: (s) => s.ast, weight: 1 }],
-  defense: [{ value: (s) => s.stl, weight: 0.5 }, { value: (s) => s.blk, weight: 0.5 }],
-  rebounding: [{ value: (s) => s.reb, weight: 1 }],
-  efficiency: [{ value: (s) => s.tsPct, weight: 1 }],
+const CATEGORY_METRICS: Record<RadarCategory, Category> = {
+  scoring: single((s) => s.pts),
+  shooting: { metrics: [{ value: (s) => s.fg3m, weight: 0.5 }, { value: threePointAccuracy, weight: 0.5 }], combine: "percentile" },
+  playmaking: single((s) => s.ast),
+  defense: { metrics: [{ value: (s) => s.stl, weight: 0.5 }, { value: (s) => s.blk, weight: 0.5 }], combine: "spread" },
+  rebounding: single((s) => s.reb),
+  efficiency: single((s) => s.tsPct),
 };
 
-const CATEGORIES = Object.keys(METRICS) as RadarCategory[];
+const CATEGORIES = Object.keys(CATEGORY_METRICS) as RadarCategory[];
 const CUT_POINTS = 100;
 
-/** Cortes de percentil de una categoría: los de cada métrica y los de la nota combinada. */
-type CategoryScale = { metrics: number[][]; combined: number[] };
+/** Escala de una métrica: sus cortes de percentil o su media y desviación típica. */
+type MetricScale = { cuts: number[] } | { mean: number; sd: number };
+
+/** Lo que hace falta para puntuar una categoría: la escala de cada métrica y los cortes de la nota combinada. */
+type CategoryScale = { metrics: MetricScale[]; combined: number[] };
 
 export type RadarScale = Record<RadarCategory, CategoryScale>;
 
@@ -71,25 +84,37 @@ function percentile(value: number, cuts: number[]): number {
   return Math.max(0, low - 1);
 }
 
-function combine(line: StatLine, metrics: Metric[], cuts: number[][]): number | null {
+function metricScale(values: number[], how: Category["combine"]): MetricScale {
+  if (how === "percentile") return { cuts: cutPoints(values) };
+  const mean = values.reduce((sum, value) => sum + value, 0) / (values.length || 1);
+  const variance = values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length || 1);
+  return { mean, sd: Math.sqrt(variance) };
+}
+
+function normalize(raw: number, scale: MetricScale): number {
+  if ("cuts" in scale) return percentile(raw, scale.cuts);
+  return scale.sd > 0 ? (raw - scale.mean) / scale.sd : 0;
+}
+
+function combine(line: StatLine, metrics: Metric[], scales: MetricScale[]): number | null {
   let total = 0;
   for (const [i, { value, weight }] of metrics.entries()) {
     const raw = value(line);
     if (raw === null) return null;
-    total += percentile(raw, cuts[i]) * weight;
+    total += normalize(raw, scales[i]) * weight;
   }
   return total;
 }
 
-function buildCategoryScale(lines: StatLine[], metrics: Metric[]): CategoryScale {
-  const cuts = metrics.map(({ value }) => cutPoints(lines.map(value).filter((raw) => raw !== null)));
-  const combined = lines.map((line) => combine(line, metrics, cuts)).filter((score) => score !== null);
-  return { metrics: cuts, combined: cutPoints(combined) };
+function buildCategoryScale(lines: StatLine[], { metrics, combine: how }: Category): CategoryScale {
+  const scales = metrics.map(({ value }) => metricScale(lines.map(value).filter((raw) => raw !== null), how));
+  const combined = lines.map((line) => combine(line, metrics, scales)).filter((score) => score !== null);
+  return { metrics: scales, combined: cutPoints(combined) };
 }
 
 /** Escala de una población: se calcula una vez y deja solo los cortes, no todas las filas. */
 export function buildRadarScale(lines: StatLine[]): RadarScale {
-  return Object.fromEntries(CATEGORIES.map((category) => [category, buildCategoryScale(lines, METRICS[category])])) as RadarScale;
+  return Object.fromEntries(CATEGORIES.map((category) => [category, buildCategoryScale(lines, CATEGORY_METRICS[category])])) as RadarScale;
 }
 
 /** Radar 0-99 de una temporada o carrera. Null = esa época no registraba el dato. */
@@ -97,7 +122,7 @@ export function radarOf(line: StatLine, scale: RadarScale): Radar {
   return Object.fromEntries(
     CATEGORIES.map((category) => {
       const { metrics, combined } = scale[category];
-      const score = combine(line, METRICS[category], metrics);
+      const score = combine(line, CATEGORY_METRICS[category].metrics, metrics);
       return [category, score === null ? null : percentile(score, combined)];
     })
   ) as Radar;
@@ -127,7 +152,7 @@ export type DuelRow = {
   bText: string;
   /** null = empate, falta el dato o la fila no puntúa. */
   winner: Side | null;
-  /** Lo que ocupa cada lado en la barra, de 0 a 1. */
+  /** Lo que ocupa el lado A en la barra, de 0 a 1 (en "menos es mejor", la parte del rival). */
   share: number;
 };
 
@@ -149,6 +174,7 @@ function buildRow(
   const comparable = scored && a !== null && b !== null && a !== b;
   const aAhead = comparable && (lowerIsBetter ? a < b : a > b);
   const total = (a ?? 0) + (b ?? 0);
+  const aPart = lowerIsBetter ? (b ?? 0) : (a ?? 0);
   return {
     key,
     label,
@@ -157,7 +183,7 @@ function buildRow(
     aText: formatValue(a, format),
     bText: formatValue(b, format),
     winner: comparable ? (aAhead ? "a" : "b") : null,
-    share: total > 0 ? (a ?? 0) / total : 0.5,
+    share: total > 0 ? aPart / total : 0.5,
   };
 }
 

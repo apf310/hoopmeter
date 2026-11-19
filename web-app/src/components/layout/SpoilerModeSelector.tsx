@@ -52,7 +52,8 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
         role="radiogroup"
         aria-label="Nivel de spoilers"
         className={cn(
-          "flex rounded-full bg-slate-950 p-1 ring-1 ring-inset transition-colors duration-300",
+          "flex bg-slate-950 p-1 ring-1 ring-inset transition-colors duration-300",
+          withLabel ? "rounded-full" : "rounded-2xl",
           spoilers ? "ring-orange-500/40" : "ring-emerald-500/40"
         )}
       >
@@ -72,9 +73,10 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
               onPointerDownCapture={() => announceLevelIntent(level)}
               {...(needsHold ? hold.handlers : {})}
               className={cn(
-                "relative flex flex-1 touch-manipulation select-none items-center justify-center gap-1.5 overflow-hidden rounded-full outline-none transition-colors duration-300 [-webkit-touch-callout:none]",
+                "relative flex touch-manipulation select-none items-center justify-center gap-1.5 overflow-hidden outline-none transition-colors duration-300 [-webkit-touch-callout:none]",
                 "focus-visible:ring-2 focus-visible:ring-orange-400",
-                withLabel ? "h-8 px-2" : "h-7 w-9",
+                // Barra móvil: texto corto bajo el icono (en línea no cabe a 360 px junto al logo), cada uno a su ancho
+                withLabel ? "h-8 flex-1 rounded-full px-2" : "h-9 min-w-9 flex-col gap-0.5 rounded-xl px-2",
                 active
                   ? level === 3
                     ? "bg-orange-500 text-slate-950 shadow-[0_0_14px] shadow-orange-500/50"
@@ -92,8 +94,12 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
                   )}
                 />
               )}
-              <Icon className="relative size-4" />
-              {withLabel && <span className="relative font-display text-xs font-bold uppercase tracking-wide">{short}</span>}
+              <Icon className={cn("relative", withLabel ? "size-4" : "size-3.5 shrink-0")} />
+              {withLabel ? (
+                <span className="relative font-display text-xs font-bold uppercase tracking-wide">{short}</span>
+              ) : (
+                <span className="relative font-display text-[10px] font-bold uppercase leading-none">{short}</span>
+              )}
             </button>
           );
         })}

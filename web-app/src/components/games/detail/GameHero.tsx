@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { EyeOff } from "lucide-react";
+import { ArrowLeft, EyeOff } from "lucide-react";
 import { Placeholder } from "@/components/games/detail/ui";
 import type { GameDetail } from "@/lib/game-detail";
 import {
@@ -33,7 +33,7 @@ type GameHeroProps = {
   away: MatchupTeam;
   home: MatchupTeam;
   view: HeroView;
-  /** Botón de exportar la tarjeta para redes. */
+  /** Botón de exportar la tarjeta para redes (arriba a la derecha). */
   children?: ReactNode;
 };
 
@@ -74,10 +74,21 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
         className="pointer-events-none absolute -right-24 top-1/2 size-[280px] -translate-y-1/2 opacity-[0.12] md:size-[420px]"
       />
 
-      <div className="relative px-4 pb-6 pt-6 md:px-8 md:pb-8 md:pt-10">
-        <p className="text-center font-display text-xs font-semibold uppercase tracking-[0.3em] text-white/75">
-          Jornada NBA · {formatWeekday(day, "long")} {formatDayMonth(day)}
-        </p>
+      <div className="relative px-4 pb-6 pt-3 md:px-8 md:pb-8 md:pt-6">
+        {/* Volver y compartir en los extremos; la fecha, debajo en móvil y entre los dos en escritorio */}
+        <div className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-y-3 md:grid-cols-[1fr_auto_1fr]">
+          <Link
+            href={`/?fecha=${day}`}
+            className="inline-flex items-center gap-1.5 justify-self-start py-2 pr-2 font-display text-sm font-bold uppercase tracking-wider text-white/85 outline-none transition-colors hover:text-orange-300 focus-visible:text-orange-300"
+          >
+            <ArrowLeft className="size-4" />
+            Volver
+          </Link>
+          <p className="col-span-2 row-start-2 text-center font-display text-xs font-semibold uppercase tracking-[0.3em] text-white/75 md:col-span-1 md:col-start-2 md:row-start-1">
+            Jornada NBA · {formatWeekday(day, "long")} {formatDayMonth(day)}
+          </p>
+          <div className="col-start-2 row-start-1 justify-self-end md:col-start-3">{children}</div>
+        </div>
 
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 md:gap-6">
           <TeamSide team={away} role="Visitante" dimmed={homeWins} live={live?.away} />
@@ -101,8 +112,6 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
               .join(" · ")}
           </p>
         )}
-
-        {children && <div className="mt-6 flex justify-center">{children}</div>}
       </div>
       {/* Franja inferior: color de cada equipo en su lado */}
       <div aria-hidden className="relative flex h-1">

@@ -70,7 +70,7 @@ function canShareFiles(): boolean {
 }
 
 /**
- * Modo Creador: botón "Compartir imagen" que abre una ventana con la vista previa exacta de la tarjeta HD
+ * Modo Creador: botón de compartir (solo el icono, con "Compartir imagen" como etiqueta y tooltip) que abre una ventana con la vista previa exacta de la tarjeta HD
  * (16:9 o 9:16, con la marca de agua de la app), qué incluye y el botón para compartirla o descargarla.
  * El usuario ve siempre qué está sacando antes de sacarlo.
  */
@@ -104,13 +104,13 @@ export function SocialCardExporter({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Compartir imagen: ${title}`}
+        title="Compartir imagen"
         className={cn(
-          "inline-flex items-center gap-2 border border-white/25 bg-slate-950/60 px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wider text-white transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950",
+          "inline-flex size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400",
           className
         )}
       >
-        <Share2 className="size-4" />
-        Compartir imagen
+        <Share2 className="size-5" />
       </button>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-40 bg-slate-950/85 backdrop-blur-sm transition-opacity duration-150 data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />

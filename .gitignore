@@ -28,3 +28,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Material privado de consulta (no subir)
+/info_17nov/

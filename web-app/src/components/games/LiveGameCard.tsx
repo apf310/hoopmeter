@@ -51,8 +51,8 @@ export function LiveGameCard({ game, day, home, away, view }: LiveGameCardProps)
         <StatusCell game={game} day={day} result={result} />
 
         <div className="space-y-1 md:space-y-1.5">
-          <TeamLine team={away} dimmed={homeWins} />
-          <TeamLine team={home} dimmed={awayWins} />
+          <TeamLine team={away} role="Visitante" dimmed={homeWins} />
+          <TeamLine team={home} role="Local" dimmed={awayWins} />
         </div>
 
         <div className="flex min-w-14 justify-end">
@@ -98,14 +98,22 @@ function StatusCell({ game, day, result }: { game: GameMatchup; day: string; res
   );
 }
 
-function TeamLine({ team, dimmed }: { team: TeamLite | undefined; dimmed: boolean }) {
+function TeamLine({ team, role, dimmed }: { team: TeamLite | undefined; role: "Visitante" | "Local"; dimmed: boolean }) {
   return (
     <div className="flex h-7 min-w-0 items-center gap-2.5 md:h-8">
       <span aria-hidden className="h-6 w-1 shrink-0" style={{ backgroundColor: team?.accent ?? "#475569" }} />
       {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-6 shrink-0 md:size-7" />}
-      <span className={cn("truncate font-semibold", dimmed ? "text-slate-400" : "text-white")}>
-        <span className="md:hidden">{team?.abbreviation ?? "—"}</span>
-        <span className="hidden md:inline">{team?.name ?? "—"}</span>
+      {/* Convención de EE. UU.: "@" discreta delante del local. El hueco existe también en la fila del visitante
+          (vacío) para que los dos nombres empiecen a la misma altura. El lector de pantalla oye la palabra */}
+      <span className="flex min-w-0 items-baseline">
+        <span aria-hidden className="w-5 shrink-0 font-semibold text-slate-500">
+          {role === "Local" ? "@" : ""}
+        </span>
+        <span className={cn("truncate font-semibold", dimmed ? "text-slate-400" : "text-white")}>
+          <span className="sr-only">{role}: </span>
+          <span className="md:hidden">{team?.abbreviation ?? "—"}</span>
+          <span className="hidden md:inline">{team?.name ?? "—"}</span>
+        </span>
       </span>
     </div>
   );
