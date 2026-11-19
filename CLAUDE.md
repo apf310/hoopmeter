@@ -20,6 +20,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Verificar sintaxis rápida (sin gastar API):** `python -m py_compile <archivo.py>`
 - **Ejecutar extractor/procesador:** `python -m extractors.<script>` o `python -m processors.<script>`
 - **Vigilar partidos terminados, poner la nota al instante, guardar su boxscore y recalcular la clasificación:** `python watcher.py` (`--once`, `--backfill`, `--skip-schedule`, `--game-id X --dry-run`)
+- **Recalcular todas las notas guardadas tras cambiar el algoritmo (tabla antes/después sin marcadores):** `python -m processors.excitement_calculator --rescore` (`--dry-run`)
 - **Calendario completo de la temporada (CDN) + directo de hoy:** `python -m extractors.fetch_live_and_final`
 - **Boxscores (CDN + correcciones oficiales de nba.com):** `python -m extractors.fetch_boxscores` (`--all`, `--game-id X`, `--cdn-only`, `--dry-run`)
 - **Clasificación calculada con desempates oficiales:** `python -m processors.standings_calc` (`--dry-run`)
@@ -28,7 +29,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Ficha (altura, peso, draft...) de jugadores nuevos desde nba.com:** `python -m extractors.fetch_player_bios` (`--dry-run`)
 - **Aplicar el registro oficial de movimientos de la NBA a los contratos (fichajes, cortes, traspasos):** `python -m extractors.fetch_transactions` (`--dry-run`)
 - **Cifras de los contratos desde las noticias (RSS de Hoops Rumors y RealGM), justo después del anterior:** `python -m extractors.fetch_contract_news` (`--dry-run`)
-- **Tests (contratos, clasificación, estadísticas; sin red ni base de datos):** `python -m unittest discover -s tests -t .`
+- **Tests (contratos, clasificación, estadísticas, nota; sin red ni base de datos):** `python -m unittest discover -s tests -t .`
 - **Solo desde un PC (stats.nba.com), de vez en cuando:** `python -m extractors.fetch_career_awards` (premios en febrero/mayo/junio; `--player-id X` para los "pending_history" de `sync_status.season_stats`; `--totals-only` = solo totales exactos)
 - **Carga completa de contratos desde Basketball-Reference (solo carga inicial: NO programar):** `python -m extractors.scrape_salaries` (`--dry-run`)
 - **Cargar leyendas retiradas (lista `LEGENDS`, ~8 min):** `python -m extractors.fetch_legends` (`--resume`, `--name "Michael Jordan"`)
@@ -62,7 +63,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Garantía innegociable:** la app **SIEMPRE arranca en Nivel 1**, aunque se cerrara en otro (también tras >15 min en segundo plano). Nunca persistir Nivel 2/3 entre aperturas. Ante la duda, fallar hacia el Nivel 1.
 - **Cambio de nivel (`SpoilerModeSelector`):** a Nivel 1 o 2 con un toque; a Nivel 3 **solo manteniendo pulsado** 1 s (un toque o roce accidental nunca destripa nada).
 - **Nivel 1 — Todo oculto (`spoilerLevel === 1`, por defecto):** solo emparejamientos y hora. **Ni nota**, ni marcador, ni estado/`live_period_text`.
-- **Nivel 2 — Solo nota (`spoilerLevel === 2`):** lo anterior + el número `excitement_score` (`1.0`-`10.0`) y su color.
+- **Nivel 2 — Solo nota (`spoilerLevel === 2`):** lo anterior + el número `excitement_score` (`1.0`-`10.0`) y su color (`getExcitementTone`: verde 8+, ámbar 5-7.9, rojo <5).
   - **TERMINANTEMENTE PROHIBIDO en Niveles 1 y 2:** marcadores, ganador, si hubo prórroga (OT), si un jugador anotó 50 puntos, o cualquier texto/etiqueta que destripe cómo se desarrolla el partido.
 - **Nivel 3 — Resultados (`spoilerLevel === 3`):** marcadores en tiempo real (`Live`) o finales junto a la nota, cuartos y *Boxscore* completo. Solo en este nivel se llama a `/api/live`.
 - Filtrar siempre con `redactGame(game, level)` (`lib/spoilers.ts`, lista blanca por nivel) antes de pasar datos a la UI.
@@ -71,6 +72,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Partidos en Vivo (`Live`):** Los componentes del cliente NUNCA llaman a `stats.nba.com` directamente; llaman a `/api/live` en Next.js (que cachea la respuesta de `live.nba.endpoints.scoreboard` durante 30 segundos para todos los usuarios).
 - **Ficha del partido (`/games/[id]`):** boxscore, tiros y jugada a jugada salen de `/api/games/[id]` (`lib/game-detail.ts`: CDN `liveData` de la NBA reducida en el servidor y con métricas avanzadas; caché compartida de 30 s en directo y de horas si es `Final`). Es Nivel 3: el cliente solo la pide en ese nivel (`useGameDetail`).
 - **Cálculo Inmediato Post-Partido:** No se espera a las 07:00 AM. En cuanto un partido pasa a `Final` y `is_processed == False`, `watcher.py` calcula `excitement_score` inmediatamente (sea domingo por la tarde o de madrugada).
+- **La nota (Tarea 6.5):** probabilidad de victoria segundo a segundo + desglose calibrado para que se lea como una nota del colegio (mediana ~6). Nunca un plus por prórroga ni nada que haga que una nota delate la prórroga o el ganador: cualquier cambio se comprueba con la tabla de `--rescore --dry-run` y `tests/test_excitement.py`, y después se recalculan las notas guardadas.
 - **Rate Limiting en Python:** Añade siempre `time.sleep(0.6)` entre llamadas consecutivas a endpoints estadísticos de `nba_api` y usa `.upsert(..., on_conflict="id")` en Supabase.
 - **La web (Vercel) lee los JSON en directo del origen S3** (`nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData`, `fetchLiveData` en `lib/live.ts`): `cdn.nba.com` responde 403 a las IPs de Vercel (AWS) aunque funcione en local. Fotos y logos de `cdn.nba.com` sí funcionan desde Vercel.
 - **`stats.nba.com/stats/*` bloquea las IPs de la nube (GitHub, Vercel):** nada automático puede usarlo. Desde GitHub Actions solo funcionan `cdn.nba.com` (`extractors/nba_cdn.py`), las páginas de nba.com (`extractors/nba_web.py`) y los estáticos de `stats.nba.com/js/data`. Lo que solo exista en `stats.nba.com/stats` (premios, historial de veteranos nuevos) se carga a mano desde un PC.

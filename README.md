@@ -45,7 +45,7 @@ Por eso, la aplicación implementa **3 niveles de visibilidad** controlados por 
 1. **🔒 Nivel 1: "Todo oculto" (por defecto, SIEMPRE al abrir la app):**
    * Solo los partidos de la jornada (emparejamientos y hora). Ni nota, ni resultados, ni estado del partido.
 2. **⭐ Nivel 2: "Solo nota" (un toque):**
-   * Añade la **Nota Numérica del Partido (`Excitement Score` del `1.0` al `10.0`)** con su código de color (ej. `🟢 9.3` Imprescindible, `🟡 7.1` Entretenido, `🔴 4.2` Flojo) para elegir qué partidos ver.
+   * Añade la **Nota Numérica del Partido (`Excitement Score` del `1.0` al `10.0`)** con su código de color para elegir qué partidos ver. Se lee como una nota del colegio: `🟢 8+` partidazo (~1 de cada 5), `🟡 5-7.9` se deja ver (el partido normal ronda el 6) y `🔴 <5` flojo (se decidió antes del último cuarto).
    * **Prohibido:** si hubo prórroga, si alguien hizo un récord de puntos o cualquier pista sobre cómo termina el partido. Solo la nota de espectáculo global.
 3. **🔓 Nivel 3: "Resultados" (manteniendo pulsado 1 segundo):**
    * Marcadores en tiempo real o finales (junto a la nota), cuartos, *Boxscore* completo y líderes del partido.
@@ -53,11 +53,12 @@ Por eso, la aplicación implementa **3 niveles de visibilidad** controlados por 
 > **La garantía:** con otras apps (incluida la oficial de la NBA) siempre se te olvida cambiar de modo y acabas comiéndote un spoiler. Aquí la app **vuelve sola al Nivel 1** cada vez que se abre (o tras 15 min en segundo plano), y llegar a los resultados exige mantener pulsado: un toque accidental nunca destripa nada.
 
 #### ¿Cómo se calcula el `Excitement Score (1.0 - 10.0)` de forma interna al acabar cada partido?
-En el instante en que un partido pasa a estado `Final`, nuestro motor en segundo plano analiza el *Play-by-Play* y calcula la nota ponderando:
-* Cambios de líder (*Lead Changes*) y empates (*Times Tied*).
-* Igualdad en los últimos 5 minutos (*Clutch Margin*).
-* Ritmo de anotación, eficiencia de tiro y rachas espectaculares.
+En el instante en que un partido pasa a estado `Final`, nuestro motor en segundo plano analiza el *Play-by-Play* y reconstruye la **probabilidad de victoria segundo a segundo** (marcador, tiempo por jugar y ventaja de campo; ajustada con 1.527 partidos de 2025-26 y 2026-27). Con ella pondera:
+* Hasta cuándo tuvo opciones el perdedor: vivo al llegar al último cuarto y en los últimos minutos.
+* Vuelcos al final del tiempo reglamentario, igualdad durante el partido y remontadas (de cualquiera de los dos equipos).
+* Ritmo de anotación y acierto.
 * Actuaciones individuales históricas (ponderadas internamente en el número, pero **nunca reveladas en texto junto a la nota**).
+* La prórroga **no tiene plus propio**: con él, 9 de cada 10 notas de 9+ eran prórrogas y la nota la delataba. Ya puntúa por cómo se llega a ella.
 
 ---
 
@@ -376,7 +377,7 @@ hoopmeter/
 * **Mejoras de la auditoría del 17-nov-2026** (`info_17nov/`, contrastada con el código; la jornada por defecto se queda como está: "Hoy" = la fecha de la NBA):
 * [X] **Tarea 6.3:** Retoques rápidos de interfaz: en la lista de partidos, marcar quién es visitante y quién local (`LiveGameCard.tsx`, hoy el visitante va arriba sin indicarlo); botón "← Volver" visible en la ficha del partido (iPhone con la web instalada y escritorio no tienen otro); texto corto junto a los iconos del selector de spoilers en móvil (Ocultar · Nota · Resultados, sin salirse a 360 px); el subtítulo de la portada en móvil se corta ("HORA DE E…"); el botón "Compartir imagen" pasa a ser solo el icono (con `aria-label` y *tooltip*) en todas las pantallas, actualizando CLAUDE.md §4.C.
 * [X] **Tarea 6.4:** Comparador: la barra de "Pérdidas" ya es más larga para quien pierde menos, y "Defensa" suma desviaciones típicas de robos y tapones en vez de percentiles, que topaban en 99 (2026-27: Wembanyama 99 y Jokić 93, antes 94 y 97; Mutombo pasa de 49 a 96 en su carrera). "Tiro exterior" sigue con percentiles: con desviaciones el volumen de triples se comía el porcentaje.
-* [ ] **Tarea 6.5:** Nota justa: recalibrar `excitement_score`. Hoy la mediana es 3,5, solo el 31 % de los partidos llega a 5 y 7 de 205 pasan de 8: parece que todas las jornadas son malas. Objetivo: que se lea como una nota española (partido normal ≈ 6, suspenso solo si se decidió pronto, 8+ los partidazos). Mantener el desglose de `processors/excitement_calculator.py` y revisar curva final y pesos (p. ej. partido vivo al entrar al último cuarto); validar con todos los partidos guardados (tabla antes/después, casos como ORL-BOS `0022600245`), tests, recalcular las notas ya guardadas y revisar colores y textos de la nota en la web.
+* [X] **Tarea 6.5:** Nota justa: `excitement_score` rehecho sobre la probabilidad de victoria segundo a segundo (ajustada con 1.527 partidos de 2025-26 y 2026-27) con el desglose vivo al último cuarto · final en el aire · final de infarto · igualdad · remontada · ataque · individual, calibrado con notas puestas a mano a 112 partidos. 2025-26: mediana 3,6 → 6,0, suspensos 66 % → 35 %, 8+ 4 % → 21 %; ORL-BOS `0022600245` 4,6 → 6,7. Sin plus por prórroga para que el 9+ no la delate. Colores 🟢 8+ · 🟡 5-7,9 · 🔴 <5 y leyenda en el Nivel 2; tests en `tests/test_excitement.py` y `spoilers.test.ts`; notas guardadas recalculadas con `python -m processors.excitement_calculator --rescore`.
 * [ ] **Tarea 6.6:** Clasificación y equipos según el nivel de spoilers, sin botones ni confirmaciones nuevas: en Niveles 1 y 2, clasificación y cabecera de equipo (balance, posición, racha, últimos 10, casa/fuera, diferencia) **antes de la última jornada empezada**, con la línea "Antes de la jornada del lun 16 · mantén pulsado Resultados para verla al día"; en Nivel 3, al día. Los datos al día solo se piden en Nivel 3 (como `/api/live`) y las tarjetas de compartir siguen el nivel. Actualizar el alcance de CLAUDE.md §4.A.
 * [ ] **Tarea 6.7:** Ficha de equipo estilo BeSoccer y página de los 30 equipos: plantilla ordenada por minutos (no por nombre) con MIN, PTS, REB, AST, %T3 y salario 2026-27 y columnas ordenables; últimos partidos encima de los próximos (Nivel 1: rival y fecha; Nivel 2: + nota; Nivel 3: + resultado); página `/teams` con los 30 equipos por conferencia y división, enlazada desde la clasificación.
 * [ ] **Tarea 6.8:** Ficha de jugador: contrato año a año (opciones, `pending` sin cifra y "≈" en las aproximadas, nunca inventadas) con botón "Simular traspaso" que lo lleva al GM; últimos partidos según el nivel (como en 6.7; la línea de estadísticas solo en Nivel 3) y máximos de la temporada (de carrera solo si hay boxscores de toda ella).

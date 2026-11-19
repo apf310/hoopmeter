@@ -74,10 +74,16 @@ export function redactGame(game: Game, level: SpoilerLevel): RedactedGame {
 
 export type ExcitementTone = "high" | "mid" | "low" | "pending";
 
+/**
+ * La nota se lee como una del colegio (Tarea 6.5): 8 o más, partidazo (~1 de cada 5 partidos); de 5 a 7.9,
+ * se deja ver (el normal ronda el 6); menos de 5, flojo: se decidió antes del último cuarto.
+ */
+export const EXCITEMENT_THRESHOLDS = { high: 8, mid: 5 } as const;
+
 export function getExcitementTone(score: number | null): ExcitementTone {
   if (score === null || Number.isNaN(score)) return "pending";
-  if (score >= 8.5) return "high";
-  if (score >= 6) return "mid";
+  if (score >= EXCITEMENT_THRESHOLDS.high) return "high";
+  if (score >= EXCITEMENT_THRESHOLDS.mid) return "mid";
   return "low";
 }
 
