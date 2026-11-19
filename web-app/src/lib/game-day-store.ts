@@ -18,6 +18,23 @@ export type GameDetailPayload = { detail: GameDetail | null };
 export type StandingsPayload = { teams: StandingsRow[] };
 export type TeamGamesLevel2Payload = { level: 2; games: GameLevel2[] };
 export type TeamGamesLevel3Payload = { level: 3; games: GameLevel3[] };
+/** Línea de un jugador en un partido (Tarea 6.8). Null = no estaba en el boxscore de ese partido. */
+export type PlayerGameLine = {
+  played: boolean;
+  absence: string | null;
+  seconds: number;
+  pts: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  fgm: number;
+  fga: number;
+  fg3m: number;
+  fg3a: number;
+  plusMinus: number;
+};
+export type PlayerGamesPayload = { level: 3; lines: Record<string, PlayerGameLine | null> };
 
 /** Antigüedad máxima de una jornada en juego (igual que la caché de 30 s del servidor). */
 export const LIVE_MAX_AGE_MS = 30_000;
@@ -129,6 +146,17 @@ export function useTeamGamesLevel2(level: SpoilerLevel, teamId: number): Entry<T
 
 export function useTeamGamesLevel3(level: SpoilerLevel, teamId: number): Entry<TeamGamesLevel3Payload> | undefined {
   return useEntry<TeamGamesLevel3Payload>(level === 3 ? teamGamesKey(3, teamId) : null);
+}
+
+const playerGamesKey = (playerId: number) => `player:3:${playerId}`;
+
+/** Línea del jugador en los últimos partidos de su equipo (`/api/players/[id]/games`, Tarea 6.8). Solo para Nivel 3. */
+export function loadPlayerGames(playerId: number, maxAgeMs = LIVE_MAX_AGE_MS): Promise<void> {
+  return load(playerGamesKey(playerId), `/api/players/${playerId}/games?level=3`, maxAgeMs);
+}
+
+export function usePlayerGames(level: SpoilerLevel, playerId: number | undefined): Entry<PlayerGamesPayload> | undefined {
+  return useEntry<PlayerGamesPayload>(level === 3 && playerId !== undefined ? playerGamesKey(playerId) : null);
 }
 
 /** Clasificación al día (`/api/standings`, Tarea 6.6). Solo para Nivel 3: los Niveles 1 y 2 usan la de antes de la jornada. */

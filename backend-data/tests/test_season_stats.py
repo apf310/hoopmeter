@@ -184,6 +184,14 @@ class SeasonRows(unittest.TestCase):
         self.assertEqual(adv["teams"][1]["pts"], 18.0)
         self.assertEqual(row["totals"]["pts"], 81)
 
+    def test_season_highs(self):
+        rows = [game_row(7, "0022600001", "2026-10-21", 1, 30, ast=4, opponent=2),
+                game_row(7, "0022600002", "2026-10-23", 1, 22, ast=9, opponent=3),
+                game_row(7, "0042600001", "2027-04-20", 1, 45, ast=1, opponent=2, game_type="004")]
+        highs = S.season_row(S.aggregate(rows)[(7, "2026-27", "Regular Season")], {2: "BBB", 3: "CCC"}, {1}, None)["advanced_stats"]["season_highs"]
+        self.assertEqual((highs["PTS"]["value"], highs["PTS"]["vs"], highs["PTS"]["date"]), (30, "BBB", "2026-10-21"))
+        self.assertEqual((highs["AST"]["value"], highs["AST"]["game_id"]), (9, "0022600002"))  # los playoffs, en su fila
+
     def test_no_attempts_is_zero_like_the_nba(self):
         ps = S.aggregate([game_row(8, "0022600001", "2026-10-21", 1, 0)])[(8, "2026-27", "Regular Season")]
         row = S.season_row(ps, {1: "AAA"}, {1}, None)

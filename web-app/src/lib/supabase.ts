@@ -104,6 +104,7 @@ export type SeasonAdvancedStats = {
   // Desglose por equipo solo en temporadas con traspaso
   teams?: { team_id: number | null; team_abbreviation: string | null; gp: number | null; pts: number | null; reb: number | null; ast: number | null }[];
   career_highs?: Record<string, CareerHigh>; // Solo en la fila "Career" de Regular Season
+  season_highs?: Record<string, CareerHigh>; // Máximos de la temporada (Tarea 6.8): filas calculadas desde los boxscores
 };
 
 /** Fila de `player_season_stats` (promedios por partido). `season_id` = "2024-25" o "Career". */

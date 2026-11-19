@@ -5,6 +5,7 @@ import { Eye, EyeOff, Star, WifiOff, type LucideIcon } from "lucide-react";
 import { DayPicker } from "@/components/games/DayPicker";
 import { LiveGameCard, type CardView } from "@/components/games/LiveGameCard";
 import { DayCardExport } from "@/components/share/DayShareCard";
+import { FavoritesStrip } from "@/components/favorites/FavoritesQuickAccess";
 import { onLevelIntent, useSpoilerLevel } from "@/context/SpoilerContext";
 import {
   addDays,
@@ -29,6 +30,8 @@ import {
   useLive,
   useSchedule,
 } from "@/lib/game-day-store";
+import { favoriteTeamReasons, sortFavoritesFirst, type Favorites } from "@/lib/favorites";
+import { useFavorites, useFreshFavoritePlayerTeams } from "@/lib/favorites-store";
 import type { SpoilerLevel } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +73,8 @@ type GameDayProps = {
   initialRange: [from: string, to: string];
   /** Todas las jornadas con partidos, ordenadas (para el calendario). */
   gameDays: string[];
+  /** Favoritos según la cookie: el HTML ya sale ordenado y con la franja (Tarea 6.10). */
+  initialFavorites: Favorites;
 };
 
 /**
@@ -77,7 +82,7 @@ type GameDayProps = {
  * de día es instantáneo; la nota (Nivel 2) y los resultados (Nivel 3) solo se piden en esos niveles,
  * ya filtrados por el servidor, y se refrescan cada 30 s mientras haya partidos en juego.
  */
-export function GameDay({ today, initialDay, teams, initialSchedule, initialRange, gameDays }: GameDayProps) {
+export function GameDay({ today, initialDay, teams, initialSchedule, initialRange, gameDays, initialFavorites }: GameDayProps) {
   const level = useSpoilerLevel();
   const [day, setDay] = useState(initialDay);
 
@@ -88,6 +93,12 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
   const byDay = useMemo(() => groupByGameDay(fullSchedule ?? initialSchedule), [fullSchedule, initialSchedule]);
   const known = fullSchedule !== undefined || (day >= initialRange[0] && day <= initialRange[1]);
   const games = byDay.get(day) ?? (known ? NO_GAMES : undefined);
+
+  // Favoritos: solo cambian el orden y el destacado, nunca lo que se ve (eso lo decide el nivel)
+  const favorites = useFavorites(initialFavorites);
+  useFreshFavoritePlayerTeams(favorites);
+  const favoriteReasons = useMemo(() => favoriteTeamReasons(favorites), [favorites]);
+  const orderedGames = useMemo(() => games && sortFavoritesFirst(games, favoriteReasons), [games, favoriteReasons]);
 
   const level2 = useDayLevel2(level, day);
   const level3 = useDayLevel3(level, day);
@@ -218,17 +229,18 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
         )}
       </header>
 
+      <FavoritesStrip favorites={favorites} className="md:hidden" />
       <DayPicker day={day} today={today} gameDays={gameDaySet} onSelect={selectDay} />
       <LevelHint level={level} live={liveNow} offline={offline} />
 
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[50vh]">
-        {games === undefined ? (
+        {orderedGames === undefined ? (
           <GameListSkeleton />
-        ) : games.length === 0 ? (
+        ) : orderedGames.length === 0 ? (
           <EmptyDay day={day} gameDays={gameDays} onSelect={selectDay} />
         ) : (
           <ul aria-label={`Partidos de la jornada del ${formatDayMonth(day)}`}>
-            {games.map((game) => (
+            {orderedGames.map((game) => (
               <LiveGameCard
                 key={game.id}
                 game={game}
@@ -236,6 +248,7 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
                 home={teamsById.get(game.home_team_id)}
                 away={teamsById.get(game.away_team_id)}
                 view={viewFor(game)}
+                favorite={{ home: favoriteReasons.get(game.home_team_id), away: favoriteReasons.get(game.away_team_id) }}
               />
             ))}
           </ul>

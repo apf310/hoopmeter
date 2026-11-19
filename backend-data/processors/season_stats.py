@@ -6,7 +6,8 @@ Funciones puras (sin red ni base de datos).
 - Carrera = totales exactos de las temporadas anteriores (`totals.history`, guardados una vez desde la NBA)
   + la temporada en curso. Sin historial fiable no se escribe carrera: mejor sin dato que con uno falso.
 - Récords personales (temporada regular y playoffs, como la NBA): el guardado o un partido nuevo que lo
-  iguale o supere (ante empates gana el más reciente, igual que la NBA).
+  iguale o supere (ante empates gana el más reciente, igual que la NBA). Los máximos de la temporada
+  (`season_highs`, Tarea 6.8) siguen la misma regla con los partidos de esa temporada y ese tipo.
 - Radar: las mismas métricas que pedíamos a stats.nba.com. Las de volumen y acierto son exactas; USG%,
   AST%, REB% y PIE usan la fórmula oficial con los totales del partido repartidos por minutos en pista
   (correlación con las oficiales de 2025-26: 0,999 / 0,997 / 0,999 / 0,996). DEF_RATING usa los puntos
@@ -136,7 +137,9 @@ def season_row(ps: PlayerSeason, abbreviations: dict[int, str], valid_teams: set
     totals = ps.total.as_dict()
     line = line_from_totals(totals)
     traded = len(ps.team_order) > 1
-    extra = {"team_abbreviation": "TOT" if traded else abbreviations.get(ps.last_team), "age": age}
+    extra = {"team_abbreviation": "TOT" if traded else abbreviations.get(ps.last_team), "age": age,
+             # Máximos de la temporada (Tarea 6.8): solo el job diario, como los promedios
+             "season_highs": update_highs(None, ps.games, abbreviations)}
     if traded:
         extra["teams"] = [{
             "team_id": tid,

@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { RotateCcw, Plus, X } from "lucide-react";
+import { RotateCcw, Plus, TriangleAlert, X } from "lucide-react";
 import { LeagueSalaries } from "@/components/gm/SalaryCapBar";
 import { TeamPanel } from "@/components/gm/TeamPanel";
+import { TradeLinkButton } from "@/components/gm/TradeLinkButton";
 import { TradeEvaluationCard } from "@/components/gm/TradeEvaluationCard";
 import { VerdictBar, VerdictDetail } from "@/components/gm/TradeVerdict";
 import { TradeCardExport } from "@/components/share/TradeShareCard";
 import { buildTrade, canonicalTrade, MAX_TEAMS, pickKey, type GmData, type GmPlayer, type GmTeam, type TradeEvaluation, type TradeRequest } from "@/lib/gm";
+import { tradeSearch, type RestoredTrade } from "@/lib/gm-link";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { checkTrade, type DraftPick } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
@@ -23,15 +25,31 @@ function groupByTeam(players: GmPlayer[]): Map<number, GmPlayer[]> {
 }
 
 /** Simulador de traspasos: el veredicto se recalcula en el cliente con cada toque, sin esperas. */
-export function TradeMachine({ data }: { data: GmData }) {
-  const [teamIds, setTeamIds] = useState<number[]>([]);
-  const [playerMoves, setPlayerMoves] = useState<Record<number, number>>({});
-  const [pickMoves, setPickMoves] = useState<Record<string, number>>({});
+export function TradeMachine({
+  data,
+  initialPlayerId = null,
+  initialTrade = null,
+}: {
+  data: GmData;
+  initialPlayerId?: number | null;
+  /** Traspaso de un enlace compartido (Tarea 6.9), ya reconstruido con los contratos de hoy. */
+  initialTrade?: RestoredTrade | null;
+}) {
+  // "Simular traspaso" desde la ficha del jugador (Tarea 6.8): su equipo ya elegido; él entra al elegir el otro
+  const initialPlayer = data.players.find((player) => player.id === initialPlayerId) ?? null;
+  const linked = initialTrade?.request;
+  const [teamIds, setTeamIds] = useState<number[]>(linked?.teamIds ?? (initialPlayer ? [initialPlayer.teamId] : []));
+  const [playerMoves, setPlayerMoves] = useState<Record<number, number>>(() => Object.fromEntries(linked?.players.map(({ id, to }) => [id, to]) ?? []));
+  const [pickMoves, setPickMoves] = useState<Record<string, number>>(() => Object.fromEntries(linked?.picks.map((pick) => [pickKey(pick), pick.to]) ?? []));
   /** Estimaciones del usuario para contratos aún sin cifra pública, por jugador. */
-  const [estimates, setEstimates] = useState<Record<number, number>>({});
-  const [choosingTeams, setChoosingTeams] = useState(true);
-  const [activeTeam, setActiveTeam] = useState<number | null>(null);
+  const [estimates, setEstimates] = useState<Record<number, number>>(() => Object.fromEntries(linked?.estimates?.map(({ id, salary }) => [id, salary]) ?? []));
+  const [choosingTeams, setChoosingTeams] = useState((linked?.teamIds.length ?? 0) < 2);
+  const [activeTeam, setActiveTeam] = useState<number | null>(linked?.teamIds[0] ?? initialPlayer?.teamId ?? null);
+  /** Lo que traía el enlace y ya no se puede montar. */
+  const [linkNotice, setLinkNotice] = useState<string[]>(initialTrade?.dropped ?? []);
   const [evaluation, setEvaluation] = useState<{ key: string; result: TradeEvaluation } | null>(null);
+  /** Jugador que entra en el traspaso en cuanto se elija el otro equipo. */
+  const [pendingPlayer, setPendingPlayer] = useState<GmPlayer | null>(initialPlayer);
 
   const playersOf = useMemo(() => groupByTeam(data.players), [data.players]);
 
@@ -61,6 +79,14 @@ export function TradeMachine({ data }: { data: GmData }) {
   const dealRequest = { ...request, teamIds: participants.map((team) => team.id) };
   const tradeKey = canonicalTrade(dealRequest);
   const currentEvaluation = evaluation?.key === tradeKey ? evaluation.result : null;
+  const search = tradeSearch(request);
+
+  // La URL siempre lleva el traspaso (solo ids): recargar o copiar la barra de direcciones lo conserva
+  useEffect(() => {
+    if (pendingPlayer || window.location.search === search) return;
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${search}`);
+  }, [search, pendingPlayer]);
+
   const payrollAfter = useMemo(() => new Map(verdict?.teams.map((report) => [report.teamId, report.payrollAfter])), [verdict]);
 
   function toggleTeam(teamId: number) {
@@ -70,12 +96,18 @@ export function TradeMachine({ data }: { data: GmData }) {
       setTeamIds([...teamIds, teamId]);
       setActiveTeam(teamId);
       if (teamIds.length + 1 >= 2) setChoosingTeams(false);
+      if (pendingPlayer && teamIds.includes(pendingPlayer.teamId)) {
+        setPlayerMoves({ ...playerMoves, [pendingPlayer.id]: teamId });
+        setActiveTeam(pendingPlayer.teamId);
+        setPendingPlayer(null);
+      }
     }
   }
 
   /** Sus activos y los que iban hacia él salen del traspaso. */
   function removeTeam(teamId: number) {
     const remaining = teamIds.filter((id) => id !== teamId);
+    if (pendingPlayer?.teamId === teamId) setPendingPlayer(null);
     setTeamIds(remaining);
     setActiveTeam(remaining[0] ?? null);
     if (remaining.length < 2) setChoosingTeams(true);
@@ -92,6 +124,8 @@ export function TradeMachine({ data }: { data: GmData }) {
     setActiveTeam(null);
     setChoosingTeams(true);
     setEvaluation(null);
+    setPendingPlayer(null);
+    setLinkNotice([]);
   }
 
   function movePlayer(playerId: number, to: number | null) {
@@ -114,10 +148,12 @@ export function TradeMachine({ data }: { data: GmData }) {
   return (
     <>
       {choosingTeams ? (
-        <TeamPicker teams={data.teams} selected={teamIds} onToggle={toggleTeam} />
+        <TeamPicker teams={data.teams} selected={teamIds} onToggle={toggleTeam} pendingPlayer={pendingPlayer?.name ?? null} />
       ) : (
         <TradeTeamsBar teams={teams} onAdd={() => setChoosingTeams(true)} onRemove={removeTeam} onReset={reset} />
       )}
+
+      {linkNotice.length > 0 && <LinkNotice messages={linkNotice} onClose={() => setLinkNotice([])} />}
 
       {ready && (
         <>
@@ -176,8 +212,9 @@ export function TradeMachine({ data }: { data: GmData }) {
                 disabled={verdict.status === "invalid"}
                 onEvaluated={(result) => setEvaluation({ key: tradeKey, result })}
               />
-              <div className="border-t border-slate-800 px-4 py-6 md:px-8">
+              <div className="flex items-center gap-2 border-t border-slate-800 px-4 py-6 md:px-8">
                 <TradeCardExport teams={participants} trade={trade} verdict={verdict} evaluation={currentEvaluation} />
+                <TradeLinkButton search={search} title={`Traspaso ${participants.map((team) => team.abbreviation).join(" · ")}`} />
               </div>
             </div>
           )}
@@ -189,18 +226,49 @@ export function TradeMachine({ data }: { data: GmData }) {
   );
 }
 
+/** El enlace compartido ya no se puede montar entero: qué ha cambiado desde que se compartió. */
+function LinkNotice({ messages, onClose }: { messages: string[]; onClose: () => void }) {
+  return (
+    <div role="status" className="flex items-start gap-3 border-b border-amber-500/40 bg-amber-950/60 px-4 py-2.5 md:px-8">
+      <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-300" />
+      <ul className="min-w-0 flex-1 space-y-0.5 text-sm text-amber-100">
+        {messages.map((message) => (
+          <li key={message}>{message}</li>
+        ))}
+      </ul>
+      <button type="button" onClick={onClose} aria-label="Cerrar aviso" className="shrink-0 text-amber-200 hover:text-white">
+        <X className="size-4" />
+      </button>
+    </div>
+  );
+}
+
 function countAssets(teamId: number, request: TradeRequest, ownPlayers: number[]): number {
   return request.players.filter(({ id }) => ownPlayers.includes(id)).length + request.picks.filter((pick) => pick.teamId === teamId).length;
 }
 
-function TeamPicker({ teams, selected, onToggle }: { teams: GmTeam[]; selected: number[]; onToggle: (teamId: number) => void }) {
+function TeamPicker({
+  teams,
+  selected,
+  onToggle,
+  pendingPlayer,
+}: {
+  teams: GmTeam[];
+  selected: number[];
+  onToggle: (teamId: number) => void;
+  pendingPlayer: string | null;
+}) {
   const full = selected.length >= MAX_TEAMS;
   const prompt = selected.length === 0 ? "Elige el primer equipo" : selected.length === 1 ? "Elige con quién negocia" : "Elige un tercer equipo";
 
   return (
     <section className="border-b border-slate-800 px-4 py-5 md:px-8" aria-label="Elegir equipos">
       <h2 className="font-display text-3xl font-extrabold uppercase leading-none text-white">{prompt}</h2>
-      <p className="mt-1 text-sm text-slate-300">Traspasos de 2 o 3 equipos, con los contratos reales de esta temporada.</p>
+      <p className="mt-1 text-sm text-slate-300">
+        {pendingPlayer
+          ? `${pendingPlayer} entra en el traspaso en cuanto elijas el otro equipo.`
+          : "Traspasos de 2 o 3 equipos, con los contratos reales de esta temporada."}
+      </p>
       <ul className="mt-4 grid grid-cols-5 gap-px bg-slate-800 sm:grid-cols-6 lg:grid-cols-10">
         {teams.map((team) => {
           const active = selected.includes(team.id);

@@ -16,12 +16,15 @@ export function TeamRecordStats({
   conference,
   before,
   card,
+  actions,
 }: {
   teamId: number;
   /** "Este" / "Oeste". */
   conference: string | null;
   before: StandingsBefore;
   card: Omit<TeamCardData, "record" | "beforeDay">;
+  /** Botones junto al de compartir (favorito). */
+  actions?: ReactNode;
 }) {
   const standings = useLevelStandings(before);
   const row = standings.teams?.find((t) => t.id === teamId) ?? null;
@@ -70,11 +73,10 @@ export function TeamRecordStats({
         </dl>
       )}
       <BeforeDayNote standings={standings} day={before.day} subject="lo" className="mt-5 text-white/70" />
-      <TeamCardExport
-        team={{ ...card, record, beforeDay: standings.current ? null : before.day }}
-        spoiler={standings.spoiler}
-        className="mt-6"
-      />
+      <div className="mt-6 flex items-center gap-3">
+        <TeamCardExport team={{ ...card, record, beforeDay: standings.current ? null : before.day }} spoiler={standings.spoiler} />
+        {actions}
+      </div>
     </>
   );
 }

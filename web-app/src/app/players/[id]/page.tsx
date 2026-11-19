@@ -4,12 +4,18 @@ import Link from "next/link";
 import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 import { Swords } from "lucide-react";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import { CareerTable } from "@/components/players/CareerTable";
+import { ContractTable } from "@/components/players/ContractTable";
 import { PlayerRadarChart } from "@/components/players/PlayerRadarChart";
 import { PlayerCardExport } from "@/components/share/PlayerShareCard";
 import { CareerHighs, TrophyCabinet } from "@/components/players/TrophyCabinet";
+import type { RivalLite } from "@/components/teams/TeamGameRow";
+import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
 import { BRAND } from "@/lib/brand";
-import { getPlayer, getPlayerAwards, getPlayerCareer, getTeams } from "@/lib/queries";
+import type { GameMatchup } from "@/lib/game-day";
+import { buildContractView } from "@/lib/player-contract";
+import { getPlayer, getPlayerAwards, getPlayerCareer, getPlayerContract, getRecentMatchups, getTeams } from "@/lib/queries";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
 import {
   ageFrom,
@@ -24,14 +30,19 @@ import {
   tierOf,
 } from "@/lib/player-profile";
 import { teamAccent } from "@/lib/team-colors";
+import { SEASON } from "@/lib/trade-rules";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
   { id: "atributos", label: "Atributos" },
+  { id: "partidos", label: "Partidos", activeOnly: true },
+  { id: "contrato", label: "Contrato", activeOnly: true },
   { id: "palmares", label: "Palmarés" },
   { id: "trayectoria", label: "Trayectoria" },
 ];
+
+const NO_GAMES: GameMatchup[] = [];
 
 /** La edad depende de la fecha actual: se cachea para no romper el prerenderizado. */
 async function currentAge(birthDate: string | null): Promise<number | null> {
@@ -53,13 +64,16 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   const playerId = Number(id);
   if (!Number.isInteger(playerId)) notFound();
 
-  const [player, teams, career, awards] = await Promise.all([
+  const [player, teams, career, awards, contract] = await Promise.all([
     getPlayer(playerId),
     getTeams(),
     getPlayerCareer(playerId),
     getPlayerAwards(playerId),
+    getPlayerContract(playerId),
   ]);
   if (!player) notFound();
+  // Últimos partidos de su equipo: en el HTML solo rival y fecha (Nivel 1); el resto, según el nivel
+  const recent = player.team_id ? await getRecentMatchups(player.team_id) : NO_GAMES;
 
   const age = await currentAge(player.birth_date);
   const team = teams.find((t) => t.id === player.team_id) ?? null;
@@ -70,13 +84,25 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   // De un retirado interesa su carrera, no su última temporada
   const latest = player.is_active ? (regular.filter((r) => r.season_id !== "Career").at(-1) ?? null) : careerRow;
   const highs = careerRow?.advanced_stats.career_highs;
+  // Máximos de la temporada (Tarea 6.8): de la temporada en curso, calculados en el job diario como los promedios
+  const seasonHighs = player.is_active ? latest?.advanced_stats.season_highs : undefined;
+  const contractView = contract && player.is_active ? buildContractView(contract, SEASON) : null;
+  // El GM solo tiene a los jugadores con equipo y contrato
+  const tradeHref = contract && player.team_id ? `/gm-simulator?jugador=${player.id}` : null;
+  const teamsById = new Map(teams.map((t) => [t.id, t]));
+  const rivals: Record<number, RivalLite> = Object.fromEntries(
+    recent
+      .map((g) => teamsById.get(g.home_team_id === player.team_id ? g.away_team_id : g.home_team_id))
+      .filter((t): t is Team => t !== undefined)
+      .map((t) => [t.id, { id: t.id, name: t.name, abbreviation: t.abbreviation }])
+  );
 
   return (
     <>
       <title>{`${player.full_name} · ${BRAND.name}`}</title>
       <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} />
       {latest && <SeasonBand season={latest} />}
-      <SectionNav />
+      <SectionNav active={player.is_active} />
 
       <section id="atributos" className="scroll-mt-32 pt-8 md:scroll-mt-16">
         <SectionTitle accent={accent}>Atributos</SectionTitle>
@@ -102,6 +128,24 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
         )}
       </section>
 
+      {player.is_active && (
+        <section id="partidos" className="scroll-mt-32 pt-10 md:scroll-mt-16">
+          <SectionTitle accent={accent}>Últimos partidos{team && <span className="text-slate-500">{team.abbreviation}</span>}</SectionTitle>
+          {team ? (
+            <TeamRecentGames teamId={team.id} games={recent} rivals={rivals} playerId={player.id} />
+          ) : (
+            <p className="py-4 text-sm text-slate-400">Sin equipo ahora mismo.</p>
+          )}
+        </section>
+      )}
+
+      {player.is_active && (
+        <section id="contrato" className="scroll-mt-32 pt-10 md:scroll-mt-16">
+          <SectionTitle accent={accent}>Contrato</SectionTitle>
+          <ContractTable view={contractView} tradeHref={tradeHref} />
+        </section>
+      )}
+
       <section id="palmares" className="scroll-mt-32 pt-10 md:scroll-mt-16">
         <SectionTitle accent={accent} count={awards.length || undefined}>
           Vitrina de trofeos
@@ -111,6 +155,14 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
         </div>
         <h3 className="pb-3 pt-8 font-display text-lg font-bold uppercase tracking-wide text-slate-300">Récords personales en un partido</h3>
         <CareerHighs highs={highs} />
+        {seasonHighs && latest && (
+          <>
+            <h3 className="pb-3 pt-8 font-display text-lg font-bold uppercase tracking-wide text-slate-300">
+              Máximos de la temporada {latest.season_id}
+            </h3>
+            <CareerHighs highs={seasonHighs} />
+          </>
+        )}
       </section>
 
       <section id="trayectoria" className="scroll-mt-32 pb-4 pt-10 md:scroll-mt-16">
@@ -197,6 +249,10 @@ function PlayerHero({
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
             <PlayerCardExport player={player} team={team} radar={radar} season={season} age={age} />
+            {/* Los favoritos ordenan la portada por los partidos de su equipo: solo jugadores en activo */}
+            {player.is_active && (
+              <FavoriteButton kind="player" player={{ id: player.id, name: player.full_name, teamId: player.team_id ?? null }} />
+            )}
             <Link
               href={`/compare?a=${player.id}`}
               className="flex items-center gap-2 bg-orange-500 px-4 py-2.5 font-display text-base font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-orange-400"
@@ -282,18 +338,19 @@ function SeasonBand({ season }: { season: PlayerSeasonStats }) {
 }
 
 /** Accesos rápidos a cada sección; se queda fijo al hacer scroll. */
-function SectionNav() {
+function SectionNav({ active }: { active: boolean }) {
   return (
     <nav
       aria-label="Secciones del jugador"
       className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 -mx-4 border-b border-slate-800 bg-slate-950/90 px-4 backdrop-blur md:top-0 md:-mx-8 md:px-8"
     >
-      <ul className="flex gap-6">
-        {SECTIONS.map((s) => (
+      {/* Con 5 secciones no caben a 360 px: se desliza en horizontal */}
+      <ul className="flex gap-5 overflow-x-auto [scrollbar-width:none] md:gap-6">
+        {SECTIONS.filter((s) => active || !s.activeOnly).map((s) => (
           <li key={s.id}>
             <a
               href={`#${s.id}`}
-              className="block border-b-2 border-transparent py-3 font-display text-sm font-bold uppercase tracking-[0.15em] text-slate-400 transition-colors hover:border-orange-500 hover:text-white"
+              className="block whitespace-nowrap border-b-2 border-transparent py-3 font-display text-sm font-bold uppercase tracking-[0.15em] text-slate-400 transition-colors hover:border-orange-500 hover:text-white"
             >
               {s.label}
             </a>

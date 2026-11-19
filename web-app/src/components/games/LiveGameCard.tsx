@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Star } from "lucide-react";
 import { PureScoreBadge } from "@/components/games/PureScoreBadge";
 import {
   formatGameTime,
@@ -29,10 +29,12 @@ type LiveGameCardProps = {
   home: TeamLite | undefined;
   away: TeamLite | undefined;
   view: CardView;
+  /** Motivo por el que cada equipo es "tuyo" ("Tu equipo", "Equipo de ..."): solo destaca, nunca enseña más. */
+  favorite?: { home?: string; away?: string };
 };
 
 /** Fila de la jornada: visitante arriba y local abajo (convención NBA), hora en España a la izquierda. */
-export function LiveGameCard({ game, day, home, away, view }: LiveGameCardProps) {
+export function LiveGameCard({ game, day, home, away, view, favorite }: LiveGameCardProps) {
   const result = view.level === 3 ? view.result : undefined;
   const final = result?.status === "Final";
   const homeWins = final && (result.home.score ?? 0) > (result.away.score ?? 0);
@@ -40,8 +42,12 @@ export function LiveGameCard({ game, day, home, away, view }: LiveGameCardProps)
   // En Nivel 3 la ficha completa se precarga al apuntar al partido: al entrar ya está
   const prefetchDetail = view.level === 3 ? () => void loadGameDetail(game.id) : undefined;
 
+  const mine = !!(favorite?.home || favorite?.away);
+
   return (
-    <li className="border-b border-slate-800">
+    <li className={cn("relative border-b border-slate-800", mine && "bg-orange-500/[0.05]")}>
+      {/* Partido de tus favoritos: franja naranja a la izquierda (igual en los tres niveles) */}
+      {mine && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-orange-500" />}
       <Link
         href={`/games/${game.id}`}
         onPointerEnter={prefetchDetail}
@@ -51,8 +57,8 @@ export function LiveGameCard({ game, day, home, away, view }: LiveGameCardProps)
         <StatusCell game={game} day={day} result={result} />
 
         <div className="space-y-1 md:space-y-1.5">
-          <TeamLine team={away} role="Visitante" dimmed={homeWins} />
-          <TeamLine team={home} role="Local" dimmed={awayWins} />
+          <TeamLine team={away} role="Visitante" dimmed={homeWins} favorite={favorite?.away} />
+          <TeamLine team={home} role="Local" dimmed={awayWins} favorite={favorite?.home} />
         </div>
 
         <div className="flex min-w-14 justify-end">
@@ -98,7 +104,17 @@ function StatusCell({ game, day, result }: { game: GameMatchup; day: string; res
   );
 }
 
-function TeamLine({ team, role, dimmed }: { team: TeamLite | undefined; role: "Visitante" | "Local"; dimmed: boolean }) {
+function TeamLine({
+  team,
+  role,
+  dimmed,
+  favorite,
+}: {
+  team: TeamLite | undefined;
+  role: "Visitante" | "Local";
+  dimmed: boolean;
+  favorite?: string;
+}) {
   return (
     <div className="flex h-7 min-w-0 items-center gap-2.5 md:h-8">
       <span aria-hidden className="h-6 w-1 shrink-0" style={{ backgroundColor: team?.accent ?? "#475569" }} />
@@ -114,6 +130,12 @@ function TeamLine({ team, role, dimmed }: { team: TeamLite | undefined; role: "V
           <span className="md:hidden">{team?.abbreviation ?? "—"}</span>
           <span className="hidden md:inline">{team?.name ?? "—"}</span>
         </span>
+        {favorite && (
+          <span title={favorite} className="ml-1.5 shrink-0 self-center">
+            <Star aria-hidden className="size-3.5 fill-orange-400 text-orange-400" />
+            <span className="sr-only">({favorite})</span>
+          </span>
+        )}
       </span>
     </div>
   );

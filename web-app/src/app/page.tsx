@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { GameDay, GameListSkeleton } from "@/components/games/GameDay";
 import { addDays, gameDayOf, isGameDay, toScheduleTuple, todayGameDay, type TeamLite } from "@/lib/game-day";
 import { BRAND } from "@/lib/brand";
-import { getSchedule, getTeams } from "@/lib/queries";
+import { decodeFavoritesCookie, FAVORITES_COOKIE, type Favorites } from "@/lib/favorites";
+import { getSchedule, getSearchIndex, getTeams } from "@/lib/queries";
 import { teamAccent } from "@/lib/team-colors";
 
 export const metadata: Metadata = {
@@ -32,7 +34,13 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/">["sea
   const today = todayGameDay();
   const day = isGameDay(fecha) ? fecha : today;
 
-  const [schedule, teams] = await Promise.all([getSchedule(), getTeams()]);
+  // Favoritos (Tarea 6.10): la cookie lleva sus ids para pintar la jornada ya ordenada y sin saltos
+  const favoriteIds = decodeFavoritesCookie((await cookies()).get(FAVORITES_COOKIE)?.value);
+  const [schedule, teams, index] = await Promise.all([
+    getSchedule(),
+    getTeams(),
+    favoriteIds.players.length > 0 ? getSearchIndex() : null,
+  ]);
 
   // Nivel 1 en el HTML: solo emparejamiento y fecha. Ni nota ni marcador viajan nunca en la página.
   const from = addDays(day, -INITIAL_WINDOW_DAYS);
@@ -48,8 +56,23 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/">["sea
     accent: teamAccent(team),
   }));
 
+  const teamsById = new Map(teams.map((team) => [team.id, team]));
+  const playersById = new Map(index?.players.map((player) => [player.id, player]));
+  const initialFavorites: Favorites = {
+    teams: favoriteIds.teams.flatMap((id) => {
+      const team = teamsById.get(id);
+      return team ? [{ id, name: team.name, abbreviation: team.abbreviation }] : [];
+    }),
+    // El equipo de hoy (por si lo traspasaron desde que se marcó)
+    players: favoriteIds.players.flatMap(({ id }) => {
+      const player = playersById.get(id);
+      return player ? [{ id, name: player.full_name, teamId: player.team_id ?? null }] : [];
+    }),
+  };
+
   return (
     <GameDay
+      initialFavorites={initialFavorites}
       today={today}
       initialDay={day}
       teams={teamsLite}

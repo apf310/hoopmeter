@@ -1,6 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import type { TeamCardData } from "@/components/share/TeamShareCard";
 import { TeamRecordStats } from "@/components/standings/TeamRecordStats";
 import { BRAND } from "@/lib/brand";
@@ -154,7 +155,13 @@ function TeamHero({ team, card, before }: { team: Team; card: Omit<TeamCardData,
           </div>
         </div>
 
-        <TeamRecordStats teamId={team.id} conference={conference} before={before} card={card} />
+        <TeamRecordStats
+          teamId={team.id}
+          conference={conference}
+          before={before}
+          card={card}
+          actions={<FavoriteButton kind="team" team={{ id: team.id, name: team.name, abbreviation: team.abbreviation }} />}
+        />
       </div>
       {/* Franja inferior con el color secundario de la franquicia */}
       <div className="relative h-1" style={{ background: team.secondary_color ?? primary }} aria-hidden />

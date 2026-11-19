@@ -285,6 +285,16 @@ export async function getPlayerCareer(playerId: number): Promise<PlayerSeasonSta
   return data as PlayerSeasonStats[];
 }
 
+/** Contrato del jugador (Tarea 6.8); null si no tiene contrato registrado. Se actualiza varias veces al día. */
+export async function getPlayerContract(playerId: number): Promise<PlayerContract | null> {
+  "use cache";
+  cacheLife("minutes");
+
+  const { data, error } = await getSupabase().from("player_contracts").select("*").eq("player_id", playerId).maybeSingle();
+  if (error) throw new Error(`Error cargando contrato: ${error.message}`);
+  return data as PlayerContract | null;
+}
+
 export async function getPlayerAwards(playerId: number): Promise<PlayerAward[]> {
   "use cache";
   cacheLife("hours");

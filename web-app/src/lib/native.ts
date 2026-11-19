@@ -89,3 +89,13 @@ export async function shareImageNatively(blob: Blob, fileName: string) {
     if (!(error instanceof Error && /cancel/i.test(error.message))) throw error;
   }
 }
+
+/** Menú de compartir de Android con un enlace (el WebView no tiene `navigator.share`). */
+export async function shareLinkNatively(url: string, title: string) {
+  const { Share } = await import("@capacitor/share");
+  try {
+    await Share.share({ title, url });
+  } catch (error) {
+    if (!(error instanceof Error && /cancel/i.test(error.message))) throw error;
+  }
+}

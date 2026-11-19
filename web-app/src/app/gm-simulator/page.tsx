@@ -1,8 +1,11 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { TradeMachine } from "@/components/gm/TradeMachine";
 import { BRAND } from "@/lib/brand";
+import { buildTrade, type GmData } from "@/lib/gm";
+import { parseTradeSearch, restoreTrade, type RestoredTrade } from "@/lib/gm-link";
 import { getGmData } from "@/lib/queries";
-import { SEASON } from "@/lib/trade-rules";
+import { isValidEstimate, PICK_YEARS, SEASON } from "@/lib/trade-rules";
 
 export const metadata: Metadata = {
   title: `GM Virtual · ${BRAND.name}`,
@@ -11,7 +14,7 @@ export const metadata: Metadata = {
 
 const UPDATED_FORMAT = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
 
-export default async function GmSimulatorPage() {
+export default async function GmSimulatorPage({ searchParams }: PageProps<"/gm-simulator">) {
   const data = await getGmData();
 
   return (
@@ -27,7 +30,44 @@ export default async function GmSimulatorPage() {
           </p>
         )}
       </header>
-      <TradeMachine data={data} />
+      <Suspense fallback={<GmSkeleton />}>
+        <GmContent searchParams={searchParams} />
+      </Suspense>
+    </div>
+  );
+}
+
+/**
+ * `?equipos=…` (enlace compartido, Tarea 6.9): el traspaso se reconstruye con los contratos de hoy y el cliente
+ * recalcula el veredicto con `trade-rules.ts`. `?jugador=ID` (botón "Simular traspaso" de la ficha del jugador,
+ * Tarea 6.8): su equipo ya elegido.
+ */
+async function GmContent({ searchParams }: { searchParams: PageProps<"/gm-simulator">["searchParams"] }) {
+  const [params, data] = await Promise.all([searchParams, getGmData()]);
+  if (params.equipos !== undefined) return <TradeMachine data={data} initialTrade={restoreLink(data, params)} />;
+  const playerId = Number(params.jugador);
+  return <TradeMachine data={data} initialPlayerId={Number.isInteger(playerId) && playerId > 0 ? playerId : null} />;
+}
+
+const LINK_RULES = { pickYears: PICK_YEARS, isValidEstimate };
+
+function restoreLink(data: GmData, params: Awaited<PageProps<"/gm-simulator">["searchParams"]>): RestoredTrade {
+  const parsed = parseTradeSearch(params);
+  const restored = parsed && restoreTrade(data, parsed, LINK_RULES);
+  // Con dos equipos, la última palabra la tiene `buildTrade`, la misma comprobación que hace la evaluación con IA
+  if (restored && (restored.request.teamIds.length < 2 || buildTrade(data, restored.request))) return restored;
+  return { request: { teamIds: [], players: [], picks: [], estimates: [] }, dropped: ["El enlace del traspaso no es válido: monta uno nuevo."] };
+}
+
+function GmSkeleton() {
+  return (
+    <div className="animate-pulse px-4 py-5 md:px-8" aria-busy>
+      <div className="h-8 w-64 bg-slate-900" />
+      <div className="mt-4 grid grid-cols-5 gap-px sm:grid-cols-6 lg:grid-cols-10">
+        {Array.from({ length: 30 }, (_, i) => (
+          <div key={i} className="h-[72px] bg-slate-900/60" />
+        ))}
+      </div>
     </div>
   );
 }

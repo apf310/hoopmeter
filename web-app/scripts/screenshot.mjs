@@ -1,7 +1,8 @@
 // Capturas de la web como en un Galaxy S24 (360×780, densidad 3) o en escritorio, por CDP y sin dependencias.
 // Necesita Google Chrome instalado. Uso (desde web-app/):
 //   node scripts/screenshot.mjs <url> <salida.png> [nivel=1] [ancho=360] [alto=780] [esperaMs=3500] [paginaCompleta=1]
-// Variables opcionales: CLICK="selector||selector" (pulsa en orden), CLICK_WAIT=ms, DOWNLOAD_DIR=carpeta (permite descargas).
+// Variables opcionales: CLICK="selector||selector" (pulsa en orden), CLICK_WAIT=ms, DOWNLOAD_DIR=carpeta (permite descargas),
+//   LOCAL_STORAGE=JSON y COOKIES="a=1;b=2" (estado ya guardado en el navegador, p. ej. favoritos).
 // Imprime JSON con el ancho real de la página: si scrollW > W, algo se sale por la derecha (y lista qué).
 import { spawn } from "node:child_process";
 import { mkdtempSync, writeFileSync } from "node:fs";
@@ -33,6 +34,15 @@ await send("Network.setUserAgentOverride", { userAgent: mobile
   : "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36" });
 await send("Emulation.setDeviceMetricsOverride", { width: Number(width), height: Number(height), deviceScaleFactor: mobile ? 3 : 1, mobile });
 await send("Page.addScriptToEvaluateOnNewDocument", { source: `try { sessionStorage.setItem("nba-hub:spoiler-level", JSON.stringify({ level: ${Number(level)}, hiddenAt: null })); } catch {}` });
+// Opcional: LOCAL_STORAGE='{"clave":"valor"}' y COOKIES="nombre=valor;otra=valor" (p. ej. favoritos ya guardados)
+if (process.env.LOCAL_STORAGE) {
+  const entries = Object.entries(JSON.parse(process.env.LOCAL_STORAGE)).map(([k, v]) => `localStorage.setItem(${JSON.stringify(k)}, ${JSON.stringify(v)});`).join("");
+  await send("Page.addScriptToEvaluateOnNewDocument", { source: `try { ${entries} } catch {}` });
+}
+for (const cookie of (process.env.COOKIES ?? "").split(";").filter(Boolean)) {
+  const [name, ...value] = cookie.split("=");
+  await send("Network.setCookie", { name: name.trim(), value: value.join("="), url });
+}
 await send("Page.navigate", { url });
 await sleep(Number(wait));
 // Opcional: pulsar un elemento (CLICK = selector CSS) y esperar

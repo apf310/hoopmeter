@@ -15,24 +15,28 @@ export type RivalLite = { id: number; name: string; abbreviation: string };
 /**
  * Partido de la ficha de equipo (últimos y próximos): fecha y hora en España, "vs" en casa o "@" fuera,
  * rival y, a la derecha, lo que permita el nivel de spoilers (`children`). Lleva a la ficha del partido.
+ * `below`: segunda línea opcional (la del jugador en su ficha, Tarea 6.8).
  */
 export function TeamGameRow({
   teamId,
   game,
   rival,
   children,
+  below,
 }: {
   teamId: number;
   game: GameMatchup;
   rival: RivalLite | undefined;
   children?: ReactNode;
+  below?: ReactNode;
 }) {
   const isHome = game.home_team_id === teamId;
   const date = new Date(game.game_datetime_utc);
 
   return (
     <li className="border-b border-slate-800/80">
-      <Link href={`/games/${game.id}`} className="group flex items-center gap-2 py-2.5 transition-colors hover:bg-slate-900/70">
+      <Link href={`/games/${game.id}`} className="group block py-2.5 transition-colors hover:bg-slate-900/70">
+        <span className="flex items-center gap-2">
         <time dateTime={game.game_datetime_utc} className="w-16 shrink-0 font-display uppercase leading-tight">
           <span className="block text-xs font-semibold text-slate-300">{dayFormat.format(date).replace(".", "")}</span>
           <span className="block text-lg font-bold text-white tabular-nums">{timeFormat.format(date)}</span>
@@ -53,6 +57,8 @@ export function TeamGameRow({
         {children && <span className="flex shrink-0 items-center gap-2">{children}</span>}
         {/* Sin flecha donde falta sitio: en móvil y en la columna lateral */}
         <ChevronRight className="hidden size-4 shrink-0 text-slate-600 transition-colors group-hover:text-orange-400 sm:block lg:hidden" aria-hidden />
+        </span>
+        {below && <span className="mt-1 block pl-[4.5rem]">{below}</span>}
       </Link>
     </li>
   );

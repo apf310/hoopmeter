@@ -8,6 +8,7 @@ import { NAV_ITEMS, isActive } from "./nav-items";
 import { SpoilerModeSelector } from "./SpoilerModeSelector";
 import { Wordmark } from "./Wordmark";
 import { SearchTrigger } from "@/components/search/SearchCommand";
+import { SidebarFavorites } from "@/components/favorites/FavoritesQuickAccess";
 
 export function Sidebar() {
   return (
@@ -25,6 +26,7 @@ export function Sidebar() {
       <Suspense fallback={<SidebarLinks pathname={null} />}>
         <ActiveSidebarLinks />
       </Suspense>
+      <SidebarFavorites />
     </aside>
   );
 }
@@ -35,7 +37,7 @@ function ActiveSidebarLinks() {
 
 function SidebarLinks({ pathname }: { pathname: string | null }) {
   return (
-    <nav className="flex flex-1 flex-col py-3">
+    <nav className="flex shrink-0 flex-col py-3">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname !== null && isActive(pathname, href);
         return (
