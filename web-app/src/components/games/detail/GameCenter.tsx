@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { WifiOff } from "lucide-react";
 import { BoxScoreTable } from "@/components/games/detail/BoxScoreTable";
 import { DeferredBar, DeferredInvite } from "@/components/games/detail/DeferredMode";
@@ -30,6 +30,7 @@ import {
   useGameDetail,
 } from "@/lib/game-day-store";
 import { decimal, playerOfTheGame, shooting, type MatchupTeam } from "@/lib/game-format";
+import { canMakeVideo, toVideoGame } from "@/lib/game-video";
 import type { KeyPlayer } from "@/lib/queries";
 import type { GameLevel3, SpoilerLevel } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
@@ -139,6 +140,12 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
   // undefined = cargando · null = aún no ha empezado
   const detail = detailEntry?.data?.detail;
   const result = level === 3 ? resultOf(detail, row3) : undefined;
+  // Vídeo para compartir (Tarea 6.15): solo con la ficha completa, es decir, en Nivel 3
+  const excitementScore = result?.excitementScore ?? null;
+  const videoGame = useMemo(
+    () => (level === 3 && detail && canMakeVideo(detail) ? toVideoGame(detail, excitementScore) : null),
+    [level, detail, excitementScore]
+  );
 
   // --- Datos por nivel ---
 
@@ -235,7 +242,7 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
     share = score === undefined ? null : score === null && upcoming ? { level: 1 } : { level: 2, score };
   } else {
     hero = { level: 3, result, detail };
-    share = !result ? null : result.status === "Scheduled" ? { level: 1 } : { level: 3, result, star: shareStar(detail) };
+    share = !result ? null : result.status === "Scheduled" ? { level: 1 } : { level: 3, result, star: shareStar(detail), video: videoGame };
   }
   const featured = [away, home].flatMap((team) => keyPlayers.find((p) => p.team_id === team.id) ?? []);
 

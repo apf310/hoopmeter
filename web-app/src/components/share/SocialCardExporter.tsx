@@ -1,12 +1,13 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { toBlob } from "html-to-image";
-import { Check, Download, ImageIcon, LoaderCircle, RectangleHorizontal, RectangleVertical, Share2, TriangleAlert, X } from "lucide-react";
+import { toBlob, toCanvas } from "html-to-image";
+import { Check, Clapperboard, Download, ImageIcon, LoaderCircle, RectangleHorizontal, RectangleVertical, Share2, TriangleAlert, X } from "lucide-react";
 import { LogoMark } from "@/components/layout/LogoMark";
 import { BRAND } from "@/lib/brand";
-import { isNativeApp, shareImageNatively } from "@/lib/native";
+import { isNativeApp, shareFileNatively } from "@/lib/native";
+import { canEncodeVideoHere } from "@/lib/video-export";
 import { cn } from "@/lib/utils";
 
 export type CardFormat = "16:9" | "9:16";
@@ -19,10 +20,27 @@ export const CARD_SIZE: Record<CardFormat, { width: number; height: number }> = 
 /** Alto de la franja inferior con la marca de agua; la tarjeta ocupa el resto. */
 export const WATERMARK_HEIGHT: Record<CardFormat, number> = { "16:9": 84, "9:16": 112 };
 
-const FORMATS: { format: CardFormat; label: string; hint: string; Icon: typeof RectangleHorizontal }[] = [
+/** Qué se exporta: una de las dos tarjetas o el vídeo vertical (9:16). */
+type ShareFormat = CardFormat | "video";
+
+const FORMATS: { format: ShareFormat; label: string; hint: string; Icon: typeof RectangleHorizontal }[] = [
   { format: "9:16", label: "9:16", hint: "Stories / TikTok", Icon: RectangleVertical },
   { format: "16:9", label: "16:9", hint: "X / YouTube", Icon: RectangleHorizontal },
+  { format: "video", label: "Vídeo", hint: "Reels / TikTok", Icon: Clapperboard },
 ];
+
+/** Dibuja el instante `t` (segundos) del contenido del vídeo: 1080 × (1920 − marca de agua). */
+export type VideoDraw = (ctx: CanvasRenderingContext2D, t: number) => void;
+
+/** Vídeo vertical opcional de la tarjeta (Tarea 6.15): se dibuja en canvas y sale en MP4 con la misma marca de agua. */
+export type ShareVideo = {
+  /** Carga fuentes e imágenes y devuelve el dibujo de cada fotograma. */
+  prepare: () => Promise<VideoDraw>;
+  duration: number;
+  fps: number;
+  caption?: string;
+  includes?: string[];
+};
 
 // Si una imagen no carga, se deja hueco transparente en vez de abortar la exportación
 const TRANSPARENT_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -46,10 +64,10 @@ const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => req
 /** En móvil y en la app nativa se abre el menú de compartir del sistema; en escritorio, descarga directa. */
 async function deliver(blob: Blob, fileName: string): Promise<"shared" | "downloaded"> {
   if (isNativeApp()) {
-    await shareImageNatively(blob, fileName);
+    await shareFileNatively(blob, fileName);
     return "shared";
   }
-  const file = new File([blob], fileName, { type: "image/png" });
+  const file = new File([blob], fileName, { type: blob.type || "image/png" });
   if (canShareFiles() && navigator.canShare?.({ files: [file] })) {
     try {
       await navigator.share({ files: [file] });
@@ -81,6 +99,7 @@ export function SocialCardExporter({
   includes,
   spoiler = false,
   renderCard,
+  video,
   className,
 }: {
   /** Nombre base del archivo, sin formato ni extensión (p. ej. "lebron-james"). */
@@ -94,6 +113,8 @@ export function SocialCardExporter({
   /** La imagen contiene resultados: se avisa antes de compartirla (un texto sustituye al aviso del partido). */
   spoiler?: boolean | string;
   renderCard: (format: CardFormat) => ReactNode;
+  /** Además de la imagen, un vídeo vertical (solo donde no destripa nada que el nivel no enseñe). */
+  video?: ShareVideo;
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -122,7 +143,9 @@ export function SocialCardExporter({
           )}
         >
           <span aria-hidden className="h-[3px] shrink-0 bg-orange-500" />
-          {open && <SharePanel fileName={fileName} caption={caption} title={title} includes={includes} spoiler={spoiler} renderCard={renderCard} />}
+          {open && (
+            <SharePanel fileName={fileName} caption={caption} title={title} includes={includes} spoiler={spoiler} renderCard={renderCard} video={video} />
+          )}
         </Dialog.Popup>
       </Dialog.Portal>
     </Dialog.Root>
@@ -136,6 +159,7 @@ function SharePanel({
   includes,
   spoiler,
   renderCard,
+  video,
 }: {
   fileName: string;
   caption?: string;
@@ -143,12 +167,21 @@ function SharePanel({
   includes?: string[];
   spoiler: boolean | string;
   renderCard: (format: CardFormat) => ReactNode;
+  video?: ShareVideo;
 }) {
-  const [format, setFormat] = useState<CardFormat>("9:16");
+  const [format, setFormat] = useState<ShareFormat>("9:16");
   const [state, setState] = useState<"idle" | "working" | "done" | "failed">("idle");
+  const [progress, setProgress] = useState(0);
   const [delivered, setDelivered] = useState<"shared" | "downloaded" | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const abort = useRef<AbortController | null>(null);
   const share = canShareFiles();
+  // Sin WebCodecs (navegadores antiguos) no hay opción de vídeo
+  const formats = FORMATS.filter((f) => f.format !== "video" || (video && canEncodeVideoHere()));
+  const clip = format === "video" ? video : undefined;
+  // El dibujo del vídeo se prepara una vez al elegirlo: vista previa y exportación comparten fuentes y logos
+  const videoDraw = useMemo(() => clip?.prepare(), [clip]);
+  const frameFormat: CardFormat = format === "video" ? "9:16" : format;
 
   // Las tarjetas se diseñan con la letra base de 16 px; en móvil la app usa 14 px (globals.css) y la imagen
   // saldría más pequeña. Mientras la ventana está abierta (la página queda tapada) se vuelve a 16 px.
@@ -161,39 +194,92 @@ function SharePanel({
     };
   }, []);
 
+  // Cerrar la ventana a medio vídeo lo cancela
+  useEffect(() => () => abort.current?.abort(), []);
+
   async function exportCard() {
     if (state === "working") return;
     setState("working");
+    setProgress(0);
     try {
       const node = cardRef.current;
       if (!node) throw new Error("Tarjeta no montada");
       await document.fonts.ready;
       await imagesReady(node);
       await nextFrame();
-      const { width, height } = CARD_SIZE[format];
-      const blob = await toBlob(node, {
-        width,
-        height,
-        pixelRatio: 1, // Ya se dibuja a tamaño final
-        backgroundColor: "#020617",
-        imagePlaceholder: TRANSPARENT_PIXEL,
-      });
-      if (!blob) throw new Error("No se pudo generar la imagen");
-      setDelivered(await deliver(blob, `${fileName}-${format.replace(":", "x")}.png`));
+      const { width, height } = CARD_SIZE[frameFormat];
+      if (clip && videoDraw) {
+        const blob = await exportVideo(node, clip, videoDraw, width, height);
+        setDelivered(await deliver(blob, `${fileName}-video.mp4`));
+      } else {
+        const blob = await toBlob(node, {
+          width,
+          height,
+          pixelRatio: 1, // Ya se dibuja a tamaño final
+          backgroundColor: "#020617",
+          imagePlaceholder: TRANSPARENT_PIXEL,
+        });
+        if (!blob) throw new Error("No se pudo generar la imagen");
+        setDelivered(await deliver(blob, `${fileName}-${frameFormat.replace(":", "x")}.png`));
+      }
       setState("done");
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error(error);
       setState("failed");
     }
   }
+
+  /** Vídeo: cada fotograma = el dibujo del instante + la franja de la marca de agua (la misma de la vista previa). */
+  async function exportVideo(node: HTMLElement, value: ShareVideo, prepared: Promise<VideoDraw>, width: number, height: number): Promise<Blob> {
+    const footer = node.querySelector("footer");
+    if (!footer) throw new Error("Sin marca de agua");
+    const watermarkHeight = WATERMARK_HEIGHT["9:16"];
+    const watermark = await toCanvas(footer, {
+      width,
+      height: watermarkHeight,
+      pixelRatio: 1,
+      backgroundColor: "#020617",
+      imagePlaceholder: TRANSPARENT_PIXEL,
+    });
+    const [draw, { encodeVideo }] = await Promise.all([prepared, import("@/lib/video-export")]);
+    abort.current = new AbortController();
+    return encodeVideo({
+      width,
+      height,
+      fps: value.fps,
+      duration: value.duration,
+      signal: abort.current.signal,
+      onProgress: setProgress,
+      draw: (ctx, t) => {
+        draw(ctx, t);
+        ctx.drawImage(watermark, 0, height - watermarkHeight, width, watermarkHeight);
+      },
+    });
+  }
+
+  const shownIncludes = clip ? (clip.includes ?? includes) : includes;
+  const working = state === "working";
+  const idleNote = clip
+    ? `Vídeo MP4 ${CARD_SIZE["9:16"].width}×${CARD_SIZE["9:16"].height} de ${clip.duration} s con la marca de ${BRAND.name}`
+    : `Imagen HD ${CARD_SIZE[frameFormat].width}×${CARD_SIZE[frameFormat].height} con la marca de ${BRAND.name}`;
+  const buttonLabel = working
+    ? clip
+      ? `Creando vídeo… ${Math.round(progress * 100)} %`
+      : "Generando imagen…"
+    : share
+      ? "Compartir"
+      : clip
+        ? "Descargar vídeo"
+        : "Descargar imagen";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex items-start gap-3 px-4 pb-3 pt-3">
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5 font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-orange-400">
-            <ImageIcon className="size-3.5" />
-            Compartir imagen
+            {clip ? <Clapperboard className="size-3.5" /> : <ImageIcon className="size-3.5" />}
+            {clip ? "Compartir vídeo" : "Compartir imagen"}
           </p>
           <Dialog.Title className="mt-0.5 font-display text-xl font-extrabold uppercase leading-tight text-white">{title}</Dialog.Title>
         </div>
@@ -205,10 +291,10 @@ function SharePanel({
         </Dialog.Close>
       </div>
 
-      {/* Vista previa: la misma tarjeta que se exporta, a escala */}
-      <CardPreview format={format}>
-        <CardFrame ref={cardRef} format={format} caption={caption}>
-          {renderCard(format)}
+      {/* Vista previa: la misma tarjeta (o el mismo vídeo, en bucle) que se exporta, a escala */}
+      <CardPreview format={frameFormat}>
+        <CardFrame ref={cardRef} format={frameFormat} caption={clip ? (clip.caption ?? caption) : caption}>
+          {clip && videoDraw ? <VideoPreview draw={videoDraw} duration={clip.duration} paused={working} /> : renderCard(frameFormat)}
         </CardFrame>
       </CardPreview>
 
@@ -216,12 +302,16 @@ function SharePanel({
         {spoiler && (
           <p className="flex items-center gap-2 border border-orange-500/40 bg-orange-500/10 px-3 py-2 text-xs text-orange-200">
             <TriangleAlert className="size-4 shrink-0 text-orange-400" />
-            {typeof spoiler === "string" ? spoiler : "Esta imagen muestra el resultado: quien la vea se enterará de cómo acabó."}
+            {typeof spoiler === "string"
+              ? spoiler
+              : clip
+                ? "Este vídeo muestra el resultado: quien lo vea se enterará de cómo acabó."
+                : "Esta imagen muestra el resultado: quien la vea se enterará de cómo acabó."}
           </p>
         )}
-        {includes && includes.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5" aria-label="Qué incluye la imagen">
-            {includes.map((item) => (
+        {shownIncludes && shownIncludes.length > 0 && (
+          <ul className="flex flex-wrap gap-1.5" aria-label={clip ? "Qué incluye el vídeo" : "Qué incluye la imagen"}>
+            {shownIncludes.map((item) => (
               <li key={item} className="flex items-center gap-1 bg-slate-900 px-2 py-1 text-xs text-slate-300">
                 <Check className="size-3 text-emerald-400" />
                 {item}
@@ -230,27 +320,29 @@ function SharePanel({
           </ul>
         )}
 
-        <div className="grid grid-cols-2 border border-slate-800" role="radiogroup" aria-label="Formato">
-          {FORMATS.map(({ format: value, label, hint, Icon }, i) => (
+        <div className={cn("grid border border-slate-800", formats.length > 2 ? "grid-cols-3" : "grid-cols-2")} role="radiogroup" aria-label="Formato">
+          {formats.map(({ format: value, label, hint, Icon }, i) => (
             <button
               key={value}
               type="button"
               role="radio"
               aria-checked={format === value}
+              disabled={working}
               onClick={() => {
                 setFormat(value);
                 setState("idle");
               }}
               className={cn(
-                "flex items-center gap-2 px-3 py-2 text-left transition-colors",
+                "flex min-w-0 items-center gap-2 py-2 text-left transition-colors disabled:cursor-wait",
+                formats.length > 2 ? "px-2" : "px-3",
                 i > 0 && "border-l border-slate-800",
                 format === value ? "bg-slate-800 text-white" : "text-slate-400 hover:bg-slate-900 hover:text-white"
               )}
             >
               <Icon className={cn("size-5 shrink-0", format === value && "text-orange-400")} />
-              <span className="flex flex-col leading-none">
+              <span className="flex min-w-0 flex-col leading-none">
                 <span className="font-display text-base font-extrabold">{label}</span>
-                <span className="mt-0.5 text-[10px] uppercase tracking-wider opacity-75">{hint}</span>
+                <span className="mt-0.5 truncate text-[10px] uppercase tracking-wider opacity-75">{hint}</span>
               </span>
             </button>
           ))}
@@ -259,20 +351,57 @@ function SharePanel({
         <button
           type="button"
           onClick={exportCard}
-          disabled={state === "working"}
+          disabled={working}
           className="flex w-full items-center justify-center gap-2 bg-orange-500 py-3 font-display text-lg font-extrabold uppercase tracking-wide text-slate-950 transition-colors hover:bg-orange-400 disabled:cursor-wait disabled:opacity-70"
         >
-          {state === "working" ? <LoaderCircle className="size-5 animate-spin" /> : share ? <Share2 className="size-5" /> : <Download className="size-5" />}
-          {state === "working" ? "Generando imagen…" : share ? "Compartir" : "Descargar imagen"}
+          {working ? <LoaderCircle className="size-5 animate-spin" /> : share ? <Share2 className="size-5" /> : <Download className="size-5" />}
+          {buttonLabel}
         </button>
         <p aria-live="polite" className="min-h-4 text-center text-xs">
-          {state === "failed" && <span className="text-red-400">No se pudo generar la imagen. Inténtalo de nuevo.</span>}
-          {state === "done" && delivered === "downloaded" && <span className="text-emerald-400">Imagen descargada ({format}).</span>}
-          {state === "idle" && <span className="text-slate-500">Imagen HD {CARD_SIZE[format].width}×{CARD_SIZE[format].height} con la marca de {BRAND.name}</span>}
+          {state === "failed" && (
+            <span className="text-red-400">{clip ? "No se pudo crear el vídeo. Inténtalo de nuevo." : "No se pudo generar la imagen. Inténtalo de nuevo."}</span>
+          )}
+          {state === "done" && delivered === "downloaded" && (
+            <span className="text-emerald-400">{clip ? "Vídeo descargado (MP4)." : `Imagen descargada (${frameFormat}).`}</span>
+          )}
+          {state === "idle" && <span className="text-slate-500">{idleNote}</span>}
         </p>
       </div>
     </div>
   );
+}
+
+/** El vídeo en bucle dentro de la tarjeta: el mismo dibujo que se codifica, en tiempo real. */
+function VideoPreview({ draw, duration, paused }: { draw: Promise<VideoDraw>; duration: number; paused: boolean }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const ctx = canvasRef.current?.getContext("2d", { alpha: false });
+    if (!ctx) return;
+    let frame = 0;
+    let stopped = false;
+    draw.then((paint) => {
+      if (stopped) return;
+      // Mientras se codifica (o con movimiento reducido), el fotograma final quieto
+      if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        paint(ctx, duration);
+        return;
+      }
+      const start = performance.now();
+      const loop = (now: number) => {
+        paint(ctx, ((now - start) / 1000) % duration);
+        frame = requestAnimationFrame(loop);
+      };
+      frame = requestAnimationFrame(loop);
+    }, console.error);
+    return () => {
+      stopped = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [draw, duration, paused]);
+
+  const { width, height } = CARD_SIZE["9:16"];
+  return <canvas ref={canvasRef} width={width} height={height - WATERMARK_HEIGHT["9:16"]} className="absolute inset-0 size-full" />;
 }
 
 /** Encaja la tarjeta (1920×1080 o 1080×1920) en el ancho disponible y en ~la mitad de la altura de la pantalla. */

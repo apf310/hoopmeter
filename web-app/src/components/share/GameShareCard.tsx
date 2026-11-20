@@ -1,10 +1,12 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
-import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
+import { useMemo } from "react";
+import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat, type ShareVideo } from "@/components/share/SocialCardExporter";
 import { formatDayMonth, formatGameTime, formatWeekday, madridDayIfDifferent, periodLabel, type GameMatchup, type GameResult } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
+import { VIDEO_DURATION, VIDEO_FPS, type VideoGame } from "@/lib/game-video";
 import { avg } from "@/lib/player-profile";
 import type { KeyPlayer } from "@/lib/queries";
 import { EXCITEMENT_TONE_CLASSES, formatExcitementScore, getExcitementTone } from "@/lib/spoilers";
@@ -20,7 +22,8 @@ export type ShareStar = { id: number; name: string; teamId: number; stats: strin
 export type GameShareView =
   | { level: 1 }
   | { level: 2; score: number | null }
-  | { level: 3; result: GameResult; star: ShareStar | null };
+  /** `video`: datos del vídeo vertical (Tarea 6.15); solo existe en Nivel 3 y nunca en diferido. */
+  | { level: 3; result: GameResult; star: ShareStar | null; video: VideoGame | null };
 
 type ShareProps = {
   game: GameMatchup;
@@ -45,9 +48,34 @@ function caption(view: GameShareView): string {
   return view.result.status === "Live" ? "En directo" : "Resultado final";
 }
 
-/** Botón de exportación de la tarjeta del partido. */
-export function GameCardExport({ className, ...props }: ShareProps & { className?: string }) {
-  const { away, home, day, view } = props;
+/** Qué sale en el vídeo (Nivel 3): todo el partido hasta ahora, nota incluida si ya la tiene. */
+function videoIncludes(game: VideoGame): string[] {
+  return [
+    game.status === "Final" ? "Marcador animado de principio a fin" : "Marcador animado hasta ahora",
+    "Ventaja en el marcador",
+    "Mapa de tiro de los dos equipos",
+    "Cuarto a cuarto",
+    ...(game.excitementScore !== null ? ["Nota del partido"] : []),
+  ];
+}
+
+/** Botón de exportación de la tarjeta del partido (y del vídeo, en Nivel 3). */
+export function GameCardExport({ className, game, day, away, home, view, featured }: ShareProps & { className?: string }) {
+  const videoGame = view.level === 3 ? view.video : null;
+  const video = useMemo<ShareVideo | undefined>(
+    () =>
+      videoGame
+        ? {
+            duration: VIDEO_DURATION,
+            fps: VIDEO_FPS,
+            caption: videoGame.status === "Final" ? "Resultado en vídeo" : "En directo",
+            includes: videoIncludes(videoGame),
+            // El dibujo (canvas) se descarga solo al elegir el vídeo
+            prepare: () => import("@/components/share/GameVideo").then((m) => m.prepareGameVideo({ game: videoGame, day, away, home })),
+          }
+        : undefined,
+    [videoGame, day, away, home]
+  );
   return (
     <SocialCardExporter
       className={className}
@@ -56,7 +84,8 @@ export function GameCardExport({ className, ...props }: ShareProps & { className
       title={`${away.abbreviation} @ ${home.abbreviation} · ${caption(view)}`}
       includes={includes(view)}
       spoiler={view.level === 3}
-      renderCard={(format) => <GameShareCard format={format} {...props} />}
+      renderCard={(format) => <GameShareCard format={format} game={game} day={day} away={away} home={home} view={view} featured={featured} />}
+      video={video}
     />
   );
 }

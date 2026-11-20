@@ -134,17 +134,25 @@ function toBase64(blob: Blob): Promise<string> {
   });
 }
 
-/** El WebView de Android no admite `<a download>` ni `navigator.share` con archivos. */
-export async function shareImageNatively(blob: Blob, fileName: string) {
+// Trozos de 768 KB (múltiplo de 3: cada trozo es base64 válido por sí solo). Un vídeo de ~8 MB en
+// una sola cadena base64 (~11 MB) pasaría entero por el puente de Capacitor y dispara la memoria.
+const CHUNK_BYTES = 3 * 256 * 1024;
+
+/**
+ * El WebView de Android no admite `<a download>` ni `navigator.share` con archivos: se escribe en la
+ * caché de la app y se abre el menú de compartir. El tipo (image/png, video/mp4) sale de la extensión.
+ */
+export async function shareFileNatively(blob: Blob, fileName: string) {
   const [{ Directory, Filesystem }, { Share }] = await Promise.all([
     import("@capacitor/filesystem"),
     import("@capacitor/share"),
   ]);
-  const { uri } = await Filesystem.writeFile({
-    path: fileName,
-    data: await toBase64(blob),
-    directory: Directory.Cache,
-  });
+  let uri = "";
+  for (let offset = 0; offset < blob.size || offset === 0; offset += CHUNK_BYTES) {
+    const data = await toBase64(blob.slice(offset, offset + CHUNK_BYTES));
+    if (offset === 0) ({ uri } = await Filesystem.writeFile({ path: fileName, data, directory: Directory.Cache }));
+    else await Filesystem.appendFile({ path: fileName, data, directory: Directory.Cache });
+  }
   try {
     await Share.share({ files: [uri] });
   } catch (error) {
