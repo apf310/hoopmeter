@@ -42,6 +42,9 @@ revoke all on function private.dispatch_workflow(text) from public, anon, authen
 select cron.schedule('hoopmeter-watcher',   '*/5 * * * *', $$select private.dispatch_workflow('live_game_watcher.yml')$$);
 select cron.schedule('hoopmeter-contracts', '17 * * * *',  $$select private.dispatch_workflow('contracts_sync.yml')$$);
 select cron.schedule('hoopmeter-daily',     '30 10 * * *', $$select private.dispatch_workflow('daily_stats_sync.yml')$$);
+-- Tarea 6.14: aviso matinal. De 6 a 10 UTC cubre las 8:00-11:00 de España en invierno y en verano;
+-- notify_morning.py mira la hora de España y en las demás pasadas no hace nada.
+select cron.schedule('hoopmeter-morning',   '0 6-10 * * *', $$select private.dispatch_workflow('morning_push.yml')$$);
 
 -- Comprobar (debería salir 204 en cada petición reciente):
 --   select id, status_code, created from net._http_response order by created desc limit 5;

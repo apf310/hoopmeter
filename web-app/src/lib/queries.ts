@@ -9,6 +9,8 @@ import { lastStartedDay, pickStandingsBefore, type StandingsBefore } from "@/lib
 import { getSupabase, type DeadMoney, type Player, type PlayerAward, type PlayerContract, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { teamAccent } from "@/lib/team-colors";
 import type { RosterRow } from "@/lib/team-roster";
+import { SPAIN, type SpanishPlayer } from "@/lib/spanish-players";
+import type { ScoredGame } from "@/lib/what-to-watch";
 
 export type UpcomingGame = GameMatchup;
 
@@ -180,6 +182,34 @@ export async function getSchedule(): Promise<GameMatchup[]> {
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`Error cargando calendario: ${error.message}`);
     games.push(...(data as GameMatchup[]));
+    if (data.length < PAGE_SIZE) return games;
+  }
+}
+
+/**
+ * Partidos terminados con nota de la temporada en curso para "Qué ver" (Tarea 6.11). Solo se leen
+ * emparejamiento, fecha y nota: los marcadores ni siquiera salen de la base de datos.
+ */
+export async function getScoredGames(): Promise<ScoredGame[]> {
+  "use cache";
+  // Cada nota llega en cuanto acaba su partido
+  cacheLife({ stale: 60, revalidate: 60, expire: 600 });
+
+  const season = seasonOf(new Date().toISOString());
+  const supabase = getSupabase();
+  const games: ScoredGame[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("games")
+      .select(`${MATCHUP_COLUMNS}, excitement_score`)
+      .eq("status", "Final")
+      .not("excitement_score", "is", null)
+      .gte("game_datetime_utc", `${season.slice(0, 4)}-08-01T00:00:00Z`)
+      .order("game_datetime_utc")
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Error cargando notas: ${error.message}`);
+    games.push(...(data as ScoredGame[]));
     if (data.length < PAGE_SIZE) return games;
   }
 }
@@ -470,6 +500,23 @@ export async function getPlayersDirectory(): Promise<{ index: SearchIndex; stars
     .slice(0, 12);
   const legends = index.players.filter((p) => !p.is_active).map((p) => ({ id: p.id, name: p.full_name }));
   return { index, stars, legends };
+}
+
+/** Españoles en activo con equipo ("Los nuestros", Tarea 6.12): solo nombre y equipo actual, sin spoilers. */
+export async function getSpanishPlayers(): Promise<SpanishPlayer[]> {
+  "use cache";
+  // Cambian con traspasos y fichajes: refresco horario, como el buscador.
+  cacheLife("hours");
+
+  const { data, error } = await getSupabase()
+    .from("players")
+    .select("id, full_name, team_id")
+    .eq("country", SPAIN)
+    .eq("is_active", true)
+    .not("team_id", "is", null)
+    .order("full_name");
+  if (error) throw new Error(`Error cargando jugadores españoles: ${error.message}`);
+  return (data as Pick<Player, "id" | "full_name" | "team_id">[]).map((p) => ({ id: p.id, name: p.full_name, teamId: p.team_id! }));
 }
 
 export async function getSearchIndex(): Promise<SearchIndex> {

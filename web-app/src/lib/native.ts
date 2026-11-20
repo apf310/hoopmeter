@@ -62,6 +62,69 @@ export function onNativeBackButton(): () => void {
   };
 }
 
+/**
+ * Aviso matinal (Tarea 6.14): pide permiso si hace falta, crea el canal "morning" y devuelve el token
+ * de FCM. Falla con "denied" si el usuario no da permiso; en un APK sin el plugin, con su propio error.
+ */
+export async function registerNativePush(): Promise<string> {
+  const { PushNotifications } = await import("@capacitor/push-notifications");
+  let { receive } = await PushNotifications.checkPermissions();
+  if (receive === "prompt" || receive === "prompt-with-rationale") {
+    ({ receive } = await PushNotifications.requestPermissions());
+  }
+  if (receive !== "granted") throw new Error("denied");
+  await PushNotifications.createChannel({
+    id: "morning",
+    name: "Aviso de la mañana",
+    description: "La jornada de anoche lista para ver, sin resultados",
+    importance: 3,
+  });
+
+  const handles: { remove: () => Promise<void> }[] = [];
+  const cleanup = () => handles.splice(0).forEach((handle) => void handle.remove());
+  try {
+    return await new Promise<string>((resolve, reject) => {
+      setTimeout(() => reject(new Error("timeout")), 20_000);
+      Promise.all([
+        PushNotifications.addListener("registration", ({ value }) => resolve(value)),
+        PushNotifications.addListener("registrationError", ({ error }) => reject(new Error(error))),
+      ])
+        .then((added) => {
+          handles.push(...added);
+          return PushNotifications.register();
+        })
+        .catch(reject);
+    });
+  } finally {
+    cleanup();
+  }
+}
+
+export async function unregisterNativePush(): Promise<void> {
+  const { PushNotifications } = await import("@capacitor/push-notifications");
+  await PushNotifications.unregister();
+}
+
+/** Al tocar un aviso en la app nativa (también si la abrió en frío). En la web no hace nada. */
+export function onNativePushOpened(listener: () => void): () => void {
+  if (!isNativeApp()) return () => {};
+
+  let stopped = false;
+  let remove: (() => Promise<void>) | undefined;
+  import("@capacitor/push-notifications")
+    .then(({ PushNotifications }) => PushNotifications.addListener("pushNotificationActionPerformed", () => listener()))
+    .then((handle) => {
+      if (stopped) void handle.remove();
+      else remove = handle.remove;
+    })
+    .catch(console.error);
+
+  return () => {
+    stopped = true;
+    void remove?.();
+  };
+}
+
 function toBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

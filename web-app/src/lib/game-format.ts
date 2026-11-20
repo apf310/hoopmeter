@@ -1,6 +1,7 @@
 // Formatos y cálculos ligeros de la ficha del partido. Sin "use client" ni dependencias de servidor:
 // se usa en cliente y servidor (de `game-detail.ts` solo se importan tipos).
 import type { BoxLine, GameDetail, PlayerLine, ShotZone, TeamBox } from "@/lib/game-detail";
+import type { PlayerGameLine } from "@/lib/game-day-store";
 
 /** Equipo de un partido tal como lo pinta la ficha. Sin balance V-D: delataría el resultado. */
 export type MatchupTeam = {
@@ -84,6 +85,14 @@ export function findPlayer(detail: GameDetail, playerId: number): { player: Play
     if (player) return { player, team };
   }
   return null;
+}
+
+/** Línea de un jugador para las listas de Nivel 3 (Tareas 6.8 y 6.12). Null = no está en el boxscore. */
+export function playerGameLine(detail: GameDetail, playerId: number): PlayerGameLine | null {
+  const line = findPlayer(detail, playerId)?.player;
+  if (!line) return null;
+  const { played, absence, seconds, pts, reb, ast, stl, blk, fgm, fga, fg3m, fg3a, plusMinus } = line;
+  return { played, absence, seconds, pts, reb, ast, stl, blk, fgm, fga, fg3m, fg3a, plusMinus };
 }
 
 /** Jugador del partido: la mejor valoración (Game Score) de los dos equipos. */

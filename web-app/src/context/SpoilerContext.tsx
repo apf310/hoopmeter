@@ -29,6 +29,18 @@ function readState(): StoredState | null {
   return null;
 }
 
+// Tarea 6.14: tocar el aviso matinal abre "/?aviso=1" (sw.js y la app nativa). Se vuelve al Nivel 1 al
+// cargar este módulo, antes de la hidratación: ni un fotograma en otro nivel. El parámetro se queda en la
+// URL; si el usuario recarga esa misma página, vuelve al Nivel 1 otra vez (lo seguro).
+export const FROM_NOTIFICATION_PARAM = "aviso";
+if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has(FROM_NOTIFICATION_PARAM)) {
+  try {
+    sessionStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Sin almacenamiento ya se está en Nivel 1.
+  }
+}
+
 function writeState(state: StoredState) {
   try {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -80,6 +92,11 @@ function subscribe(listener: () => void) {
 
 function setSpoilerLevel(level: SpoilerLevel) {
   writeState({ level, hiddenAt: null });
+}
+
+/** Vuelta forzosa al Nivel 1 (al tocar el aviso matinal en la app nativa, aunque no pasaran 15 min). */
+export function resetSpoilerLevel() {
+  writeState({ level: DEFAULT_SPOILER_LEVEL, hiddenAt: null });
 }
 
 // Intención de cambiar de nivel (ratón encima, pulsación en curso): las pantallas precargan

@@ -6,7 +6,7 @@ import { GameDay, GameListSkeleton } from "@/components/games/GameDay";
 import { addDays, gameDayOf, isGameDay, toScheduleTuple, todayGameDay, type TeamLite } from "@/lib/game-day";
 import { BRAND } from "@/lib/brand";
 import { decodeFavoritesCookie, FAVORITES_COOKIE, type Favorites } from "@/lib/favorites";
-import { getSchedule, getSearchIndex, getTeams } from "@/lib/queries";
+import { getSchedule, getSearchIndex, getSpanishPlayers, getTeams } from "@/lib/queries";
 import { teamAccent } from "@/lib/team-colors";
 
 export const metadata: Metadata = {
@@ -36,10 +36,12 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/">["sea
 
   // Favoritos (Tarea 6.10): la cookie lleva sus ids para pintar la jornada ya ordenada y sin saltos
   const favoriteIds = decodeFavoritesCookie((await cookies()).get(FAVORITES_COOKIE)?.value);
-  const [schedule, teams, index] = await Promise.all([
+  const [schedule, teams, index, spanishPlayers] = await Promise.all([
     getSchedule(),
     getTeams(),
     favoriteIds.players.length > 0 ? getSearchIndex() : null,
+    // Los nuestros (Tarea 6.12): solo nombre y equipo; su línea llega aparte y solo en Nivel 3
+    getSpanishPlayers(),
   ]);
 
   // Nivel 1 en el HTML: solo emparejamiento y fecha. Ni nota ni marcador viajan nunca en la página.
@@ -79,6 +81,7 @@ async function HomeContent({ searchParams }: { searchParams: PageProps<"/">["sea
       initialSchedule={initialSchedule}
       initialRange={[from, to]}
       gameDays={gameDays}
+      spanishPlayers={spanishPlayers}
     />
   );
 }

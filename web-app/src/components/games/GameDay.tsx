@@ -4,8 +4,10 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState, type TouchEvent }
 import { Eye, EyeOff, Star, WifiOff, type LucideIcon } from "lucide-react";
 import { DayPicker } from "@/components/games/DayPicker";
 import { LiveGameCard, type CardView } from "@/components/games/LiveGameCard";
+import { SpanishPlayersStrip } from "@/components/games/SpanishPlayersStrip";
 import { DayCardExport } from "@/components/share/DayShareCard";
 import { FavoritesStrip } from "@/components/favorites/FavoritesQuickAccess";
+import { PushBell } from "@/components/push/PushBell";
 import { onLevelIntent, useSpoilerLevel } from "@/context/SpoilerContext";
 import {
   addDays,
@@ -25,13 +27,16 @@ import {
   loadDay,
   loadLive,
   loadSchedule,
+  loadSpanishLines,
   useDayLevel2,
   useDayLevel3,
   useLive,
   useSchedule,
+  useSpanishLines,
 } from "@/lib/game-day-store";
 import { favoriteTeamReasons, sortFavoritesFirst, type Favorites } from "@/lib/favorites";
 import { useFavorites, useFreshFavoritePlayerTeams } from "@/lib/favorites-store";
+import { spanishPlayersOfDay, type SpanishPlayer } from "@/lib/spanish-players";
 import type { SpoilerLevel } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +62,11 @@ function hasGamesInProgress(games: GameMatchup[], now: number): boolean {
   });
 }
 
+/** Algún partido ha empezado ya (o está a punto): antes no hay boxscore que pedir. */
+function hasStartedGames(games: GameMatchup[], now: number): boolean {
+  return games.some((game) => Date.parse(game.game_datetime_utc) - now < PRE_GAME_MS);
+}
+
 function isTypingTarget(target: EventTarget | null): boolean {
   return (
     target instanceof HTMLElement &&
@@ -75,6 +85,8 @@ type GameDayProps = {
   gameDays: string[];
   /** Favoritos según la cookie: el HTML ya sale ordenado y con la franja (Tarea 6.10). */
   initialFavorites: Favorites;
+  /** Españoles en activo con su equipo actual: "Los nuestros" (Tarea 6.12). */
+  spanishPlayers: SpanishPlayer[];
 };
 
 /**
@@ -82,7 +94,7 @@ type GameDayProps = {
  * de día es instantáneo; la nota (Nivel 2) y los resultados (Nivel 3) solo se piden en esos niveles,
  * ya filtrados por el servidor, y se refrescan cada 30 s mientras haya partidos en juego.
  */
-export function GameDay({ today, initialDay, teams, initialSchedule, initialRange, gameDays, initialFavorites }: GameDayProps) {
+export function GameDay({ today, initialDay, teams, initialSchedule, initialRange, gameDays, initialFavorites, spanishPlayers }: GameDayProps) {
   const level = useSpoilerLevel();
   const [day, setDay] = useState(initialDay);
 
@@ -99,6 +111,11 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
   useFreshFavoritePlayerTeams(favorites);
   const favoriteReasons = useMemo(() => favoriteTeamReasons(favorites), [favorites]);
   const orderedGames = useMemo(() => games && sortFavoritesFirst(games, favoriteReasons), [games, favoriteReasons]);
+
+  // Los nuestros: quién juega sale del calendario (Nivel 1); su línea, solo en Nivel 3
+  const spanishOfDay = useMemo(() => spanishPlayersOfDay(spanishPlayers, games ?? NO_GAMES), [spanishPlayers, games]);
+  const spanishGames = useMemo(() => spanishOfDay.map((entry) => entry.game), [spanishOfDay]);
+  const spanishLines = useSpanishLines(level, day);
 
   const level2 = useDayLevel2(level, day);
   const level3 = useDayLevel3(level, day);
@@ -121,6 +138,9 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
     const inProgress = hasGamesInProgress(games ?? NO_GAMES, Date.now());
     void loadDay(level, day, inProgress ? LIVE_MAX_AGE_MS : IDLE_MAX_AGE_MS);
     if (level === 3 && inProgress) void loadLive();
+    if (level === 3 && hasStartedGames(spanishGames, Date.now())) {
+      void loadSpanishLines(day, hasGamesInProgress(spanishGames, Date.now()) ? LIVE_MAX_AGE_MS : IDLE_MAX_AGE_MS);
+    }
   });
 
   useEffect(() => {
@@ -151,6 +171,7 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
     if (target === 1 || target === level) return;
     void loadDay(target, day);
     if (target === 3 && hasGamesInProgress(games ?? NO_GAMES, Date.now())) void loadLive();
+    if (target === 3 && hasStartedGames(spanishGames, Date.now())) void loadSpanishLines(day);
   });
   useEffect(() => onLevelIntent((target) => prefetchLevel(target)), []);
 
@@ -219,19 +240,22 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
             <span className="text-slate-500 md:hidden"> · Hora de España</span>
           </p>
         </div>
-        {games && games.length > 0 && (
-          <DayCardExport
-            className="shrink-0"
-            day={day}
-            level={level}
-            games={games.map((game) => ({ game, away: teamsById.get(game.away_team_id), home: teamsById.get(game.home_team_id), view: viewFor(game) }))}
-          />
-        )}
+        <div className="flex shrink-0 items-center gap-2">
+          <PushBell />
+          {games && games.length > 0 && (
+            <DayCardExport
+              day={day}
+              level={level}
+              games={games.map((game) => ({ game, away: teamsById.get(game.away_team_id), home: teamsById.get(game.home_team_id), view: viewFor(game) }))}
+            />
+          )}
+        </div>
       </header>
 
       <FavoritesStrip favorites={favorites} className="md:hidden" />
       <DayPicker day={day} today={today} gameDays={gameDaySet} onSelect={selectDay} />
       <LevelHint level={level} live={liveNow} offline={offline} />
+      <SpanishPlayersStrip entries={spanishOfDay} teamsById={teamsById} level={level} lines={spanishLines} />
 
       <div onTouchStart={onTouchStart} onTouchEnd={onTouchEnd} className="min-h-[50vh]">
         {orderedGames === undefined ? (

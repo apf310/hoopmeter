@@ -10,6 +10,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
+# Tarea 6.14: configuración y clave de Firebase (nunca al repositorio público)
+web-app/android/app/google-services.json
+*firebase-adminsdk*.json
 
 # Node / Next.js
 node_modules/

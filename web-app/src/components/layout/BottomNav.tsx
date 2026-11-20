@@ -32,7 +32,8 @@ function BottomNavItems({ pathname }: { pathname: string | null }) {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "relative flex flex-col items-center gap-1 pb-2 pt-2.5 font-display text-[11px] font-bold uppercase tracking-wider transition-colors",
+                // Seis secciones a 360 px: con más espaciado "Clasificación" y "Jugadores" se tocan
+                "relative flex flex-col items-center gap-1 pb-2 pt-2.5 font-display text-[11px] font-bold uppercase tracking-wide transition-colors",
                 active ? "text-white" : "text-slate-400 hover:text-white"
               )}
             >

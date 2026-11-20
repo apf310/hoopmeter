@@ -9,6 +9,7 @@ import { SpoilerModeSelector } from "./SpoilerModeSelector";
 import { Wordmark } from "./Wordmark";
 import { SearchTrigger } from "@/components/search/SearchCommand";
 import { SidebarFavorites } from "@/components/favorites/FavoritesQuickAccess";
+import { ActiveSidebarPushLink, SidebarPushLink } from "@/components/push/SidebarPushLink";
 
 export function Sidebar() {
   return (
@@ -25,6 +26,9 @@ export function Sidebar() {
       {/* usePathname es dato de URL: en rutas dinámicas debe ir dentro de <Suspense> */}
       <Suspense fallback={<SidebarLinks pathname={null} />}>
         <ActiveSidebarLinks />
+      </Suspense>
+      <Suspense fallback={<SidebarPushLink active={false} />}>
+        <ActiveSidebarPushLink />
       </Suspense>
       <SidebarFavorites />
     </aside>

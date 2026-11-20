@@ -1,4 +1,4 @@
-import { Home, Trophy, Users, Briefcase, Swords, type LucideIcon } from "lucide-react";
+import { Home, Trophy, Users, Briefcase, Swords, Tv, type LucideIcon } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -8,6 +8,7 @@ export type NavItem = {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Inicio", icon: Home },
+  { href: "/que-ver", label: "Qué ver", icon: Tv },
   { href: "/standings", label: "Clasificación", icon: Trophy },
   { href: "/players", label: "Jugadores", icon: Users },
   { href: "/gm-simulator", label: "GM Virtual", icon: Briefcase },

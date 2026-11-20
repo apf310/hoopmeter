@@ -4,6 +4,7 @@
 // `/api/players/1628983/games?level=3`
 import { connection } from "next/server";
 import { getGameDetail } from "@/lib/game-detail";
+import { playerGameLine } from "@/lib/game-format";
 import type { PlayerGameLine } from "@/lib/game-day-store";
 import { getPlayer, getRecentGames } from "@/lib/queries";
 
@@ -28,24 +29,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/players/[id]
     details.forEach((detail, i) => {
       // Sin boxscore aún (acaba de empezar): sin línea, se pide en el siguiente refresco
       if (!detail) return;
-      const line = [...detail.home.players, ...detail.away.players].find((p) => p.id === playerId);
-      lines[games[i].id] = line
-        ? {
-            played: line.played,
-            absence: line.absence,
-            seconds: line.seconds,
-            pts: line.pts,
-            reb: line.reb,
-            ast: line.ast,
-            stl: line.stl,
-            blk: line.blk,
-            fgm: line.fgm,
-            fga: line.fga,
-            fg3m: line.fg3m,
-            fg3a: line.fg3a,
-            plusMinus: line.plusMinus,
-          }
-        : null;
+      lines[games[i].id] = playerGameLine(detail, playerId);
     });
   } catch (error) {
     console.error("[api/players/id/games]", error);

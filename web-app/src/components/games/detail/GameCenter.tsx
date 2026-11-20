@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useEffectEvent, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { WifiOff } from "lucide-react";
 import { BoxScoreTable } from "@/components/games/detail/BoxScoreTable";
+import { DeferredBar, DeferredInvite } from "@/components/games/detail/DeferredMode";
 import { GameHero, type HeroView } from "@/components/games/detail/GameHero";
 import { KeyPlayers, LockedStats, NotStarted } from "@/components/games/detail/GamePreview";
 import { GameSummary } from "@/components/games/detail/GameSummary";
@@ -12,15 +13,20 @@ import { ShotChartPanel } from "@/components/games/detail/ShotChart";
 import { Placeholder } from "@/components/games/detail/ui";
 import { GameCardExport, type GameShareView, type ShareStar } from "@/components/share/GameShareCard";
 import { onLevelIntent, useSpoilerLevel } from "@/context/SpoilerContext";
+import { DEFERRED_START } from "@/lib/deferred-position";
 import type { GameDetail } from "@/lib/game-detail";
 import { toGameResult, type GameMatchup, type GameResult } from "@/lib/game-day";
 import {
   IDLE_MAX_AGE_MS,
   LIVE_MAX_AGE_MS,
   loadDay,
+  loadDeferred,
   loadGameDetail,
+  setDeferredPosition,
   useDayLevel2,
   useDayLevel3,
+  useDeferred,
+  useDeferredPosition,
   useGameDetail,
 } from "@/lib/game-day-store";
 import { decimal, playerOfTheGame, shooting, type MatchupTeam } from "@/lib/game-format";
@@ -54,6 +60,32 @@ function resultOf(detail: GameDetail | null | undefined, row: GameLevel3 | undef
   };
 }
 
+/** Cabecera en diferido: el marcador hasta el instante elegido, sin nota. null = aún sin jugada a jugada. */
+function deferredResultOf(detail: GameDetail | null | undefined): GameResult | undefined {
+  if (detail === undefined) return undefined;
+  if (detail === null) {
+    return { status: "Scheduled", periodText: null, away: { score: null, periods: [] }, home: { score: null, periods: [] }, excitementScore: null };
+  }
+  return {
+    status: "Live",
+    periodText: detail.periodText,
+    away: { score: detail.away.score, periods: detail.away.periods },
+    home: { score: detail.home.score, periods: detail.home.periods },
+    excitementScore: null,
+  };
+}
+
+const noSubscription = () => () => {};
+
+/** ¿Ha llegado ya la hora del salto inicial? Sin pedir nada (en Nivel 1 no se sabe ni el estado). */
+function useKickedOff(utc: string): boolean {
+  return useSyncExternalStore(
+    noSubscription,
+    () => Date.now() >= Date.parse(utc),
+    () => false
+  );
+}
+
 function shareStar(detail: GameDetail | null | undefined): ShareStar | null {
   const best = detail ? playerOfTheGame(detail) : null;
   if (!best) return null;
@@ -79,12 +111,21 @@ type GameCenterProps = {
  * Ficha del partido. El HTML solo trae el emparejamiento (Nivel 1); la nota (Nivel 2) y la ficha
  * completa (Nivel 3) se piden únicamente en su nivel, se precargan en cuanto el usuario empieza
  * a cambiarlo y se refrescan cada 30 s mientras se juega.
+ * En Niveles 1 y 2 se puede pasar al modo diferido (Tarea 6.13): la ficha rehecha solo hasta el
+ * instante que diga el usuario, sin nota. En Nivel 3 se ve todo y el diferido queda en pausa.
  */
 export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProps) {
   const level = useSpoilerLevel();
   const level2 = useDayLevel2(level, day);
   const level3 = useDayLevel3(level, day);
   const detailEntry = useGameDetail(level, game.id);
+  const kickedOff = useKickedOff(game.game_datetime_utc);
+  const storedPosition = useDeferredPosition(game.id);
+  const deferredPosition = level === 3 ? null : storedPosition;
+  const deferred = useDeferred(game.id, deferredPosition);
+  // undefined = cargando · null = aún sin jugada a jugada. Mientras llega otro instante, se ve el anterior
+  const deferredDetail = deferred.entry?.data !== undefined ? deferred.entry.data.detail : deferred.previous;
+  const deferredLoading = deferredPosition !== null && deferred.entry?.data === undefined && !deferred.entry?.error;
 
   const [tab, setTab] = useState<Tab>("resumen");
   const [sheetPlayer, setSheetPlayer] = useState<number | null>(null);
@@ -135,6 +176,16 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
   });
   useEffect(() => onLevelIntent((target) => prefetchLevel(target)), []);
 
+  // Diferido: la ficha del instante elegido (y reintento cada 30 s si falló o va por delante del directo)
+  useEffect(() => {
+    if (!deferredPosition) return;
+    void loadDeferred(game.id, deferredPosition);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") void loadDeferred(game.id, deferredPosition);
+    }, REFRESH_MS);
+    return () => clearInterval(interval);
+  }, [game.id, deferredPosition]);
+
   // --- Navegación ---
 
   function selectTab(next: Tab) {
@@ -169,7 +220,11 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
 
   let hero: HeroView;
   let share: GameShareView | null;
-  if (level === 1) {
+  if (deferredPosition) {
+    // Sin tarjeta para compartir: el diferido es para quien lo está viendo
+    hero = { level: "deferred", result: deferredResultOf(deferredDetail), detail: deferredDetail };
+    share = null;
+  } else if (level === 1) {
     hero = { level: 1 };
     share = { level: 1 };
   } else if (level === 2) {
@@ -190,12 +245,51 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
         {share && <GameCardExport game={game} day={day} away={away} home={home} view={share} featured={featured} />}
       </GameHero>
 
-      {level !== 3 ? (
+      {deferredPosition ? (
+        <>
+          <DeferredBar
+            position={deferredPosition}
+            regulation={deferredDetail?.regulationPeriods ?? 4}
+            loading={deferredLoading && deferredDetail !== undefined}
+            onChange={(position) => setDeferredPosition(game.id, position)}
+            onExit={() => setDeferredPosition(game.id, null)}
+          />
+          {deferredDetail ? (
+            renderDetail(deferredDetail, true)
+          ) : deferredDetail === null ? (
+            <p className="border-b border-slate-800 px-4 py-12 text-center text-sm text-slate-400 md:px-8">
+              La NBA aún no ha publicado la jugada a jugada de este partido.
+            </p>
+          ) : deferred.entry?.error ? (
+            <LoadError />
+          ) : (
+            <DetailSkeleton />
+          )}
+        </>
+      ) : level !== 3 ? (
         <>
           <LockedStats level={level} />
+          {kickedOff && <DeferredInvite onStart={() => setDeferredPosition(game.id, DEFERRED_START)} />}
           <KeyPlayers players={keyPlayers} away={away} home={home} />
         </>
       ) : detail ? (
+        renderDetail(detail, false)
+      ) : detail === null ? (
+        <>
+          <NotStarted finished={result?.status === "Final"} />
+          <KeyPlayers players={keyPlayers} away={away} home={home} />
+        </>
+      ) : detailEntry?.error ? (
+        <LoadError />
+      ) : (
+        <DetailSkeleton />
+      )}
+    </>
+  );
+
+  /** Pestañas de la ficha: la completa (Nivel 3) o la rehecha hasta el instante del diferido. */
+  function renderDetail(detail: GameDetail, isDeferred: boolean) {
+    return (
         <>
           <div ref={tabsAnchor} />
           <div
@@ -226,7 +320,7 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
                 </button>
               );
             })}
-            {detail.status === "Live" && (
+            {!isDeferred && detail.status === "Live" && (
               <span className="ml-auto hidden items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wider text-red-400 sm:flex">
                 <span className="size-1.5 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
                 Actualizando cada 30 s
@@ -248,7 +342,10 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
                 onPlayerChange={setShotPlayer}
               />
             )}
-            {tab === "jugadas" && <PlayByPlay detail={detail} away={away} home={home} />}
+            {/* En diferido, al cambiar de periodo la lista salta a ese periodo */}
+            {tab === "jugadas" && (
+              <PlayByPlay key={isDeferred ? `diferido-${detail.period}` : "completa"} detail={detail} away={away} home={home} />
+            )}
           </div>
 
           {sheetPlayer !== null && (
@@ -262,20 +359,16 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
             />
           )}
         </>
-      ) : detail === null ? (
-        <>
-          <NotStarted finished={result?.status === "Final"} />
-          <KeyPlayers players={keyPlayers} away={away} home={home} />
-        </>
-      ) : detailEntry?.error ? (
-        <p className="flex items-center justify-center gap-2 border-b border-slate-800 px-4 py-12 text-sm text-slate-400">
-          <WifiOff className="size-4" />
-          No se han podido cargar las estadísticas. Reintentando…
-        </p>
-      ) : (
-        <DetailSkeleton />
-      )}
-    </>
+    );
+  }
+}
+
+function LoadError() {
+  return (
+    <p className="flex items-center justify-center gap-2 border-b border-slate-800 px-4 py-12 text-sm text-slate-400">
+      <WifiOff className="size-4" />
+      No se han podido cargar las estadísticas. Reintentando…
+    </p>
   );
 }
 

@@ -21,11 +21,13 @@ import { cn } from "@/lib/utils";
 /**
  * Lo que puede verse en la cabecera según el nivel (`undefined` = cargando).
  * Nivel 2: `upcoming` = aún no ha empezado según la hora, así que no lleva hueco de nota.
+ * Diferido (Tarea 6.13): el marcador hasta el instante elegido, nunca la nota ni "Final".
  */
 export type HeroView =
   | { level: 1 }
   | { level: 2; score: number | null | undefined; upcoming: boolean }
-  | { level: 3; result: GameResult | undefined; detail: GameDetail | null | undefined };
+  | { level: 3; result: GameResult | undefined; detail: GameDetail | null | undefined }
+  | { level: "deferred"; result: GameResult | undefined; detail: GameDetail | null | undefined };
 
 type GameHeroProps = {
   game: GameMatchup;
@@ -39,12 +41,14 @@ type GameHeroProps = {
 
 /** Cabecera del partido: visitante a la izquierda y local a la derecha, cada uno sobre su color. */
 export function GameHero({ game, day, away, home, view, children }: GameHeroProps) {
-  const result = view.level === 3 ? view.result : undefined;
-  const detail = view.level === 3 ? view.detail : undefined;
+  const deferred = view.level === "deferred";
+  const result = view.level === 3 || deferred ? view.result : undefined;
+  const detail = view.level === 3 || deferred ? view.detail : undefined;
   const final = result?.status === "Final";
   const awayWins = final && (result.away.score ?? 0) > (result.home.score ?? 0);
   const homeWins = final && (result.home.score ?? 0) > (result.away.score ?? 0);
-  const live = result?.status === "Live" && detail ? detail : null;
+  // Tiempos muertos y bonus: solo en directo (el diferido no los rehace)
+  const live = !deferred && result?.status === "Live" && detail ? detail : null;
 
   return (
     <header className="relative overflow-hidden border-b border-slate-800">
@@ -95,7 +99,9 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
           <div className="flex min-w-[7.5rem] flex-col items-center px-1 text-center md:min-w-56">
             {view.level === 1 && <KickOff game={game} day={day} />}
             {view.level === 2 && <ScoreOnly game={game} day={day} score={view.score} upcoming={view.upcoming} />}
-            {view.level === 3 && <ResultCenter game={game} day={day} result={result} awayWins={awayWins} homeWins={homeWins} />}
+            {(view.level === 3 || deferred) && (
+              <ResultCenter game={game} day={day} result={result} awayWins={awayWins} homeWins={homeWins} deferred={deferred} />
+            )}
           </div>
           <TeamSide team={home} role="Local" align="right" dimmed={awayWins} live={live?.home} />
         </div>
@@ -232,19 +238,23 @@ function ResultCenter({
   result,
   awayWins,
   homeWins,
+  deferred = false,
 }: {
   game: GameMatchup;
   day: string;
   result: GameResult | undefined;
   awayWins: boolean;
   homeWins: boolean;
+  deferred?: boolean;
 }) {
   if (!result) return <Placeholder className="h-24 w-44" />;
   if (result.status === "Scheduled") {
     return (
       <>
         <KickOffTime game={game} day={day} />
-        <span className="mt-3 font-display text-xs font-bold uppercase tracking-wider text-white/75">Aún no ha empezado</span>
+        <span className="mt-3 font-display text-xs font-bold uppercase tracking-wider text-white/75">
+          {deferred ? "Aún sin jugada a jugada" : "Aún no ha empezado"}
+        </span>
       </>
     );
   }
@@ -259,7 +269,12 @@ function ResultCenter({
         </span>
         <span className={cn(awayWins ? "text-white/55" : "text-white")}>{result.home.score ?? 0}</span>
       </p>
-      {result.status === "Live" ? (
+      {deferred ? (
+        <p className="mt-3 flex flex-wrap items-center justify-center gap-x-2 font-display text-base font-bold uppercase tracking-wider text-orange-300">
+          En diferido
+          {result.periodText && <span className="text-white tabular-nums">{result.periodText}</span>}
+        </p>
+      ) : result.status === "Live" ? (
         <p aria-live="polite" className="mt-3 flex items-center gap-2 font-display text-base font-bold uppercase tracking-wider text-red-400">
           <span className="size-2 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
           Directo{result.periodText && <span className="text-white tabular-nums">{result.periodText}</span>}

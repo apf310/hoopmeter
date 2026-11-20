@@ -249,7 +249,8 @@ hoopmeter/
 │   └── workflows/
 │       ├── live_game_watcher.yml    # Cada 5 min: nota, boxscore y clasificación de cada partido que termina
 │       ├── daily_stats_sync.yml     # Diario: calendario, boxscores corregidos, estadísticas, carrera, radares y fichas
-│       └── contracts_sync.yml       # Aplica el registro oficial de movimientos (varias veces al día)
+│       ├── contracts_sync.yml       # Aplica el registro oficial de movimientos (varias veces al día)
+│       └── morning_push.yml         # Aviso matinal sin spoilers (8, 9 o 10 de España)
 │
 ├── backend-data/                    # 🐍 MOTOR DE DATOS, TIEMPO REAL E IA (PYTHON)
 │   ├── requirements.txt
@@ -274,6 +275,7 @@ hoopmeter/
 │   │   ├── contract_news.py         # Lee en una noticia las condiciones del contrato de un jugador
 │   │   ├── contract_resolver.py     # Decide las cifras (exactas, ≈ o sin cifra) a partir de las noticias
 │   │   ├── excitement_calculator.py # Calcula la nota numérica pura (1.0 - 10.0) al acabar el partido
+│   │   ├── morning_digest.py        # Texto del aviso matinal (puro, nunca resultados)
 │   │   ├── box_stats.py             # Boxscore -> filas por jugador y equipo, con comprobaciones (puro)
 │   │   ├── standings.py             # Clasificación y desempates oficiales de la NBA (puro)
 │   │   ├── standings_calc.py        # Calcula y guarda la clasificación (una sola transacción)
@@ -283,6 +285,8 @@ hoopmeter/
 │   │   ├── ai_chronicler.py         # APARCADO: textos IA con Gemini (fuera del pipeline)
 │   │   └── social_bot.py            # Publica alertas en X/Twitter o Telegram (opcional)
 │   ├── tests/                       # Tests sin red ni base de datos (python -m unittest discover -s tests -t .)
+│   ├── push.sql                     # Suscripciones del aviso matinal (tabla privada + alta/baja)
+│   ├── notify_morning.py            # Envía el aviso matinal (web push y FCM)
 │   └── watcher.py                   # Orquestador que procesa cada partido en cuanto pasa a 'Final'
 │
 └── web-app/                         # ⚛️ APLICACIÓN WEB Y MÓVIL (NEXT.JS + CAPACITOR)
@@ -311,6 +315,8 @@ hoopmeter/
         │   ├── teams/
         │   │   ├── page.tsx             # Los 30 equipos por conferencia y división
         │   │   └── [id]/page.tsx        # Ficha: plantilla ordenable, últimos y próximos partidos
+        │   ├── que-ver/page.tsx         # Mejores partidos por nota (semana, mes, temporada), sin resultados
+        │   ├── avisos/page.tsx          # Aviso de la mañana: activar, hora y sin/con notas
         │   ├── gm-simulator/page.tsx
         │   └── compare/page.tsx
         ├── components/
@@ -388,10 +394,10 @@ hoopmeter/
 * [X] **Tarea 6.9:** GM: el traspaso en la URL (solo ids: `?equipos=…&jugadores=id-destino&rondas=…&estimaciones=…`, `lib/gm-link.ts` con tests), siempre al día en la barra de direcciones y con botón "Compartir enlace" junto al de la imagen (menú de compartir en móvil y en la app nativa, copiar en escritorio). Al abrirlo se reconstruye con los contratos de hoy (`restoreTrade` + `buildTrade`) y el veredicto se recalcula con `trade-rules.ts`; lo que ya no se puede montar (jugador traspasado o cortado, ronda caducada, estimación de un contrato que ya tiene cifra) sale del traspaso con un aviso.
 * [X] **Tarea 6.10:** Equipos y jugadores favoritos, sin cuenta (guardados en el dispositivo, `lib/favorites.ts` con tests + `lib/favorites-store.ts`): ★ en la cabecera de su ficha (un toque); en la portada, los partidos de tus equipos y de los equipos de tus jugadores primero, con franja naranja y ★ en el equipo (mismo orden y mismo destacado en los 3 niveles: nunca enseñan más que el nivel); acceso rápido en una franja de la portada (móvil) y en la Sidebar (escritorio). Una cookie con solo los ids (`hm_fav`) deja que el servidor pinte la portada ya ordenada, sin saltos; el equipo de cada jugador se pone al día con el buscador (traspasos). Los favoritos nunca cambian el nivel de spoilers.
 * **Funciones propias para dar el salto (propuestas el 17-nov-2026):**
-* [ ] **Tarea 6.11:** "Qué ver": pantalla con los mejores partidos de la semana, del mes y de la temporada ordenados por nota y filtrables por equipo (y por favoritos), con "El partidazo de la semana" arriba. Solo emparejamiento y nota (sin nada en Nivel 1, como la portada); nunca resultados. Después de la 6.5 (nota justa).
-* [ ] **Tarea 6.12:** "Los nuestros": franja en la portada con los partidos de los jugadores españoles de esa jornada (`players.country`), con acceso a su ficha; su línea de estadísticas solo en Nivel 3.
-* [ ] **Tarea 6.13:** Modo diferido (segunda pantalla): quien ve un partido grabado indica por dónde va (cuarto y minuto, con botones de cuarto y +1 min) y la ficha enseña marcador, boxscore, tiros y jugada a jugada **solo hasta ese instante**, reconstruidos desde la jugada a jugada de la CDN (`lib/game-detail.ts`). Nada posterior a ese punto, tampoco la nota final ni si hubo prórroga. Se decide en el plan cómo encaja con los 3 niveles.
-* [ ] **Tarea 6.14:** Aviso matinal sin spoilers (push en web y Android): desactivado por defecto; al activarlo el usuario elige su nivel: **sin notas** (por defecto: "La jornada de anoche ya está lista: 8 partidos, incluido un Celtics-Magic") o **con notas**; **nunca resultados**. Hora elegible (8:00 por defecto) y opción de aviso al acabar un partido de tus favoritos con las mismas reglas. Al tocarlo, la app abre en Nivel 1 como siempre. Después de la 6.10 (favoritos).
+* [X] **Tarea 6.11:** "Qué ver" (`/que-ver`, en la Sidebar y la BottomNav): los mejores partidos de los últimos 7 días, 30 días o la temporada ordenados por nota (a igual nota, el más reciente), filtrables por equipo o por tus favoritos, con "El partidazo de la semana" arriba y el filtro en la URL (`?periodo=mes&equipo=ID|favoritos`). En Nivel 1 no sale ningún partido (el orden ya delataría la nota), solo un botón de un toque a "Solo nota"; en Niveles 2 y 3, emparejamiento y nota, **nunca resultados**. Las notas salen de `/api/what-to-watch?level=2` (solo id, fecha, equipos y nota; los marcadores ni se leen) y la lógica es pura en `lib/what-to-watch.ts`, con tests.
+* [X] **Tarea 6.12:** "Los nuestros": franja en la portada (bajo el aviso del nivel, solo si hay alguno) con los españoles que juegan esa jornada (`players.country = 'Spain'`, activos y con equipo), con acceso a su ficha. En Niveles 1 y 2, equipo, rival y hora (salen del calendario: ni siquiera si llegó a jugar); en Nivel 3, su línea ("10 PTS · 6 REB · 8 AST" o "No jugó · Lesión") desde `/api/los-nuestros?level=3` (boxscore de la CDN ya cacheado), refrescada con la jornada. Lógica pura en `lib/spanish-players.ts`, con tests. Se usa el equipo actual: en jornadas pasadas, un traspasado sale con su equipo nuevo y sin línea.
+* [X] **Tarea 6.13:** Modo diferido (segunda pantalla): en la ficha del partido, en Niveles 1 y 2 y si ya es la hora, "Lo veo en diferido"; el usuario indica por dónde va (botones de cuarto, prórroga siempre visible, −1/+1 min) y ve marcador, cuartos, boxscore, tiros y jugada a jugada **solo hasta ese instante**, sin nota (tampoco en Nivel 2) ni tarjeta para compartir. El servidor corta y rehace la ficha desde la jugada a jugada (`/api/games/[id]/diferido`, `lib/deferred.ts` + `lib/game-pbp.ts`): ni estado final, ni duración, ni si hubo prórroga. Validado con 14 partidos de 2026-27 (5 con prórroga): cortados al final coinciden con el boxscore oficial (+/- incluido; minutos ±1 s). La posición se recuerda durante la sesión; en Nivel 3 se ve todo y el diferido queda en pausa. Tests en `deferred.test.ts`.
+* [X] **Tarea 6.14:** Aviso matinal sin spoilers (push en web y Android, `/avisos`, campana en la portada y en la Sidebar): desactivado por defecto; el usuario elige la hora (8:00, 9:00 o 10:00 de España: a las 7:00 aún se juega el último partido de la costa oeste) y el tipo: **sin notas** (por defecto: "La jornada de anoche ya está lista: 8 partidos, incluido un Celtics-Magic", el partido solo si juega un favorito, nunca elegido por su nota) o **con notas** ("8 partidos y 2 partidazos: el mejor, un Celtics-Magic (9,1)"). **Nunca resultados ni avisos al acabar un partido** (la hora del aviso delataría la duración o la prórroga): sale a la hora elegida; solo "con notas" espera a la pasada siguiente si queda un partido sin nota. Al tocarlo, la portada se abre de cero en Nivel 1 (`?aviso=1`, también en la app nativa aunque no pasaran 15 min); la preferencia del aviso nunca cambia el nivel. Tabla privada `push_subscriptions` con alta y baja por funciones que validan (`backend-data/push.sql`), `notify_morning.py` + `processors/morning_digest.py` (texto puro, con tests: "mismos partidos y notas distintas dan el mismo aviso sin notas") lanzado por `pg_cron` cada hora de 6 a 10 UTC (`morning_push.yml`), web push con VAPID (`sw.js`) y Android con FCM (`@capacitor/push-notifications`). Activación: SQL, secretos de GitHub y Firebase (`google-services.json`).
 * [ ] **Tarea 6.15:** Modo Creador en vídeo: además del PNG, vídeo vertical de 10-15 s (evolución del marcador animada y mapa de tiro llenándose, con marca de agua), solo en Nivel 3. Revisar antes cómo compartir vídeo desde Android (`lib/native.ts`).
 * [ ] **Tarea 6.16:** Analizar con el usuario las ideas grandes de la auditoría (`info_17nov/`: ajuste por épocas en el comparador, juego diario, cancha 3D, cartas…) y convertir en tareas las elegidas. Ojo: varias usan stats.nba.com (bloqueado desde la nube) o destripan cómo acaba el partido.
 * [ ] **Tarea 6.17:** Imágenes: cupo de Vercel (plan Hobby) con un *loader* propio para `next/image` que pida a la CDN de la NBA el tamaño justo, sin pasar por la optimización de Vercel; y los 30 logos SVG servidos desde la propia web (`public/`, descargados con un script), sin depender de `cdn.nba.com` ni de `/api/cdn` para los escudos.

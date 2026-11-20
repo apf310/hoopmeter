@@ -1,10 +1,12 @@
 // Caché en memoria del cliente (por pestaña, nunca persistida) para la pantalla de jornada.
 // Cada nivel de spoilers tiene su propia clave: el Nivel 2 jamás puede leer datos del Nivel 3.
 // Lo ya descargado se pinta al instante y se revalida en segundo plano.
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import { isDeferredPosition, positionQuery, type DeferredPosition } from "@/lib/deferred-position";
 import type { GameDetail } from "@/lib/game-detail";
 import type { ScheduleTuple } from "@/lib/game-day";
 import type { LiveScoreboard } from "@/lib/live";
+import type { SpanishLinesPayload } from "@/lib/spanish-players";
 import type { GameLevel2, GameLevel3, SpoilerLevel } from "@/lib/spoilers";
 import type { StandingsRow } from "@/lib/standings";
 
@@ -133,6 +135,84 @@ export function useGameDetail(level: SpoilerLevel, gameId: string): Entry<GameDe
   return useEntry<GameDetailPayload>(level === 3 ? detailKey(gameId) : null);
 }
 
+// --- Modo diferido (Tarea 6.13) ---
+
+const deferredKey = (gameId: string, position: DeferredPosition) => `deferred:${gameId}:${position.period}:${position.remaining}`;
+/** Último instante ya descargado de cada partido: se sigue viendo mientras llega el siguiente. */
+const lastDeferred = new Map<string, string>();
+
+/** Ficha rehecha hasta `position` (`/api/games/[id]/diferido`): nunca trae nada posterior, así que vale en cualquier nivel. */
+export function loadDeferred(gameId: string, position: DeferredPosition): Promise<void> {
+  const key = deferredKey(gameId, position);
+  return load(key, `/api/games/${gameId}/diferido?${positionQuery(position)}`, LIVE_MAX_AGE_MS).then(() => {
+    if (entries.get(key)?.data === undefined || lastDeferred.get(gameId) === key) return;
+    lastDeferred.set(gameId, key);
+    listeners.forEach((listener) => listener());
+  });
+}
+
+/** La ficha del instante pedido y, mientras llega, la del último que ya se descargó (`previous`). */
+export function useDeferred(gameId: string, position: DeferredPosition | null) {
+  const entry = useEntry<GameDetailPayload>(position ? deferredKey(gameId, position) : null);
+  const lastKey = useSyncExternalStore(
+    subscribe,
+    () => lastDeferred.get(gameId) ?? null,
+    () => null
+  );
+  const previous = useEntry<GameDetailPayload>(position && entry?.data === undefined ? lastKey : null);
+  return { entry, previous: previous?.data?.detail ?? undefined };
+}
+
+// Por dónde va el usuario en cada partido: en sessionStorage, como el nivel de spoilers (se
+// mantiene al navegar o recargar y se pierde al cerrar la app). Sin posición = fuera del diferido.
+const POSITION_PREFIX = "nba-hub:deferred:";
+const positionListeners = new Set<() => void>();
+/** Respaldo en memoria si sessionStorage no está disponible. */
+const memoryPositions = new Map<string, DeferredPosition | null>();
+
+function subscribePosition(listener: () => void) {
+  positionListeners.add(listener);
+  return () => {
+    positionListeners.delete(listener);
+  };
+}
+
+function readPositionRaw(gameId: string): string | null {
+  try {
+    return sessionStorage.getItem(POSITION_PREFIX + gameId);
+  } catch {
+    return null;
+  }
+}
+
+export function setDeferredPosition(gameId: string, position: DeferredPosition | null) {
+  try {
+    if (position) sessionStorage.setItem(POSITION_PREFIX + gameId, JSON.stringify(position));
+    else sessionStorage.removeItem(POSITION_PREFIX + gameId);
+  } catch {
+    // Sin almacenamiento (modo privado): el diferido dura hasta recargar
+    memoryPositions.set(gameId, position);
+  }
+  positionListeners.forEach((listener) => listener());
+}
+
+/** Posición guardada del partido (null = no está en diferido). En el servidor, siempre null. */
+export function useDeferredPosition(gameId: string): DeferredPosition | null {
+  const raw = useSyncExternalStore(
+    subscribePosition,
+    () => readPositionRaw(gameId) ?? JSON.stringify(memoryPositions.get(gameId) ?? null),
+    () => "null"
+  );
+  return useMemo(() => {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      return isDeferredPosition(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }, [raw]);
+}
+
 const teamGamesKey = (level: 2 | 3, teamId: number) => `team:${level}:${teamId}`;
 
 /** Últimos partidos de un equipo con nota (Nivel 2) o resultado (Nivel 3) (`/api/teams/[id]/games`, Tarea 6.7). */
@@ -157,6 +237,28 @@ export function loadPlayerGames(playerId: number, maxAgeMs = LIVE_MAX_AGE_MS): P
 
 export function usePlayerGames(level: SpoilerLevel, playerId: number | undefined): Entry<PlayerGamesPayload> | undefined {
   return useEntry<PlayerGamesPayload>(level === 3 && playerId !== undefined ? playerGamesKey(playerId) : null);
+}
+
+const spanishKey = (day: string) => `spain:3:${day}`;
+
+/** Línea de cada español en su partido de la jornada (`/api/los-nuestros`, Tarea 6.12). Solo para Nivel 3. */
+export function loadSpanishLines(day: string, maxAgeMs = LIVE_MAX_AGE_MS): Promise<void> {
+  return load(spanishKey(day), `/api/los-nuestros?date=${day}&level=3`, maxAgeMs);
+}
+
+export function useSpanishLines(level: SpoilerLevel, day: string): Entry<SpanishLinesPayload> | undefined {
+  return useEntry<SpanishLinesPayload>(level === 3 ? spanishKey(day) : null);
+}
+
+export type WatchListPayload = { level: 2; games: GameLevel2[] };
+
+/** Notas de la temporada para "Qué ver" (`/api/what-to-watch`, Tarea 6.11). Nivel 2 también en Nivel 3: nunca resultados. */
+export function loadWatchList(maxAgeMs = IDLE_MAX_AGE_MS): Promise<void> {
+  return load("watch:2", "/api/what-to-watch?level=2", maxAgeMs);
+}
+
+export function useWatchList(level: SpoilerLevel): Entry<WatchListPayload> | undefined {
+  return useEntry<WatchListPayload>(level === 1 ? null : "watch:2");
 }
 
 /** Clasificación al día (`/api/standings`, Tarea 6.6). Solo para Nivel 3: los Niveles 1 y 2 usan la de antes de la jornada. */
