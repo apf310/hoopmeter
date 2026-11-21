@@ -5,7 +5,10 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "cdn.nba.com", pathname: "/**" }],
+    // Sin la optimización de Vercel (Tarea 6.17: el cupo del plan Hobby se agota y responde 402):
+    // las fotos se piden a la CDN en el tamaño justo y los escudos salen de public/logos
+    loader: "custom",
+    loaderFile: "./src/lib/image-loader.ts",
   },
   async headers() {
     return [
@@ -20,6 +23,14 @@ const nextConfig: NextConfig = {
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+        ],
+      },
+      {
+        // Escudos de los 30 equipos (`npm run logos`): caché larga y, abiertos sueltos, sin poder ejecutar nada
+        source: "/logos/:file*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+          { key: "Content-Security-Policy", value: "default-src 'none'; style-src 'unsafe-inline'" },
         ],
       },
       {

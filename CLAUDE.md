@@ -42,6 +42,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 - **Tests del motor de reglas del GM y del comparador (`node --test`, sin dependencias):** `npm test`
 - **Sincronizar con móvil (Capacitor):** `npm run cap:sync` (lee `CAPACITOR_SERVER_URL` de `.env.local`; compilar Android exige JDK 21 y SDK 36)
 - **Regenerar iconos y splash desde `assets/logo.svg`:** `npm run icons`
+- **Volver a descargar los 30 escudos a `public/logos/`:** `npm run logos`
 - **Captura como en el Galaxy S24 (o escritorio), con nivel de spoilers y clics:** `node scripts/screenshot.mjs <url> <salida.png> [nivel] [ancho] [alto]` (ver cabecera del script; avisa si algo se sale por la derecha)
 
 ---
@@ -89,6 +90,7 @@ Plataforma NBA Full-Stack en tiempo real y en español estilo **BeSoccer** con *
 
 ### C. Multimedia, Tarjetas RRSS y Diseño UI
 - **CDN Oficial NBA:** Fotos en `https://cdn.nba.com/headshots/nba/latest/1040x760/${playerId}.png` y logos en `https://cdn.nba.com/logos/nba/${teamId}/global/D/logo.svg` (versión para fondo oscuro: con la L los logos negros no se ven).
+- **Imágenes sin la optimización de Vercel (Tarea 6.17):** el cupo del plan Hobby se agota y responde 402. `next/image` usa un *loader* propio (`lib/image-loader.ts`) que pide a la CDN la foto de 260, 520 o 1040 px, nunca `/_next/image`. Los 30 escudos salen de `public/logos/{id}.svg` (`teamLogoUrl`; regenerar con `npm run logos`) y llevan `unoptimized`.
 - **Modo Creador (`SocialCardExporter`):** perfiles, comparativas, partidos (según el nivel de spoilers), jornada, clasificación, equipo y traspasos se exportan a PNG (`16:9` y `9:16`) con marca de agua. Siempre con el botón de compartir (solo el icono, con `aria-label` y *tooltip* "Compartir imagen"), que abre la vista previa exacta, el título de lo que se comparte, qué incluye (`includes`) y aviso si lleva resultados (`spoiler`). Las tarjetas reciben datos ya filtrados por nivel. Mientras la ventana está abierta la letra base vuelve a 16 px (las tarjetas usan rem).
 - **Vídeo (Tarea 6.15):** formato extra "Vídeo" de `SocialCardExporter` (prop `video`), hoy solo en la ficha del partido en **Nivel 3** (`GameShareView` de nivel 3 lleva `video`; nunca en diferido). MP4 H.264 1080×1920 de 12 s: línea de tiempo pura en `lib/game-video.ts` (+ tests), dibujo en canvas en `components/share/GameVideo.ts` y codificación con WebCodecs + `mediabunny` en `lib/video-export.ts` (bajo demanda; sin WebCodecs no se ofrece). MP4 y no WebM: las redes no aceptan WebM. En Android, `shareFileNatively` (`lib/native.ts`) escribe por trozos.
 - **Móvil compacto:** por debajo de 640 px la letra base es 87,5 % (`globals.css`) y todo escala en proporción; cabeceras de página de una franja en móvil (título `text-4xl`, jornada en una línea).
