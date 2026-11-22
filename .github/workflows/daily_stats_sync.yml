@@ -66,3 +66,29 @@ jobs:
       - name: Fichas de jugadores nuevos
         if: ${{ !cancelled() && steps.tests.outcome == 'success' }}
         run: python -m extractors.fetch_player_bios
+
+  # Tarea 6.27: una vez al día, los errores nuevos de la web, el watcher y los jobs (tabla app_errors).
+  # Job aparte para que no se confunda con un fallo de las estadísticas: si hay alguno, queda en rojo y
+  # GitHub manda el email. Solo imprime totales por fuente (el registro es público).
+  errors:
+    name: Errores en producción
+    needs: sync
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: backend-data
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: backend-data/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: python check_errors.py

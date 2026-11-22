@@ -1,16 +1,17 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { TradeMachine } from "@/components/gm/TradeMachine";
-import { BRAND } from "@/lib/brand";
+import { pageMetadata } from "@/lib/seo";
 import { buildTrade, type GmData } from "@/lib/gm";
 import { parseTradeSearch, restoreTrade, type RestoredTrade } from "@/lib/gm-link";
 import { getGmData } from "@/lib/queries";
 import { isValidEstimate, PICK_YEARS, SEASON } from "@/lib/trade-rules";
 
-export const metadata: Metadata = {
-  title: `GM Virtual · ${BRAND.name}`,
+export const metadata: Metadata = pageMetadata({
+  title: "GM Virtual",
   description: "Simulador de traspasos de la NBA con los contratos reales y las reglas del convenio.",
-};
+  path: "/gm-simulator",
+});
 
 const UPDATED_FORMAT = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
 

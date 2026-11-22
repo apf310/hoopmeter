@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
@@ -6,7 +7,6 @@ import { notFound } from "next/navigation";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import type { TeamCardData } from "@/components/share/TeamShareCard";
 import { TeamRecordStats } from "@/components/standings/TeamRecordStats";
-import { BRAND } from "@/lib/brand";
 import { RosterTable } from "@/components/teams/RosterTable";
 import { TeamGameRow, type RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
@@ -15,10 +15,19 @@ import { tradeSearch } from "@/lib/gm-link";
 import { getGmData, getRecentMatchups, getStandingsBefore, getTeamRosterStats, getTeams, getUpcomingGames } from "@/lib/queries";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { conferenceLabel, divisionLabel } from "@/lib/places";
+import { pageMetadata, teamMeta } from "@/lib/seo";
 import type { StandingsBefore } from "@/lib/standings";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import type { Team } from "@/lib/supabase";
 import { formatMoney, salaryZone, SEASON, ZONE_LABEL } from "@/lib/trade-rules";
+
+/** Sin balance ni puesto (siguen el nivel, Tarea 6.6). La imagen sale de `opengraph-image.tsx`. */
+export async function generateMetadata({ params }: PageProps<"/teams/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const team = (await getTeams()).find((t) => t.id === Number(id));
+  if (!team) return pageMetadata({ title: "Equipo", path: `/teams/${id}`, image: null });
+  return pageMetadata({ ...teamMeta(team, conferenceLabel(team.conference), divisionLabel(team.division)), path: `/teams/${team.id}`, image: null });
+}
 
 export default function TeamPage({ params }: PageProps<"/teams/[id]">) {
   return (
@@ -73,7 +82,6 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
 
   return (
     <>
-      <title>{`${team.name} · ${BRAND.name}`}</title>
       <TeamHero team={team} card={card} before={before} payroll={payroll} />
       {/* minmax(0, 1fr): ninguna tabla ni fila ensancha la página en móvil (la plantilla se desplaza dentro) */}
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-3">

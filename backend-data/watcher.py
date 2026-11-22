@@ -23,6 +23,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 from config import SUPABASE_SERVICE_KEY, SUPABASE_URL
+from db import report_error
 from extractors.fetch_boxscores import save_new_game
 from extractors.fetch_live_and_final import sync_schedule, sync_today, team_ids
 from processors import standings_calc
@@ -73,6 +74,7 @@ def process_game(client, game_id: str, dry_run: bool, state: dict | None = None)
         print(f"    ! boxscore de {game_id} sin guardar: {exc!r}")
         if state is not None:
             state["errors"].append(f"boxscore {game_id}")
+            report_error(client, "watcher", repr(exc), "boxscore")
 
 
 def run_pass(client, state: dict, args) -> None:
@@ -100,6 +102,9 @@ def run_pass(client, state: dict, args) -> None:
         except Exception as exc:  # p. ej. la CDN aún no tiene el boxscore final: se reintenta luego
             print(f"  ! {game_id}: {exc!r}")
             state["failures"][game_id] = state["failures"].get(game_id, 0) + 1
+            # Recién terminado, la CDN puede no tener aún el final: solo es un error si sigue así días después
+            if args.backfill and not args.dry_run:
+                report_error(client, "watcher", repr(exc), "nota pendiente")
 
     # La clasificación cambia en cuanto termina un partido (se muestra siempre, sin modo sin spoilers)
     if processed and not args.dry_run:
@@ -109,6 +114,7 @@ def run_pass(client, state: dict, args) -> None:
         except Exception as exc:
             print(f"! Clasificación sin actualizar: {exc!r}")
             state["errors"].append("clasificación")
+            report_error(client, "watcher", repr(exc), "clasificación")
 
 
 def main() -> None:
@@ -142,6 +148,8 @@ def main() -> None:
                 run_pass(client, state, args)
             except Exception as exc:  # un corte de red no debe tumbar el watcher
                 print(f"! Pasada fallida: {exc!r}")
+                if not args.dry_run:
+                    report_error(client, "watcher", repr(exc), "pasada")
                 if args.once:  # en GitHub Actions, el código 1 manda un aviso por email
                     sys.exit(1)
             if args.once:

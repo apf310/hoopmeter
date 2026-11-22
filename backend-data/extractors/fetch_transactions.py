@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 import requests
 
 from config import SUPABASE_SERVICE_KEY, SUPABASE_URL
+from db import report_error
 from processors.cba import stale_season
 from processors.contract_engine import SALARY_FIELDS, Movement, Result, State, apply, parse_feed
 
@@ -156,6 +157,8 @@ def save_status(client, now: str, details: dict | None, error: str | None) -> No
     if error is None:
         row |= {"last_success_at": now, "details": details}
     client.table("sync_status").upsert(row, on_conflict="id").execute()
+    if error is not None:
+        report_error(client, SYNC_ID, error)
 
 
 def main() -> None:

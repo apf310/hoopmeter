@@ -4,14 +4,12 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { GameDay, GameListSkeleton } from "@/components/games/GameDay";
 import { addDays, gameDayOf, isGameDay, toScheduleTuple, todayGameDay, type TeamLite } from "@/lib/game-day";
-import { BRAND } from "@/lib/brand";
 import { decodeFavoritesCookie, FAVORITES_COOKIE, type Favorites } from "@/lib/favorites";
+import { pageMetadata } from "@/lib/seo";
 import { getSchedule, getSearchIndex, getSpanishPlayers, getTeams } from "@/lib/queries";
 import { teamAccent } from "@/lib/team-colors";
 
-export const metadata: Metadata = {
-  title: `Jornada · ${BRAND.name}`,
-};
+export const metadata: Metadata = pageMetadata({ path: "/" });
 
 /** Jornadas a cada lado de la inicial que ya van en el HTML (el resto llega en segundo plano). */
 const INITIAL_WINDOW_DAYS = 3;

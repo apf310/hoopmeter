@@ -2,9 +2,10 @@
 // revalida: nunca se fía de salarios ni veredictos del cliente, y uno ilegal no gasta cuota de IA.
 // Única excepción: la estimación de un contrato aún sin cifra pública, que `buildTrade` solo acepta
 // para esos jugadores y dentro del rango legal del convenio.
-import { buildTrade, canonicalTrade, MAX_TEAMS, type TradeRequest } from "@/lib/gm";
+import { buildTrade, canonicalTrade, MAX_TEAMS, type TradeEvaluation, type TradeRequest } from "@/lib/gm";
 import { getGmData } from "@/lib/queries";
-import { evaluateTrade } from "@/lib/trade-evaluation";
+import { evaluateTradeWithProgress } from "@/lib/trade-evaluation";
+import { encodeEvent, NDJSON_TYPE, type EvaluationEvent } from "@/lib/trade-evaluation-stream";
 import { checkTrade } from "@/lib/trade-rules";
 
 const MAX_ASSETS = 20;
@@ -63,10 +64,32 @@ export async function POST(request: Request) {
     return Response.json({ error: "Solo se evalúan traspasos que cumplen el convenio." }, { status: 422 });
   }
 
-  try {
-    return Response.json({ evaluation: await evaluateTrade(canonicalTrade(body)) });
-  } catch (error) {
-    console.error("[api/gm/evaluate]", error);
-    return Response.json({ error: "La IA no está disponible ahora mismo. Inténtalo en unos minutos." }, { status: 503 });
-  }
+  // Por partes (Tarea 6.24): un evento NDJSON por línea con los pasos reales, el texto a medias y la final
+  // Si el usuario se va, la evaluación sigue y queda en la caché para la próxima vez
+  const encoder = new TextEncoder();
+  let open = true;
+  const stream = new ReadableStream<Uint8Array>({
+    cancel() {
+      open = false;
+    },
+    async start(controller) {
+      const send = (event: EvaluationEvent<TradeEvaluation>) => {
+        if (open) controller.enqueue(encoder.encode(encodeEvent(event)));
+      };
+      send({ type: "step", step: "convenio" });
+      try {
+        const evaluation = await evaluateTradeWithProgress(canonicalTrade(body), {
+          step: (step) => send({ type: "step", step }),
+          partial: (partial) => send({ type: "partial", evaluation: partial }),
+        });
+        send({ type: "done", evaluation });
+      } catch (error) {
+        console.error("[api/gm/evaluate]", error);
+        send({ type: "error", error: "La IA no está disponible ahora mismo. Inténtalo en unos minutos." });
+      }
+      if (open) controller.close();
+      open = false;
+    },
+  });
+  return new Response(stream, { headers: { "Content-Type": NDJSON_TYPE, "Cache-Control": "no-store", "X-Accel-Buffering": "no" } });
 }

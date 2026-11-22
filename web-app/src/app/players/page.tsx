@@ -2,14 +2,15 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { PlayerDirectory } from "@/components/players/PlayerDirectory";
 import { PlayerExplorer } from "@/components/players/PlayerExplorer";
-import { BRAND } from "@/lib/brand";
+import { pageMetadata } from "@/lib/seo";
 import { parseExplorerState } from "@/lib/player-explorer";
 import { getExplorerSeasons, getPlayerExplorer, getPlayersDirectory } from "@/lib/queries";
 
-export const metadata: Metadata = {
-  title: `Jugadores · ${BRAND.name}`,
+export const metadata: Metadata = pageMetadata({
+  title: "Jugadores",
   description: "Explora las estadísticas de todos los jugadores de la NBA: filtra por posición, equipo, país, edad o salario y ordena por cualquier estadística.",
-};
+  path: "/players",
+});
 
 /**
  * Jugadores (Tarea 6.22): buscador y explorador de estadísticas. Los filtros vienen en la URL

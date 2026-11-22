@@ -2,14 +2,14 @@
 
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { onNativeAppState } from "@/lib/native";
-import { DEFAULT_SPOILER_LEVEL, isSpoilerLevel, type SpoilerLevel } from "@/lib/spoilers";
+import { DEFAULT_SPOILER_LEVEL, isSpoilerLevel, SPOILER_STORAGE_KEY, type SpoilerLevel } from "@/lib/spoilers";
 
 // Garantía "jamás un spoiler por olvido": la app SIEMPRE arranca en Nivel 1.
 // - El nivel vive en sessionStorage (no localStorage): se mantiene al navegar o recargar,
 //   pero desaparece al cerrar la pestaña o la app.
 // - En móvil "cerrar" suele ser mandar la app a segundo plano, donde sessionStorage sobrevive
 //   días: si pasa más de IDLE_RESET_MS oculta, al volver también se vuelve al Nivel 1.
-const STORAGE_KEY = "nba-hub:spoiler-level";
+const STORAGE_KEY = SPOILER_STORAGE_KEY;
 const IDLE_RESET_MS = 15 * 60 * 1000;
 
 type StoredState = { level: SpoilerLevel; hiddenAt: number | null };

@@ -248,7 +248,7 @@ hoopmeter/
 ├── .github/
 │   └── workflows/
 │       ├── live_game_watcher.yml    # Cada 5 min: nota, boxscore y clasificación de cada partido que termina
-│       ├── daily_stats_sync.yml     # Diario: calendario, boxscores corregidos, estadísticas, carrera, radares y fichas
+│       ├── daily_stats_sync.yml     # Diario: calendario, boxscores corregidos, estadísticas, carrera, radares, fichas y aviso de errores
 │       ├── contracts_sync.yml       # Aplica el registro oficial de movimientos (varias veces al día)
 │       └── morning_push.yml         # Aviso matinal sin spoilers (8, 9 o 10 de España)
 │
@@ -286,6 +286,8 @@ hoopmeter/
 │   │   └── social_bot.py            # Publica alertas en X/Twitter o Telegram (opcional)
 │   ├── tests/                       # Tests sin red ni base de datos (python -m unittest discover -s tests -t .)
 │   ├── push.sql                     # Suscripciones del aviso matinal (tabla privada + alta/baja)
+│   ├── errors.sql                   # Errores en producción (tabla privada app_errors + report_app_error)
+│   ├── check_errors.py              # Aviso diario de errores nuevos (job diario: falla → email de GitHub)
 │   ├── notify_morning.py            # Envía el aviso matinal (web push y FCM)
 │   └── watcher.py                   # Orquestador que procesa cada partido en cuanto pasa a 'Final'
 │
@@ -305,9 +307,14 @@ hoopmeter/
         ├── app/
         │   ├── layout.tsx
         │   ├── manifest.ts          # Manifiesto de la PWA
+        │   ├── opengraph-image.tsx  # Imagen de la marca al compartir un enlace (también en games/players/teams [id])
+        │   ├── sitemap.ts · robots.ts
+        │   ├── og/compare/route.tsx # Imagen del duelo del comparador
         │   ├── page.tsx             # HOME: Partidos en vivo/terminados + Modo Sin Spoilers (3 niveles)
         │   ├── api/
-        │   │   └── live/route.ts    # Endpoint con caché de 30s para actualizar marcadores en tiempo real
+        │   │   ├── live/route.ts    # Endpoint con caché de 30s para actualizar marcadores en tiempo real
+        │   │   └── errors/route.ts  # Errores del navegador -> app_errors (Tarea 6.27)
+        │   ├── error.tsx · global-error.tsx  # Pantalla de error en español + aviso
         │   ├── standings/page.tsx
         │   ├── games/[id]/page.tsx
         │   ├── players/
@@ -318,6 +325,7 @@ hoopmeter/
         │   │   └── [id]/page.tsx        # Ficha: plantilla ordenable, últimos y próximos partidos
         │   ├── que-ver/page.tsx         # Mejores partidos por nota (semana, mes, temporada), sin resultados
         │   ├── avisos/page.tsx          # Aviso de la mañana: activar, hora y sin/con notas
+        │   ├── acerca/ · privacidad/ · aviso-legal/  # Páginas legales (pie de todas las páginas)
         │   ├── gm-simulator/page.tsx
         │   └── compare/page.tsx
         ├── components/
@@ -409,10 +417,10 @@ hoopmeter/
 * [X] **Tarea 6.21:** Accesos entre pantallas: en la cabecera de equipo, nómina, zona salarial (y contratos sin cifra) con "Abrir en GM" (`/gm-simulator?equipos=ID`, equipo ya elegido); "⇄ Comparar" en cada fila de líderes del partido (visitante contra local, solo Nivel 3 y nunca en diferido); pestaña "Liga (30)" en la clasificación (por % de victorias, sin cortes, con conferencia y puesto en ella; `sortLeague` en `lib/standings.ts`, con tests); "Anoche" en Qué ver = la jornada NBA de ayer, como el "Ayer" de la portada (Semana sigue por defecto; `?periodo=anoche`); Ctrl+K vacío con búsquedas recientes (solo ids en el dispositivo, con "Borrar") y favoritos encima de los 30 escudos, navegables con el teclado (`lib/search.ts`, con tests).
 * [X] **Tarea 6.22:** Explorador de jugadores en `/players` (el buscador y las leyendas siguen): filtros combinables (posición, conferencia, equipo con traspasos incluidos, país o internacionales, edad, salario 2026-27 sin contar los "sin cifra", rookies, mínimo de partidos (por defecto el 40 % de la escala de la media) y de minutos (15)); 29 estadísticas ordenables en tres vistas (General, Tiro, Avanzadas: TS%, eFG%, USG%, AST%, REB%, AST/PÉR y la media) por partido, totales o por 36 min; los porcentajes solo compiten con el mínimo de anotados de la NBA proporcional a los partidos jugados (un 1 de 1 no gana a Curry); seis tarjetas de líderes según los filtros; temporada actual y las dos anteriores (solo los jugadores que siguen en la base); todo en la URL (`?temporada=2025-26&modo=por36&posicion=pivot&orden=reb`); tarjeta Top 10 para redes y cabecera de la tabla fija al bajar (hook compartido con el boxscore, `lib/floating-head.ts`). Lógica pura en `lib/player-explorer.ts` (27 tests), datos de `getPlayerExplorer` (una temporada, caché horaria) y `/api/player-stats?temporada=` al cambiar de temporada. El job diario guarda USG%, AST% y REB% de la temporada en curso en `advanced_stats` (`season_stats.usage_rates`, con test); hasta la primera pasada tras publicarlo salen "–".
 * [x] **Tarea 6.23:** Vitrina de trofeos 3D y logo 3D. Los premios con trofeo físico son los reales de la NBA modelados en código a partir de las fotos oficiales (Larry O'Brien, Michael Jordan, Bill Russell, los de cristal de Hakeem/Wilt/Havlicek/Mikan/West/Dumars, Larry Bird/Magic Johnson, Kobe Bryant, Copa NBA; Hall of Fame = el anillo en su estuche), sin el logo de la NBA ni patrocinadores; los que no tienen trofeo (quintetos, All-Star, Juegos Olímpicos...) llevan una pieza propia. Cada premio se llama como lo conoce la gente (MVP, Rookie del Año...) con el trofeo real debajo; nombre, premio y temporadas grabados en la placa; se giran arrastrando. Three.js solo bajo demanda y versión plana sin WebGL. Logo 3D hecho en código desde `logo.svg` (los `.glb` no eran como su vista previa) con HOOPMETER en 3D, en la 404.
-* [ ] **Tarea 6.24:** Evaluación del GM con IA más rápida (hoy ~35 s): progreso visible paso a paso o respuesta por partes, y revisar modelo y *prompt*.
-* [ ] **Tarea 6.25:** SEO y enlaces compartidos: metadatos Open Graph por página (imagen de previsualización al pegar un enlace en WhatsApp o X), `sitemap.xml` y `robots.txt`. La previsualización solo lleva información de Nivel 1 (ni la nota: quien recibe el enlace no ha elegido nivel).
-* [ ] **Tarea 6.26:** Páginas legales: aviso de que la app no está afiliada a la NBA, privacidad y cookies, y "Acerca de"; también lo que pedirán las cuentas de la Fase 8 (datos personales, borrar la cuenta, edad mínima). Necesarias para Google Play y para la publicidad.
-* [ ] **Tarea 6.27:** Analítica respetuosa con la privacidad y aviso de errores en producción (web y watcher).
+* [X] **Tarea 6.24:** Evaluación del GM con IA de ~35 s a **3-6 s** (0,1 s si ya se evaluó). Medido con traspasos reales: `gemini-3.5-flash` razonaba ~2.500 tokens y hacía cola (34-43 s; sin razonar, 21-26 s) y 3.6/3.7/3.8-flash iban igual o saturados; ahora `gemini-3.1-flash-lite` con razonamiento bajo (buen baloncesto, tildes y toda la escala de notas: D frente a A+ en un traspaso desequilibrado), con `gemini-3-flash-preview` y `gemini-flash-lite-latest` de respaldo, que se lanzan a la vez si el anterior lleva 5 s sin escribir o falla. *Prompt*: lista de movimientos con origen y destino (un modelo confundía quién recibía a quién) y el análisis se escribe antes que el titular y la nota, con el resumen al final. La ruta responde por partes (NDJSON): pasos reales (convenio · datos · encaje · escritura) y cada equipo apareciendo mientras se escribe; la nota solo sale entera. Lector de JSON a medias en `lib/trade-evaluation-stream.ts` (con tests); la caché por traspaso se mantiene.
+* [X] **Tarea 6.25:** SEO y enlaces compartidos, solo con información de Nivel 1 (quien recibe el enlace no ha elegido nivel): título, descripción, canónica, Open Graph y tarjeta grande de X en todas las páginas (`pageMetadata` en `lib/seo.ts`, con tests: "un partido terminado da exactamente el mismo texto que uno sin empezar"). Imágenes 1200×630 con `next/og` y la Barlow Condensed (`assets/og/`, OFL): la de la marca para las páginas sin imagen propia; partido (escudos, visitante y local, jornada y hora de España; la misma antes, durante y después: ni nota, ni marcador, ni estado), jugador (foto, equipo, posición y promedios de la temporada, o de la carrera si es leyenda), equipo (escudo, conferencia y división, sin balance) y duelo del comparador (`/og/compare?a=&b=`, fuera de `/api/`). `generateMetadata` sustituye al `<title>` en el JSX de las fichas; los bots (WhatsApp, X, Telegram) reciben los metadatos en el `<head>`. `sitemap.xml` (páginas, 30 equipos, todos los jugadores y los partidos de la temporada; se rehace cada hora) y `robots.txt` (todo menos `/api/`).
+* [X] **Tarea 6.26:** Páginas legales: `/acerca`, `/privacidad` (privacidad y cookies) y `/aviso-legal`, con pestañas entre ellas y enlazadas desde un pie en todas las páginas (con el aviso de no afiliación a la NBA), desde `/avisos` y en el sitemap. Responsable: Alejandro Peláez Fernández, contacto `hoopmeter@alpelabs.dev`. Solo describen lo que la app hace hoy: sin cuentas, publicidad ni analítica; una cookie técnica (`hm_fav`) y almacenamiento del navegador (sin banner, art. 22.2 LSSI), la suscripción del aviso como único dato en el servidor (consentimiento) y Gemini sin datos del usuario. Botón "Borrar los datos de este dispositivo" (da de baja el aviso en el servidor y quita favoritos, búsquedas y cookie; el nivel de spoilers no se toca). Para la Fase 8: cuentas opcionales con Google, borrar la cuenta desde la app, edad mínima 14 años (art. 7 LOPDGDD) y el nivel nunca en la cuenta. Titular, contacto y lista de lo guardado en `lib/legal.ts` (tests: "la política nombra todas las claves de almacenamiento y cookies de la app").
+* [X] **Tarea 6.27:** Analítica respetuosa con la privacidad y aviso de errores en producción. **Visitas** con Vercel Web Analytics (`AppAnalytics`: sin cookies ni nada en el dispositivo, hash diario de Vercel, solo la ruta sin parámetros; gratis hasta 50.000 al mes en Hobby). **Errores** en una tabla privada propia, `app_errors` (`backend-data/errors.sql`), sin IP y agrupados por fuente, mensaje y ruta (`/games/:id`), con contador y borrado a los 30 días; la función `report_app_error` pone un tope de 200 errores distintos nuevos al día y con la anon key solo admite las fuentes de la web. Web: navegador (`ErrorReporter`, `error.tsx`/`global-error.tsx` en español → `/api/errors` con límite por IP; máximo 5 por página, sin extensiones ni redes caídas) y servidor (`instrumentation.ts` `onRequestError`), solo en producción; lógica pura en `lib/error-report.ts` (con tests). Backend: `db.report_error` (nunca lanza) desde el watcher, `save_status` y los contratos. Aviso: job `errors` de `daily_stats_sync.yml` (`check_errors.py`) que falla si hay errores nuevos o repetidos, así que GitHub manda el email; el registro solo enseña totales por fuente. `/privacidad` al día. Tests en `error-report.test.ts` y `tests/test_errors.py`.
 
 ### ✨ Fase 7: Factor WOW
 * [ ] **Tarea 7.1:** Velocímetro de la nota: en la ficha del partido (Niveles 2 y 3) una aguja animada hasta la nota con los colores de la escala (como el logo); en las listas sigue la insignia compacta.

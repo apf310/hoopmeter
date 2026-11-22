@@ -1,13 +1,24 @@
 import { Suspense } from "react";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { GameCenter } from "@/components/games/detail/GameCenter";
-import { BRAND } from "@/lib/brand";
 import { gameDayOf, isGameId, previousSeason, seasonOf } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
 import { getGameMatchup, getKeyPlayers, getTeams } from "@/lib/queries";
+import { gameMeta, pageMetadata } from "@/lib/seo";
 import type { Team } from "@/lib/supabase";
 import { matchupAccents, teamBackdrop } from "@/lib/team-colors";
+
+/** Solo Nivel 1 (Tarea 6.25): emparejamiento, jornada y hora. La imagen sale de `opengraph-image.tsx`. */
+export async function generateMetadata({ params }: PageProps<"/games/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const [game, teams] = await Promise.all([isGameId(id) ? getGameMatchup(id) : null, getTeams()]);
+  const away = teams.find((t) => t.id === game?.away_team_id);
+  const home = teams.find((t) => t.id === game?.home_team_id);
+  if (!game || !away || !home) return pageMetadata({ title: "Partido", path: `/games/${id}`, image: null });
+  return pageMetadata({ ...gameMeta(game, away, home), path: `/games/${id}`, image: null });
+}
 
 export default function GamePage({ params }: PageProps<"/games/[id]">) {
   return (
@@ -60,7 +71,6 @@ async function GameContent({ params }: { params: PageProps<"/games/[id]">["param
   // Ni balances, ni nota, ni marcador: eso lo pide el cliente según su nivel.
   return (
     <>
-      <title>{`${away.abbreviation} @ ${home.abbreviation} · ${BRAND.name}`}</title>
       <GameCenter
         game={game}
         day={gameDayOf(game.game_datetime_utc)}

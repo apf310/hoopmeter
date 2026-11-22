@@ -1,17 +1,21 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { CompareLoading, CompareView } from "@/components/compare/CompareView";
-import { BRAND } from "@/lib/brand";
 import { getDuelPlayer } from "@/lib/compare-data";
+import { getPlayer } from "@/lib/queries";
+import { compareMeta, pageMetadata, playerIdParam } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: `Comparador · ${BRAND.name}`,
-  description: "Enfrenta a dos jugadores de cualquier época: radares superpuestos, estadísticas y palmarés.",
-};
-
-function playerIdOf(id: string | string[] | undefined): number | null {
-  const playerId = Number(id);
-  return Number.isInteger(playerId) && playerId > 0 ? playerId : null;
+/** Con los dos jugadores, título "A vs. B" e imagen del duelo (`/og/compare`, Tarea 6.25). */
+export async function generateMetadata({ searchParams }: PageProps<"/compare">): Promise<Metadata> {
+  const { a, b } = await searchParams;
+  const ids = [playerIdParam(a), playerIdParam(b)];
+  const [playerA, playerB] = await Promise.all(ids.map((id) => (id ? getPlayer(id) : null)));
+  const both = playerA && playerB;
+  return pageMetadata({
+    ...compareMeta(playerA, playerB),
+    path: both ? `/compare?a=${playerA.id}&b=${playerB.id}` : "/compare",
+    image: both ? `/og/compare?a=${playerA.id}&b=${playerB.id}` : undefined,
+  });
 }
 
 const loadPlayer = (id: number | null) => (id ? getDuelPlayer(id) : null);
@@ -38,7 +42,7 @@ export default function ComparePage({ searchParams }: PageProps<"/compare">) {
  */
 async function CompareContent({ searchParams }: { searchParams: PageProps<"/compare">["searchParams"] }) {
   const { a, b } = await searchParams;
-  const ids = [playerIdOf(a), playerIdOf(b)] as const;
+  const ids = [playerIdParam(a), playerIdParam(b)] as const;
   return (
     <Suspense fallback={<CompareLoading a={ids[0]} b={ids[1]} />}>
       <CompareDuel a={ids[0]} b={ids[1]} />

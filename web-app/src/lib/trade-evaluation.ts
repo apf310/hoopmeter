@@ -1,31 +1,42 @@
 // Evaluación de traspasos con Gemini (solo servidor: la clave nunca llega al navegador).
 // El modelo recibe los datos reales de la app y responde en un JSON con esquema fijo, que se valida.
+// Tarea 6.24: la respuesta llega por partes (streaming) y, si un modelo tarda en empezar, se lanza el
+// siguiente a la vez y se queda el primero que responda.
 import { cacheLife } from "next/cache";
 import { previousSeason } from "@/lib/game-day";
 import { buildTrade, GRADES, pickLabel, type GmData, type GmPlayer, type GmTeam, type GmTrade, type TradeEvaluation, type TradeRequest } from "@/lib/gm";
 import { archetypeOf, RADAR_LABEL } from "@/lib/player-profile";
 import { getGmData, getScoutingReports, type ScoutingReport } from "@/lib/queries";
 import { RADAR_CATEGORIES } from "@/lib/supabase";
+import { partialEvaluation, type EvaluationStep, type PartialEvaluation } from "@/lib/trade-evaluation-stream";
 import { checkTrade, formatMoney, salaryZone, SEASON, verdictTitle, ZONE_LABEL } from "@/lib/trade-rules";
 
 const API_URL = "https://generativelanguage.googleapis.com/v1beta/models";
-// Mismo orden que el backend: si el principal está saturado o retirado, los alias "-latest" siempre existen
-const DEFAULT_MODEL = "gemini-3.5-flash";
-const FALLBACK_MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"];
+// Medido en noviembre de 2026 con traspasos reales: 3.5-flash tardaba 34-43 s (razonaba ~2.500 tokens
+// y hacía cola; sin razonar, 21-26 s) y 3.6/3.7/3.8-flash, igual o saturados. Con razonamiento bajo,
+// 3.1-flash-lite responde en 2,5-3,5 s con buen baloncesto, tildes y toda la escala de notas;
+// 3-flash-preview escribe igual de bien pero a veces sin tildes; 3.5-flash-lite era más blando con las
+// notas y fallaba más. El alias "-latest" siempre existe.
+const DEFAULT_MODEL = "gemini-3.1-flash-lite";
+const FALLBACK_MODELS = ["gemini-3-flash-preview", "gemini-flash-lite-latest"];
+/** Si un modelo no ha empezado a escribir en este tiempo, se lanza el siguiente a la vez. */
+const HEDGE_MS = 5_000;
 const TIMEOUT_MS = 30_000;
 const ROTATION_SIZE = 9;
 
-const SYSTEM_PROMPT = `Eres el analista de un programa de televisión sobre la NBA y escribes en español de España.
+const SYSTEM_PROMPT = `Eres el analista de un programa de televisión sobre la NBA y escribes en español de España, con tildes.
 Evalúas un traspaso simulado por un aficionado, ya validado contra las reglas salariales.
 
 Reglas OBLIGATORIAS:
 - Usa SOLO los datos que recibes. Plantillas, edades, promedios y contratos son los actuales aunque difieran de lo que recuerdes. No inventes lesiones, rumores, declaraciones ni datos externos.
+- "movimientos" dice de dónde sale y adónde va cada jugador y cada ronda. En cada equipo, "recibe" son los que llegan y "envia" los que se van: no los confundas.
 - Valora para cada equipo el encaje táctico en pista: posiciones, espaciado, creación de juego, defensa, rebote y quién pierde minutos con la llegada de cada jugador.
 - Ten en cuenta su momento competitivo (balance y edad de la plantilla) y el coste de futuro: años de contrato, opciones y rondas cedidas.
-- Pon a cada equipo una nota de A+ a F y usa toda la escala con honestidad: un robo o un disparate deben verse en la nota, y no todo merece una B.
-- "summary": una frase de 30 palabras como máximo con la conclusión del traspaso.
-- "headline": titular de cada equipo, 8 palabras como máximo.
+- Escribe primero el análisis de cada equipo y solo después su titular y su nota, que tiene que salir de ese análisis. El resumen va al final.
 - "analysis": 2 o 3 frases por equipo, entre 35 y 60 palabras, con nombres propios y razones de baloncesto.
+- "headline": titular de cada equipo, 8 palabras como máximo.
+- "grade": de A+ a F. Usa toda la escala con honestidad: un robo o un disparate deben verse en la nota, y no todo merece una B.
+- "summary": una frase de 30 palabras como máximo con la conclusión del traspaso.
 - Los atributos son percentiles de 0 a 99 frente al resto de la liga: no los cites, tradúcelos a lenguaje de baloncesto.
 - Si un contrato aún no es público y su salario es una estimación del aficionado, dilo así: nunca lo presentes como una cifra oficial.
 - Texto plano: sin markdown ni emojis. Salarios en millones ("25,8 millones").`;
@@ -72,11 +83,16 @@ async function tradeFacts(data: GmData, trade: GmTrade) {
   const reports = await getScoutingReports(involved.map((player) => player.id), SEASON, previousSeason(SEASON));
   const verdict = checkTrade(trade, data.today);
   const minutes = (player: GmPlayer) => reports.get(player.id)?.minutes ?? 0;
+  const abbreviation = (teamId: number) => trade.teams.find((team) => team.id === teamId)?.abbreviation;
 
   return {
     fecha: data.today,
     temporada: SEASON,
     veredicto: verdictTitle(verdict),
+    movimientos: [
+      ...trade.players.map(({ player, to }) => `${player.name}: ${abbreviation(player.teamId)} → ${abbreviation(to)}`),
+      ...trade.picks.map(({ pick, to }) => `${pickLabel(pick)} de ${abbreviation(pick.teamId)}: ${abbreviation(pick.teamId)} → ${abbreviation(to)}`),
+    ],
     equipos: trade.teams.map((team) => {
       const report = verdict.teams.find((entry) => entry.teamId === team.id)!;
       const arriving = trade.players.filter((move) => move.to === team.id).map((move) => move.player);
@@ -100,26 +116,29 @@ async function tradeFacts(data: GmData, trade: GmTrade) {
   };
 }
 
+/** Esquema con el orden de escritura: análisis antes que nota (sin razonamiento largo, el modelo razona escribiendo). */
 function responseSchema(teams: GmTeam[]) {
   return {
     type: "OBJECT",
     properties: {
-      summary: { type: "STRING" },
       teams: {
         type: "ARRAY",
         items: {
           type: "OBJECT",
           properties: {
             team: { type: "STRING", enum: teams.map((team) => team.abbreviation) },
-            grade: { type: "STRING", enum: [...GRADES] },
-            headline: { type: "STRING" },
             analysis: { type: "STRING" },
+            headline: { type: "STRING" },
+            grade: { type: "STRING", enum: [...GRADES] },
           },
-          required: ["team", "grade", "headline", "analysis"],
+          required: ["team", "analysis", "headline", "grade"],
+          propertyOrdering: ["team", "analysis", "headline", "grade"],
         },
       },
+      summary: { type: "STRING" },
     },
-    required: ["summary", "teams"],
+    required: ["teams", "summary"],
+    propertyOrdering: ["teams", "summary"],
   };
 }
 
@@ -142,24 +161,114 @@ function parseEvaluation(text: string, teams: GmTeam[]): TradeEvaluation | null 
   }
 }
 
-async function askModel(model: string, apiKey: string, facts: string, teams: GmTeam[]): Promise<TradeEvaluation | null> {
-  const response = await fetch(`${API_URL}/${model}:generateContent`, {
+/** Texto de cada trozo del stream SSE de Gemini (sin los fragmentos de razonamiento). */
+async function* sseText(response: Response): AsyncGenerator<string> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true }).replaceAll("\r", "");
+    let end: number;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const event = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      const data = event
+        .split("\n")
+        .filter((line) => line.startsWith("data:"))
+        .map((line) => line.slice(5))
+        .join("");
+      if (!data) continue;
+      const chunk = JSON.parse(data) as { candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] } }[] };
+      const text = chunk.candidates?.[0]?.content?.parts?.map((part) => (part.thought ? "" : (part.text ?? ""))).join("") ?? "";
+      if (text) yield text;
+    }
+  }
+}
+
+type Started = { model: string; first: string; rest: AsyncGenerator<string> };
+
+/** Abre el stream de un modelo y espera a su primer texto (si falla antes, rechaza). */
+async function startModel(model: string, apiKey: string, facts: string, teams: GmTeam[], signal: AbortSignal): Promise<Started> {
+  const response = await fetch(`${API_URL}/${model}:streamGenerateContent?alt=sse`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]),
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents: [{ role: "user", parts: [{ text: `Datos del traspaso:\n${facts}` }] }],
-      generationConfig: { temperature: 0.6, responseMimeType: "application/json", responseSchema: responseSchema(teams) },
+      generationConfig: {
+        temperature: 0.6,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema(teams),
+        thinkingConfig: { thinkingLevel: "low" },
+      },
     }),
   });
-  if (!response.ok) {
-    console.warn(`[gm] ${model} respondió ${response.status}`);
-    return null;
-  }
-  const body = (await response.json()) as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
-  const text = body.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("") ?? "";
-  return parseEvaluation(text, teams);
+  if (!response.ok) throw new Error(`respondió ${response.status}`);
+  const rest = sseText(response);
+  const first = await rest.next();
+  if (first.done) throw new Error("respuesta vacía");
+  return { model, first: first.value, rest };
+}
+
+/**
+ * Lanza los modelos en orden: el siguiente sale si el anterior falla o lleva `HEDGE_MS` sin escribir.
+ * Se queda el primero que empiece a responder y cancela el resto.
+ */
+function firstToRespond(models: string[], start: (model: string, signal: AbortSignal) => Promise<Started>): Promise<Started & { index: number }> {
+  return new Promise((resolve, reject) => {
+    const controllers: AbortController[] = [];
+    let launched = 0;
+    let failed = 0;
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const launch = () => {
+      clearTimeout(timer);
+      if (settled || launched >= models.length) return;
+      const index = launched++;
+      const controller = new AbortController();
+      controllers[index] = controller;
+      timer = setTimeout(launch, HEDGE_MS);
+      start(models[index], controller.signal).then(
+        (started) => {
+          if (settled) return controller.abort();
+          settled = true;
+          clearTimeout(timer);
+          controllers.forEach((other, i) => i !== index && other.abort());
+          resolve({ ...started, index });
+        },
+        (error) => {
+          if (settled) return;
+          console.warn(`[gm] ${models[index]} no disponible:`, error instanceof Error ? error.message : error);
+          failed++;
+          if (launched < models.length) launch();
+          else if (failed === launched) {
+            settled = true;
+            reject(new Error("Ningún modelo de Gemini disponible"));
+          }
+        },
+      );
+    };
+    launch();
+  });
+}
+
+/** Quien sigue la evaluación mientras se calcula: pasos y texto a medias (nunca en un acierto de caché). */
+export type EvaluationProgress = { step: (step: EvaluationStep) => void; partial: (evaluation: PartialEvaluation) => void };
+
+const listeners = new Map<string, Set<EvaluationProgress>>();
+
+function emit(canonical: string, send: (progress: EvaluationProgress) => void) {
+  listeners.get(canonical)?.forEach((progress) => {
+    try {
+      send(progress);
+    } catch {
+      // El cliente se fue: la evaluación sigue y queda en la caché
+    }
+  });
 }
 
 /**
@@ -173,19 +282,50 @@ export async function evaluateTrade(canonical: string): Promise<TradeEvaluation>
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Falta GEMINI_API_KEY en web-app/.env.local");
 
+  emit(canonical, (progress) => progress.step("datos"));
   const data = await getGmData();
   const trade = buildTrade(data, JSON.parse(canonical) as TradeRequest);
   if (!trade) throw new Error("Traspaso no válido");
-
   const facts = JSON.stringify(await tradeFacts(data, trade));
-  const models = [process.env.GEMINI_MODEL || DEFAULT_MODEL, ...FALLBACK_MODELS];
-  for (const model of models) {
+
+  let models = [process.env.GEMINI_MODEL || DEFAULT_MODEL, ...FALLBACK_MODELS];
+  while (models.length > 0) {
+    emit(canonical, (progress) => progress.step("modelo"));
+    const started = await firstToRespond(models, (model, signal) => startModel(model, apiKey, facts, trade.teams, signal));
+    emit(canonical, (progress) => progress.step("escritura"));
+
+    let raw = started.first;
+    const showPartial = () => {
+      const partial = partialEvaluation(raw, trade.teams, GRADES);
+      if (partial) emit(canonical, (progress) => progress.partial(partial));
+    };
+    showPartial();
     try {
-      const evaluation = await askModel(model, apiKey, facts, trade.teams);
-      if (evaluation) return evaluation;
+      for await (const text of started.rest) {
+        raw += text;
+        showPartial();
+      }
     } catch (error) {
-      console.warn(`[gm] ${model} no disponible:`, error);
+      console.warn(`[gm] ${started.model} se cortó:`, error instanceof Error ? error.message : error);
     }
+
+    const evaluation = parseEvaluation(raw, trade.teams);
+    if (evaluation) return evaluation;
+    console.warn(`[gm] ${started.model} no dio una evaluación válida`);
+    models = models.slice(started.index + 1);
   }
-  throw new Error("Ningún modelo de Gemini disponible");
+  throw new Error("Ningún modelo de Gemini dio una evaluación válida");
+}
+
+/** `evaluateTrade` avisando a `progress` de cada paso mientras se calcula. */
+export async function evaluateTradeWithProgress(canonical: string, progress: EvaluationProgress): Promise<TradeEvaluation> {
+  const current = listeners.get(canonical) ?? new Set();
+  current.add(progress);
+  listeners.set(canonical, current);
+  try {
+    return await evaluateTrade(canonical);
+  } finally {
+    current.delete(progress);
+    if (current.size === 0) listeners.delete(canonical);
+  }
 }

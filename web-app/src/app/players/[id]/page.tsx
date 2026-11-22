@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from "react";
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { cacheLife } from "next/cache";
@@ -13,7 +14,6 @@ import { CareerHighs } from "@/components/players/CareerHighs";
 import { TrophyShowcase } from "@/components/trophies/TrophyShowcase";
 import type { RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
-import { BRAND } from "@/lib/brand";
 import type { GameMatchup } from "@/lib/game-day";
 import { buildContractView } from "@/lib/player-contract";
 import { getPlayer, getPlayerAwards, getPlayerCareer, getPlayerContract, getRecentMatchups, getTeams } from "@/lib/queries";
@@ -34,6 +34,7 @@ import {
   tierOf,
 } from "@/lib/player-profile";
 import { countryLabel } from "@/lib/places";
+import { pageMetadata, playerMeta } from "@/lib/seo";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { SEASON } from "@/lib/trade-rules";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
@@ -54,6 +55,22 @@ async function currentAge(birthDate: string | null): Promise<number | null> {
   "use cache";
   cacheLife("hours");
   return ageFrom(birthDate);
+}
+
+/** Ficha y promedios (los del job diario, Nivel 1). La imagen sale de `opengraph-image.tsx`. */
+export async function generateMetadata({ params }: PageProps<"/players/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const playerId = Number(id);
+  const valid = Number.isInteger(playerId) && playerId > 0;
+  const [player, teams, career] = await Promise.all([valid ? getPlayer(playerId) : null, getTeams(), valid ? getPlayerCareer(playerId) : []]);
+  if (!player) return pageMetadata({ title: "Jugador", path: `/players/${id}`, image: null });
+  const regular = career.filter((r) => r.season_type === "Regular Season");
+  const row = player.is_active
+    ? regular.filter((r) => r.season_id !== "Career").at(-1)
+    : regular.find((r) => r.season_id === "Career");
+  const line = row ? { label: row.season_id === "Career" ? "Carrera" : `Temporada ${row.season_id}`, pts: row.pts, reb: row.reb, ast: row.ast } : null;
+  const team = teams.find((t) => t.id === player.team_id) ?? null;
+  return pageMetadata({ ...playerMeta(player, positionLabel(player.position), team, line), path: `/players/${player.id}`, image: null });
 }
 
 export default function PlayerPage({ params }: PageProps<"/players/[id]">) {
@@ -104,7 +121,6 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
 
   return (
     <>
-      <title>{`${player.full_name} · ${BRAND.name}`}</title>
       <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} />
       {latest && <SeasonBand season={latest} />}
       <SectionNav active={player.is_active} />

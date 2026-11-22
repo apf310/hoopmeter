@@ -7,6 +7,9 @@ export type SpoilerLevel = 1 | 2 | 3;
 /** La app SIEMPRE arranca aquí, aunque se cerrara en otro nivel: jamás un spoiler por olvido. */
 export const DEFAULT_SPOILER_LEVEL: SpoilerLevel = 1;
 
+/** Clave del nivel en sessionStorage (`SpoilerContext`): nunca en localStorage, se pierde al cerrar. */
+export const SPOILER_STORAGE_KEY = "nba-hub:spoiler-level";
+
 export function isSpoilerLevel(value: unknown): value is SpoilerLevel {
   return value === 1 || value === 2 || value === 3;
 }

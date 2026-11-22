@@ -90,6 +90,18 @@ export function useFavorites(initial: Favorites = EMPTY_FAVORITES): Favorites {
   return useSyncExternalStore(subscribe, snapshot, () => initial);
 }
 
+/** "Borrar los datos de este dispositivo" (/privacidad, Tarea 6.26): favoritos y cookie fuera. */
+export function clearFavorites() {
+  current = EMPTY_FAVORITES;
+  try {
+    localStorage.removeItem(FAVORITES_STORAGE_KEY);
+  } catch {
+    // Sin almacenamiento: ya solo estaban en memoria.
+  }
+  writeCookie(EMPTY_FAVORITES);
+  listeners.forEach((listener) => listener());
+}
+
 export const toggleFavoriteTeam = (team: FavoriteTeam) => update((f) => toggleTeam(f, team));
 export const toggleFavoritePlayer = (player: FavoritePlayer) => update((f) => togglePlayer(f, player));
 

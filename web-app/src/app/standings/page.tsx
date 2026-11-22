@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 import { StandingsBoard } from "@/components/standings/StandingsBoard";
 import type { TeamIdentity } from "@/components/standings/StandingsTable";
-import { BRAND } from "@/lib/brand";
+import { pageMetadata } from "@/lib/seo";
 import { getStandingsBefore, getTeams } from "@/lib/queries";
 
-export const metadata: Metadata = {
-  title: `Clasificación · ${BRAND.name}`,
-};
+export const metadata: Metadata = pageMetadata({
+  title: "Clasificación",
+  description: "Clasificación de la NBA por conferencias, con playoffs, play-in y lotería. Sin spoilers: al día solo si lo pides.",
+  path: "/standings",
+});
 
 export default async function StandingsPage() {
   const [teams, before] = await Promise.all([getTeams(), getStandingsBefore()]);

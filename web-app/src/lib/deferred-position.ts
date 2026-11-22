@@ -8,6 +8,9 @@ const OVERTIME_PERIOD_S = 5 * 60;
 /** Por dónde va el usuario: periodo (5 = 1.ª prórroga) y segundos que le quedan a su reloj. */
 export type DeferredPosition = { period: number; remaining: number };
 
+/** Prefijo de la posición de cada partido en sessionStorage (`game-day-store`). */
+export const DEFERRED_POSITION_PREFIX = "nba-hub:deferred:";
+
 /** 4 cuartos + hasta 10 prórrogas. */
 export const MAX_PERIOD = 14;
 const STEP_S = 60;

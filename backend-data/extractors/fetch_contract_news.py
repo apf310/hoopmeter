@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 from config import API_SLEEP_SECONDS, SUPABASE_SERVICE_KEY, SUPABASE_URL
+from db import report_error
 from extractors.fetch_transactions import BASELINE_DATE, select_all
 from processors.cba import stale_season
 from processors.contract_news import NewsItem, extract_terms, name_key, parse_rss
@@ -285,6 +286,7 @@ def main() -> None:
     except Exception as exc:
         if not args.dry_run:
             client.table("sync_status").upsert({"id": SYNC_ID, "last_run_at": now, "last_error": f"{type(exc).__name__}: {exc}"[:500]}, on_conflict="id").execute()
+            report_error(client, SYNC_ID, f"{type(exc).__name__}: {exc}")
         raise
 
     if feed_errors:

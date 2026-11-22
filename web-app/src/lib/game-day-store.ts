@@ -2,7 +2,7 @@
 // Cada nivel de spoilers tiene su propia clave: el Nivel 2 jamás puede leer datos del Nivel 3.
 // Lo ya descargado se pinta al instante y se revalida en segundo plano.
 import { useMemo, useSyncExternalStore } from "react";
-import { isDeferredPosition, positionQuery, type DeferredPosition } from "@/lib/deferred-position";
+import { DEFERRED_POSITION_PREFIX, isDeferredPosition, positionQuery, type DeferredPosition } from "@/lib/deferred-position";
 import type { GameDetail } from "@/lib/game-detail";
 import type { ScheduleTuple } from "@/lib/game-day";
 import type { LiveScoreboard } from "@/lib/live";
@@ -165,7 +165,7 @@ export function useDeferred(gameId: string, position: DeferredPosition | null) {
 
 // Por dónde va el usuario en cada partido: en sessionStorage, como el nivel de spoilers (se
 // mantiene al navegar o recargar y se pierde al cerrar la app). Sin posición = fuera del diferido.
-const POSITION_PREFIX = "nba-hub:deferred:";
+const POSITION_PREFIX = DEFERRED_POSITION_PREFIX;
 const positionListeners = new Set<() => void>();
 /** Respaldo en memoria si sessionStorage no está disponible. */
 const memoryPositions = new Map<string, DeferredPosition | null>();

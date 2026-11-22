@@ -172,6 +172,21 @@ export async function disablePush() {
   }
 }
 
+/**
+ * "Borrar los datos de este dispositivo" (/privacidad, Tarea 6.26): si estaba activado, se da de baja
+ * (el servidor borra la suscripción) y se olvida la preferencia entera.
+ */
+export async function forgetPush() {
+  if (snapshot().id) await disablePush();
+  current = DEFAULT_PUSH_STATE;
+  try {
+    localStorage.removeItem(PUSH_STORAGE_KEY);
+  } catch {
+    // Sin almacenamiento: ya solo estaba en memoria
+  }
+  listeners.forEach((listener) => listener());
+}
+
 let refreshed = false;
 
 /**

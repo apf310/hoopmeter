@@ -1,15 +1,19 @@
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
+import { AppAnalytics } from "@/components/layout/AppAnalytics";
+import { ErrorReporter } from "@/components/layout/ErrorReporter";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { NativeBackButton } from "@/components/layout/NativeBackButton";
 import { PushSync } from "@/components/push/PushSync";
 import { ServiceWorkerRegistrar } from "@/components/layout/ServiceWorkerRegistrar";
+import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SpoilerModeSelector } from "@/components/layout/SpoilerModeSelector";
 import { Wordmark } from "@/components/layout/Wordmark";
 import { SearchProvider, SearchTrigger } from "@/components/search/SearchCommand";
 import { SpoilerProvider } from "@/context/SpoilerContext";
 import { BRAND } from "@/lib/brand";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,10 +32,15 @@ const barlowCondensed = Barlow_Condensed({
   weight: ["500", "600", "700", "800"],
 });
 
+// Valores por defecto (Tarea 6.25). Cada página lleva los suyos completos con `pageMetadata` (`lib/seo.ts`);
+// aquí no va la canónica, que la heredarían todas. La imagen de la marca sale de `opengraph-image.tsx`.
 export const metadata: Metadata = {
-  title: BRAND.name,
-  description: "Plataforma NBA en tiempo real y en español, con modo sin spoilers.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
   applicationName: BRAND.name,
+  openGraph: { type: "website", siteName: SITE_NAME, locale: "es_ES", title: SITE_NAME, description: SITE_DESCRIPTION },
+  twitter: { card: "summary_large_image" },
   appleWebApp: { capable: true, title: BRAND.name, statusBarStyle: "black-translucent" },
 };
 
@@ -64,6 +73,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 </div>
               </header>
               <main className="flex-1 p-4 md:p-8">{children}</main>
+              <SiteFooter />
             </div>
             <BottomNav />
           </SearchProvider>
@@ -71,6 +81,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerRegistrar />
         <NativeBackButton />
         <PushSync />
+        {/* Tarea 6.27: avisos de errores (sin IP ni parámetros) y visitas sin cookies */}
+        <ErrorReporter />
+        <AppAnalytics />
       </body>
     </html>
   );

@@ -193,6 +193,9 @@ function writeRecent(recent: RecentPick[]) {
   }
 }
 
+/** "Borrar los datos de este dispositivo" (/privacidad, Tarea 6.26). */
+export const clearRecentSearches = () => writeRecent([]);
+
 function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");

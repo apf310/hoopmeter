@@ -1,16 +1,17 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { WhatToWatch, WhatToWatchHeader } from "@/components/watch/WhatToWatch";
-import { BRAND } from "@/lib/brand";
+import { pageMetadata } from "@/lib/seo";
 import type { TeamLite } from "@/lib/game-day";
 import { getTeams } from "@/lib/queries";
 import { teamAccent } from "@/lib/team-colors";
 import { DEFAULT_WATCH_PERIOD, isWatchPeriod, parseTeamFilter } from "@/lib/what-to-watch";
 
-export const metadata: Metadata = {
-  title: `Qué ver · ${BRAND.name}`,
+export const metadata: Metadata = pageMetadata({
+  title: "Qué ver",
   description: "Los mejores partidos de la NBA de la semana, del mes y de la temporada según su nota. Sin resultados.",
-};
+  path: "/que-ver",
+});
 
 /**
  * "Qué ver" (Tarea 6.11). El HTML solo lleva los equipos: ni un partido, porque el orden por nota ya sería

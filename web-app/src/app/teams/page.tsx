@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { BRAND } from "@/lib/brand";
+import { pageMetadata } from "@/lib/seo";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { divisionLabel } from "@/lib/places";
 import { getTeams } from "@/lib/queries";
 import type { Team } from "@/lib/supabase";
 import { teamAccent } from "@/lib/team-colors";
 
-export const metadata: Metadata = {
-  title: `Equipos · ${BRAND.name}`,
-};
+export const metadata: Metadata = pageMetadata({
+  title: "Equipos",
+  description: "Los 30 equipos de la NBA por conferencia y división: plantillas, calendario y situación salarial.",
+  path: "/teams",
+});
 
 const CONFERENCES: { id: "East" | "West"; label: string }[] = [
   { id: "East", label: "Conferencia Este" },
