@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -8,14 +8,17 @@ import { ArrowLeftRight, LoaderCircle } from "lucide-react";
 import { DuelRadar } from "@/components/compare/DuelRadar";
 import { DuelRows } from "@/components/compare/DuelRows";
 import { PlayerPicker } from "@/components/compare/PlayerPicker";
+import { loadSearchIndex } from "@/components/search/SearchCommand";
 import { Section, Segmented } from "@/components/games/detail/ui";
 import { CompareCardExport } from "@/components/share/CompareShareCard";
 import { CAREER, defaultSeason, FEATURED_DUELS, radarRows, score, statRows, trophyRows, type Side } from "@/lib/compare";
 import type { DuelPlayer, DuelSeason } from "@/lib/compare-data";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel, RADAR_LABEL } from "@/lib/player-profile";
+import type { SearchIndex } from "@/lib/search";
 import type { SeasonType } from "@/lib/supabase";
-import { matchupAccents } from "@/lib/team-colors";
+import { countryLabel } from "@/lib/places";
+import { matchupAccents, teamBackdrop } from "@/lib/team-colors";
 import { formatMoney } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
 
@@ -59,15 +62,7 @@ export function CompareView({ a, b }: { a: DuelPlayer | null; b: DuelPlayer | nu
       <div className="relative grid grid-cols-2 border-b border-slate-800">
         <PlayerSide player={a} active={target === "a"} label="Primer jugador" onChange={() => setChanging(changing === "a" ? null : "a")} />
         <PlayerSide player={b} active={target === "b"} label="Segundo jugador" onChange={() => setChanging(changing === "b" ? null : "b")} align="right" />
-        <button
-          type="button"
-          onClick={swap}
-          disabled={!a || !b}
-          aria-label="Intercambiar jugadores"
-          className="absolute left-1/2 top-1/2 flex size-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-orange-500 font-display text-2xl font-extrabold text-slate-950 shadow-[0_0_0_4px_#020617] transition-colors enabled:hover:bg-orange-400 md:size-16"
-        >
-          {pending ? <LoaderCircle className="size-6 animate-spin" /> : a && b ? <ArrowLeftRight className="size-6" /> : "VS"}
-        </button>
+        <SwapButton onClick={swap} disabled={!a || !b} pending={pending} ready={!!(a && b)} />
       </div>
 
       {target && (
@@ -87,8 +82,43 @@ export function CompareView({ a, b }: { a: DuelPlayer | null; b: DuelPlayer | nu
   );
 }
 
-function PlayerSide({ player, active, label, onChange, align = "left" }: { player: DuelPlayer | null; active: boolean; label: string; onChange: () => void; align?: "left" | "right" }) {
-  const primary = player?.team?.primary_color ?? "#1e293b";
+/**
+ * Botón central. En móvil, más pequeño (40 px) y con las fotos sin llegar al centro, para que no tape a nadie
+ * (Tarea 6.20).
+ */
+function SwapButton({ onClick, disabled, pending, ready }: { onClick?: () => void; disabled: boolean; pending: boolean; ready: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label="Intercambiar jugadores"
+      className="absolute left-1/2 top-1/2 flex size-[2.875rem] -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-orange-500 font-display text-xl font-extrabold text-slate-950 shadow-[0_0_0_3px_#020617] transition-colors enabled:hover:bg-orange-400 sm:size-14 sm:text-2xl sm:shadow-[0_0_0_4px_#020617] md:size-16"
+    >
+      {pending ? <LoaderCircle className="size-5 animate-spin sm:size-6" /> : ready ? <ArrowLeftRight className="size-5 sm:size-6" /> : "VS"}
+    </button>
+  );
+}
+
+/** Lo que pinta la cabecera de cada lado: el jugador completo o, mientras carga, lo del índice del buscador. */
+type HeroPlayer = Pick<DuelPlayer, "id" | "active" | "position" | "team"> & { name: string | null };
+
+function PlayerSide({
+  player,
+  active,
+  label,
+  onChange,
+  align = "left",
+  loading = false,
+}: {
+  player: HeroPlayer | null;
+  active: boolean;
+  label: string;
+  onChange?: () => void;
+  align?: "left" | "right";
+  loading?: boolean;
+}) {
+  const primary = teamBackdrop(player?.team?.primary_color, "#1e293b");
   const right = align === "right";
   const status = player && [player.active ? player.team?.abbreviation : "Retirado", positionLabel(player.position)].filter(Boolean).join(" · ");
 
@@ -113,16 +143,31 @@ function PlayerSide({ player, active, label, onChange, align = "left" }: { playe
 
       <div className={cn("relative flex h-full flex-col justify-end px-3 pb-4 pt-5 md:px-8", player ? "min-h-[300px] md:min-h-[380px]" : "min-h-40", right && "items-end text-right")}>
         {player && (
+          // Hasta md, la foto deja libre el centro: ahí va el botón de intercambiar
           <Image
             src={playerHeadshotUrl(player.id)}
-            alt={player.name}
+            alt={player.name ?? ""}
             width={460}
             height={336}
             priority
-            className={cn("mb-auto h-auto w-full max-w-[340px] drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)]", right ? "self-end" : "self-start")}
+            className={cn(
+              "mb-auto h-auto w-[calc(100%-1rem)] max-w-[340px] drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)] md:w-full",
+              right ? "self-end" : "self-start"
+            )}
           />
         )}
-        {player ? (
+        {player && loading ? (
+          // Cargando: nombre del índice si ya está (si no, una barra) y sin "Cambiar" hasta que llegue el duelo
+          <div aria-busy className={cn("flex w-full flex-col", right && "items-end")}>
+            <p className="min-h-4 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 md:text-xs">{status}</p>
+            {player.name ? (
+              <p className="font-display text-3xl font-extrabold uppercase leading-[0.9] text-white md:text-5xl">{player.name}</p>
+            ) : (
+              <span className="mt-1 h-7 w-3/4 animate-pulse bg-white/15 md:h-11" />
+            )}
+            <span className="mt-2 h-5" />
+          </div>
+        ) : player ? (
           <>
             <p className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 md:text-xs">{status}</p>
             <Link href={`/players/${player.id}`} className="font-display text-3xl font-extrabold uppercase leading-[0.9] text-white hover:text-orange-300 md:text-5xl">
@@ -137,6 +182,43 @@ function PlayerSide({ player, active, label, onChange, align = "left" }: { playe
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Carga en frío de un duelo por URL: la foto sale ya (solo depende del id) y el nombre, el equipo y sus colores, del
+ * índice del buscador (ligero y en caché), mientras el servidor prepara las temporadas de los dos.
+ */
+export function CompareLoading({ a, b }: { a: number | null; b: number | null }) {
+  const [index, setIndex] = useState<SearchIndex | null>(null);
+  useEffect(() => {
+    loadSearchIndex().then(setIndex, () => {});
+  }, []);
+
+  const hero = (id: number | null): HeroPlayer | null => {
+    if (!id) return null;
+    const found = index?.players.find((p) => p.id === id);
+    const team = found?.team_id ? index?.teams.find((t) => t.id === found.team_id) : undefined;
+    return {
+      id,
+      name: found?.full_name ?? null,
+      active: found?.is_active ?? true,
+      position: found?.position ?? null,
+      team: team
+        ? { id: team.id, name: team.name, abbreviation: team.abbreviation, primary_color: team.primary_color, secondary_color: team.secondary_color }
+        : null,
+    };
+  };
+
+  return (
+    <>
+      <div className="relative grid grid-cols-2 border-b border-slate-800">
+        <PlayerSide player={hero(a)} active={false} label="Primer jugador" loading />
+        <PlayerSide player={hero(b)} active={false} label="Segundo jugador" align="right" loading />
+        <SwapButton disabled pending ready={false} />
+      </div>
+      <div className="m-4 h-96 animate-pulse bg-slate-900/60 md:m-8" aria-hidden />
+    </>
   );
 }
 
@@ -252,7 +334,8 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
           <div>
             <DuelRows rows={attributes} colors={colors} />
             <p className="mt-3 text-xs leading-relaxed text-slate-400">
-              Percentil de 0 a 99 frente a {careerView ? "todas las carreras" : "todas las temporadas"} de la base de datos, estrellas de hoy y leyendas, sin ajustar por época.
+              Escala histórica: percentil de 0 a 99 frente a {careerView ? "todas las carreras" : "todas las temporadas"} de la base de datos, estrellas de hoy y leyendas, sin ajustar por época.
+              Por eso no coincide con la ficha del jugador, que lo compara solo con la liga de esta temporada.
               {incomplete && " La NBA no registró robos y tapones hasta 1973-74 ni triples hasta 1979-80."}
             </p>
           </div>
@@ -275,7 +358,7 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
           <FactRow label="Edad actual" a={a.active ? yearsOld(a.age) : "Retirado"} b={b.active ? yearsOld(b.age) : "Retirado"} />
           <FactRow label="Altura" a={a.height} b={b.height} />
           <FactRow label="Peso" a={a.weight} b={b.weight} />
-          <FactRow label="País" a={a.country} b={b.country} />
+          <FactRow label="País" a={countryLabel(a.country)} b={countryLabel(b.country)} />
           <FactRow label="Draft" a={a.draft} b={b.draft} />
           {(a.salary !== null || b.salary !== null) && <FactRow label="Salario" a={a.salary === null ? null : formatMoney(a.salary)} b={b.salary === null ? null : formatMoney(b.salary)} />}
         </dl>

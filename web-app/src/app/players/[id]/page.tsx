@@ -9,7 +9,8 @@ import { CareerTable } from "@/components/players/CareerTable";
 import { ContractTable } from "@/components/players/ContractTable";
 import { PlayerRadarChart } from "@/components/players/PlayerRadarChart";
 import { PlayerCardExport } from "@/components/share/PlayerShareCard";
-import { CareerHighs, TrophyCabinet } from "@/components/players/TrophyCabinet";
+import { CareerHighs } from "@/components/players/CareerHighs";
+import { TrophyShowcase } from "@/components/trophies/TrophyShowcase";
 import type { RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
 import { BRAND } from "@/lib/brand";
@@ -23,13 +24,17 @@ import {
   avg,
   formatDraft,
   getRadar,
+  OVERALL_EXPLAINED,
   overallRating,
   pct,
   positionLabel,
   RADAR_LABEL,
+  sampleNote,
+  shotPct,
   tierOf,
 } from "@/lib/player-profile";
-import { teamAccent } from "@/lib/team-colors";
+import { countryLabel } from "@/lib/places";
+import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { SEASON } from "@/lib/trade-rules";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -38,8 +43,8 @@ const SECTIONS = [
   { id: "atributos", label: "Atributos" },
   { id: "partidos", label: "Partidos", activeOnly: true },
   { id: "contrato", label: "Contrato", activeOnly: true },
-  { id: "palmares", label: "Palmarés" },
   { id: "trayectoria", label: "Trayectoria" },
+  { id: "palmares", label: "Palmarés" },
 ];
 
 const NO_GAMES: GameMatchup[] = [];
@@ -104,7 +109,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
       {latest && <SeasonBand season={latest} />}
       <SectionNav active={player.is_active} />
 
-      <section id="atributos" className="scroll-mt-32 pt-8 md:scroll-mt-16">
+      <section id="atributos" className="scroll-mt-[calc(7rem+env(safe-area-inset-top))] pt-8 md:scroll-mt-16">
         <SectionTitle accent={accent}>Atributos</SectionTitle>
         {radar ? (
           <div className="grid items-center gap-8 pt-4 lg:grid-cols-2">
@@ -129,7 +134,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
       </section>
 
       {player.is_active && (
-        <section id="partidos" className="scroll-mt-32 pt-10 md:scroll-mt-16">
+        <section id="partidos" className="scroll-mt-[calc(7rem+env(safe-area-inset-top))] pt-10 md:scroll-mt-16">
           <SectionTitle accent={accent}>Últimos partidos{team && <span className="text-slate-500">{team.abbreviation}</span>}</SectionTitle>
           {team ? (
             <TeamRecentGames teamId={team.id} games={recent} rivals={rivals} playerId={player.id} />
@@ -140,18 +145,25 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
       )}
 
       {player.is_active && (
-        <section id="contrato" className="scroll-mt-32 pt-10 md:scroll-mt-16">
+        <section id="contrato" className="scroll-mt-[calc(7rem+env(safe-area-inset-top))] pt-10 md:scroll-mt-16">
           <SectionTitle accent={accent}>Contrato</SectionTitle>
           <ContractTable view={contractView} tradeHref={tradeHref} />
         </section>
       )}
 
-      <section id="palmares" className="scroll-mt-32 pt-10 md:scroll-mt-16">
+      <section id="trayectoria" className="scroll-mt-[calc(7rem+env(safe-area-inset-top))] pt-10 md:scroll-mt-16">
+        <SectionTitle accent={accent}>Trayectoria</SectionTitle>
+        <div className="pt-4">
+          <CareerTable rows={career} teamIds={teams.map((t) => t.id)} accent={accent} />
+        </div>
+      </section>
+
+      <section id="palmares" className="scroll-mt-[calc(7rem+env(safe-area-inset-top))] pb-4 pt-10 md:scroll-mt-16">
         <SectionTitle accent={accent} count={awards.length || undefined}>
           Vitrina de trofeos
         </SectionTitle>
         <div className="pt-4">
-          <TrophyCabinet awards={awards} />
+          <TrophyShowcase awards={awards} name={player.full_name} />
         </div>
         <h3 className="pb-3 pt-8 font-display text-lg font-bold uppercase tracking-wide text-slate-300">Récords personales en un partido</h3>
         <CareerHighs highs={highs} />
@@ -163,13 +175,6 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
             <CareerHighs highs={seasonHighs} />
           </>
         )}
-      </section>
-
-      <section id="trayectoria" className="scroll-mt-32 pb-4 pt-10 md:scroll-mt-16">
-        <SectionTitle accent={accent}>Trayectoria</SectionTitle>
-        <div className="pt-4">
-          <CareerTable rows={career} teamIds={teams.map((t) => t.id)} accent={accent} />
-        </div>
       </section>
     </>
   );
@@ -188,7 +193,7 @@ function PlayerHero({
   radar: RadarAttributes | null;
   season: PlayerSeasonStats | null;
 }) {
-  const primary = team?.primary_color ?? "#334155";
+  const primary = teamBackdrop(team?.primary_color);
   const [firstName, ...rest] = player.full_name.split(" ");
   const lastName = rest.join(" ") || firstName;
   const position = positionLabel(player.position);
@@ -243,7 +248,7 @@ function PlayerHero({
             <HeroStat label="Edad">{age ?? "–"}</HeroStat>
             <HeroStat label="Altura">{player.height ?? "–"}</HeroStat>
             <HeroStat label="Peso">{player.weight ?? "–"}</HeroStat>
-            <HeroStat label="País">{player.country ?? "–"}</HeroStat>
+            <HeroStat label="País">{countryLabel(player.country) ?? "–"}</HeroStat>
             <HeroStat label="Draft">{formatDraft(player)}</HeroStat>
           </dl>
 
@@ -281,19 +286,19 @@ function PlayerHero({
 /** Insignia estilo videojuego: media global + arquetipo del jugador. */
 function RatingBadge({ radar }: { radar: RadarAttributes }) {
   const overall = overallRating(radar);
-  const tier = tierOf(overall);
+  const tier = overall === null ? null : tierOf(overall);
 
   return (
-    <div className="mt-5 flex w-fit items-stretch" title="Media de sus 4 mejores atributos (percentil 0-99)">
+    <div className="mt-5 flex w-fit items-stretch" title={overall === null ? (sampleNote(radar) ?? "Sin media esta temporada") : OVERALL_EXPLAINED}>
       <div
         className="flex flex-col items-center justify-center py-1.5 pl-4 pr-7 text-slate-950 [clip-path:polygon(0_0,100%_0,82%_100%,0_100%)]"
-        style={{ background: tier.color }}
+        style={{ background: tier?.color ?? "#64748b" }}
       >
-        <span className="font-display text-5xl font-extrabold leading-none tabular-nums">{overall}</span>
+        <span className="font-display text-5xl font-extrabold leading-none tabular-nums">{overall ?? "–"}</span>
         <span className="font-display text-[10px] font-bold uppercase tracking-[0.25em]">Media</span>
       </div>
       <div className="-ml-3 flex flex-col justify-center bg-slate-950/70 py-1.5 pl-6 pr-5 backdrop-blur-sm">
-        <span className="font-display text-[10px] font-semibold uppercase tracking-[0.25em] text-white/60">Perfil · {tier.label}</span>
+        <span className="font-display text-[10px] font-semibold uppercase tracking-[0.25em] text-white/60">{tier ? `Perfil · ${tier.label}` : "Perfil"}</span>
         <span className="font-display text-2xl font-bold uppercase leading-tight text-white">{archetypeOf(radar)}</span>
       </div>
     </div>
@@ -315,8 +320,8 @@ function SeasonBand({ season }: { season: PlayerSeasonStats }) {
     { label: "Puntos", value: avg(season.pts) },
     { label: "Rebotes", value: avg(season.reb) },
     { label: "Asistencias", value: avg(season.ast) },
-    { label: "% Tiro", value: pct(season.fg_pct) },
-    { label: "% Triple", value: pct(season.fg3_pct) },
+    { label: "% Tiro", value: shotPct(season.fg_pct, season.totals?.fgm, season.totals?.fga) },
+    { label: "% Triple", value: shotPct(season.fg3_pct, season.totals?.fg3m, season.totals?.fg3a) },
     { label: "TS%", value: pct(season.advanced_stats.ts_pct) },
   ];
 
@@ -342,7 +347,7 @@ function SectionNav({ active }: { active: boolean }) {
   return (
     <nav
       aria-label="Secciones del jugador"
-      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 -mx-4 border-b border-slate-800 bg-slate-950/90 px-4 backdrop-blur md:top-0 md:-mx-8 md:px-8"
+      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 -mx-4 border-b border-slate-800 bg-slate-950 px-4 md:top-0 md:-mx-8 md:px-8"
     >
       {/* Con 5 secciones no caben a 360 px: se desliza en horizontal */}
       <ul className="flex gap-5 overflow-x-auto [scrollbar-width:none] md:gap-6">
@@ -363,6 +368,7 @@ function SectionNav({ active }: { active: boolean }) {
 
 /** Barras de percentil con su nivel en palabras y la marca de la media de la liga (50). */
 function AttributeBars({ radar }: { radar: RadarAttributes }) {
+  const note = sampleNote(radar);
   return (
     <div>
       <ul className="space-y-4">
@@ -387,9 +393,10 @@ function AttributeBars({ radar }: { radar: RadarAttributes }) {
         })}
       </ul>
       <p className="mt-5 text-xs leading-relaxed text-slate-400">
-        Percentil frente al resto de la liga en la temporada {radar.season}: un 90 significa que supera al 90 % de los jugadores.
-        La línea vertical marca la media.
-        {!radar.qualified && ` Muestra reducida (${radar.games_played} partidos): valores orientativos.`}
+        Percentil frente a los jugadores de rotación de la temporada {radar.season} (15 minutos o más en al menos el 40 % de los partidos):
+        un 90 significa que supera al 90 % de ellos. La línea vertical marca la mitad de la tabla. La media de arriba sale de lo que aporta por
+        partido (Game Score), no de estas barras.
+        {note && ` ${note}`}
       </p>
     </div>
   );

@@ -242,7 +242,7 @@ function LockedNotice({ onShow }: { onShow: () => void }) {
 function PeriodTabs({ period, onSelect }: { period: WatchPeriod; onSelect: (period: WatchPeriod) => void }) {
   const index = WATCH_PERIODS.findIndex((p) => p.id === period);
   return (
-    <div role="tablist" aria-label="Periodo" className="relative grid grid-cols-3 border-b border-slate-800">
+    <div role="tablist" aria-label="Periodo" className="relative grid grid-cols-4 border-b border-slate-800">
       {WATCH_PERIODS.map(({ id, label, hint }) => {
         const selected = id === period;
         return (
@@ -254,14 +254,15 @@ function PeriodTabs({ period, onSelect }: { period: WatchPeriod; onSelect: (peri
             onClick={() => onSelect(id)}
             className={cn("flex flex-col items-center py-2 transition-colors md:py-3", selected ? "text-white" : "text-slate-500 hover:text-slate-300")}
           >
-            <span className="font-display text-xl font-extrabold uppercase leading-none md:text-3xl">{label}</span>
+            {/* Cuatro pestañas a 360 px: "Temporada" cabe con text-lg */}
+            <span className="font-display text-lg font-extrabold uppercase leading-none sm:text-xl md:text-3xl">{label}</span>
             <span className="mt-1 hidden font-display text-[11px] font-semibold uppercase tracking-[0.2em] md:block">{hint}</span>
           </button>
         );
       })}
       <span
         aria-hidden
-        className="absolute -bottom-px left-0 h-[3px] w-1/3 bg-orange-500 transition-transform duration-300 ease-out"
+        className="absolute -bottom-px left-0 h-[3px] w-1/4 bg-orange-500 transition-transform duration-300 ease-out"
         style={{ transform: `translateX(${index * 100}%)` }}
       />
     </div>

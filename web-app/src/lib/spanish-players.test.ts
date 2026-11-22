@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { GameMatchup } from "./game-day.ts";
 import type { PlayerGameLine } from "./game-day-store.ts";
-import { compactLine, spanishPlayersOfDay, type SpanishPlayer } from "./spanish-players.ts";
+import { compactLine, shortName, spanishPlayersOfDay, type SpanishPlayer } from "./spanish-players.ts";
 
 const DAL = 1610612742;
 const BOS = 1610612738;
@@ -65,10 +65,25 @@ describe("spanishPlayersOfDay", () => {
   });
 });
 
+describe("shortName", () => {
+  it("inicial y apellido (hay varios Miller en la liga)", () => {
+    assert.equal(shortName("Baba Miller"), "B. Miller");
+    assert.equal(shortName("Sergio de Larrea"), "S. de Larrea");
+    assert.equal(shortName("Nenê"), "Nenê");
+  });
+});
+
 describe("compactLine", () => {
   it("puntos, rebotes y asistencias; robos y tapones solo si los hay", () => {
-    assert.equal(compactLine(LINE), "18 PTS · 7 REB · 3 AST");
-    assert.equal(compactLine({ ...LINE, stl: 2, blk: 1 }), "18 PTS · 7 REB · 3 AST · 2 ROB · 1 TAP");
+    assert.equal(compactLine(LINE), "30 MIN · 18 PTS · 7 REB · 3 AST");
+    assert.equal(compactLine({ ...LINE, stl: 2, blk: 1 }), "30 MIN · 18 PTS · 7 REB · 3 AST · 2 ROB · 1 TAP");
+  });
+
+  it("siempre con los minutos: un minuto sin anotar no parece un mal partido", () => {
+    // Baba Miller, 19-nov-2026: 60 s en pista
+    assert.equal(compactLine({ ...LINE, seconds: 60, pts: 0, reb: 0, ast: 0 }), "1 MIN · 0 PTS · 0 REB · 0 AST");
+    assert.equal(compactLine({ ...LINE, seconds: 25, pts: 0, reb: 1, ast: 0 }), "<1 MIN · 0 PTS · 1 REB · 0 AST");
+    assert.equal(compactLine({ ...LINE, seconds: 0, pts: 0, reb: 0, ast: 0 }), "No jugó");
   });
 
   it("no jugó, con el motivo si lo hay", () => {

@@ -1,12 +1,13 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { GameCenter } from "@/components/games/detail/GameCenter";
 import { BRAND } from "@/lib/brand";
 import { gameDayOf, isGameId, previousSeason, seasonOf } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
 import { getGameMatchup, getKeyPlayers, getTeams } from "@/lib/queries";
 import type { Team } from "@/lib/supabase";
-import { matchupAccents } from "@/lib/team-colors";
+import { matchupAccents, teamBackdrop } from "@/lib/team-colors";
 
 export default function GamePage({ params }: PageProps<"/games/[id]">) {
   return (
@@ -20,15 +21,20 @@ export default function GamePage({ params }: PageProps<"/games/[id]">) {
 }
 
 function toMatchupTeam(team: Team, accent: string): MatchupTeam {
-  const primary = team.primary_color ?? "#334155";
+  const primary = teamBackdrop(team.primary_color);
   return {
     id: team.id,
     name: team.name,
     abbreviation: team.abbreviation,
     primary,
-    secondary: team.secondary_color ?? primary,
+    secondary: team.secondary_color ?? team.primary_color ?? "#334155",
     accent,
   };
+}
+
+/** Hora del servidor frente a la del calendario (fuera del componente: es por petición, tras `connection()`). */
+function hasKickedOff(utc: string): boolean {
+  return Date.now() >= Date.parse(utc);
 }
 
 async function GameContent({ params }: { params: PageProps<"/games/[id]">["params"] }) {
@@ -43,6 +49,9 @@ async function GameContent({ params }: { params: PageProps<"/games/[id]">["param
 
   const season = seasonOf(game.game_datetime_utc);
   const keyPlayers = await getKeyPlayers([awayTeam.id, homeTeam.id], season, previousSeason(season));
+  // Solo la hora del calendario (como en Nivel 1): decide "aún no ha empezado" sin saltos al hidratar
+  await connection();
+  const kickedOffAtRender = hasKickedOff(game.game_datetime_utc);
   const accents = matchupAccents(awayTeam, homeTeam);
   const away = toMatchupTeam(awayTeam, accents.away);
   const home = toMatchupTeam(homeTeam, accents.home);
@@ -52,7 +61,14 @@ async function GameContent({ params }: { params: PageProps<"/games/[id]">["param
   return (
     <>
       <title>{`${away.abbreviation} @ ${home.abbreviation} · ${BRAND.name}`}</title>
-      <GameCenter game={game} day={gameDayOf(game.game_datetime_utc)} away={away} home={home} keyPlayers={keyPlayers} />
+      <GameCenter
+        game={game}
+        day={gameDayOf(game.game_datetime_utc)}
+        away={away}
+        home={home}
+        keyPlayers={keyPlayers}
+        kickedOffAtRender={kickedOffAtRender}
+      />
     </>
   );
 }

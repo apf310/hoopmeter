@@ -75,3 +75,13 @@ export function standingsDiffer(before: StandingsRow[] | null, current: Standing
     return !now || now.wins !== row.wins || now.losses !== row.losses;
   });
 }
+
+/**
+ * Pestaña "Liga (30)" (Tarea 6.21): los 30 equipos por porcentaje de victorias. Los desempates oficiales solo
+ * existen dentro de cada conferencia, así que a igual porcentaje va primero quien más ha ganado (más partidos
+ * jugados) y después el id, para que el orden sea siempre el mismo.
+ */
+export function sortLeague<T extends Pick<StandingsRow, "id" | "wins" | "losses">>(teams: readonly T[]): T[] {
+  const pct = ({ wins, losses }: T) => (wins + losses === 0 ? 0 : wins / (wins + losses));
+  return [...teams].sort((a, b) => pct(b) - pct(a) || b.wins - a.wins || a.id - b.id);
+}

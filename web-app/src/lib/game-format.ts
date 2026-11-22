@@ -95,12 +95,15 @@ export function playerGameLine(detail: GameDetail, playerId: number): PlayerGame
   return { played, absence, seconds, pts, reb, ast, stl, blk, fgm, fga, fg3m, fg3a, plusMinus };
 }
 
-/** Jugador del partido: la mejor valoración (Game Score) de los dos equipos. */
+/**
+ * Jugador del partido: la mejor valoración (Game Score) de los dos equipos. null si nadie ha hecho
+ * aún nada positivo (salto inicial, o el diferido en el 12:00 del 1.er cuarto): nada de "0 PTS".
+ */
 export function playerOfTheGame(detail: GameDetail): { player: PlayerLine; team: TeamBox } | null {
   let best: { player: PlayerLine; team: TeamBox } | null = null;
   for (const team of [detail.away, detail.home]) {
     for (const player of team.players) {
-      if (player.played && (!best || player.gameScore > best.player.gameScore)) best = { player, team };
+      if (player.played && player.gameScore > 0 && (!best || player.gameScore > best.player.gameScore)) best = { player, team };
     }
   }
   return best;

@@ -5,11 +5,9 @@ import Link from "next/link";
 import { formatGameTime, type TeamLite } from "@/lib/game-day";
 import type { Entry } from "@/lib/game-day-store";
 import { playerHeadshotUrl } from "@/lib/nba-cdn";
-import { compactLine, type SpanishLinesPayload, type SpanishPlayerGame } from "@/lib/spanish-players";
+import { compactLine, shortName, type SpanishLinesPayload, type SpanishPlayerGame } from "@/lib/spanish-players";
 import type { SpoilerLevel } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
-
-const surname = (name: string) => name.split(" ").slice(1).join(" ") || name;
 
 type SpanishPlayersStripProps = {
   entries: SpanishPlayerGame[];
@@ -60,7 +58,7 @@ export function SpanishPlayersStrip({ entries, teamsById, level, lines }: Spanis
                 />
                 <span className="leading-tight">
                   <span className="block whitespace-nowrap font-display text-sm font-bold uppercase tracking-wide text-white">
-                    {surname(player.name)}
+                    {shortName(player.name)}
                     <span className="ml-1.5 text-xs text-slate-400">{team?.abbreviation}</span>
                   </span>
                   <span

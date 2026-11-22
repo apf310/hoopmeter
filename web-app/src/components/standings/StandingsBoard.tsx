@@ -71,6 +71,7 @@ export function StandingsBoard({ teams, before }: { teams: TeamIdentity[]; befor
         <ConferenceSwitch
           east={<StandingsTable teams={rows.filter((t) => t.conference === "East")} />}
           west={<StandingsTable teams={rows.filter((t) => t.conference === "West")} />}
+          league={<StandingsTable teams={rows} league />}
         />
       )}
     </div>

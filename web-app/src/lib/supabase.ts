@@ -78,8 +78,13 @@ export type RadarCategory = (typeof RADAR_CATEGORIES)[number];
 /** `players.radar_attributes`, rellenado por `player_radar_calc.py` (percentiles 0-99). */
 export type RadarAttributes = Record<RadarCategory, number> & {
   season: string;
+  /** Media (Tarea 6.19): percentil del Game Score por partido; null si no entra en la escala. Falta en radares anteriores. */
+  overall?: number | null;
+  /** En la escala: jugador de rotación (40 % de los partidos y 15+ minutos). */
   qualified: boolean;
   games_played: number;
+  /** Minutos totales de la temporada (desde la Tarea 6.19). */
+  minutes?: number;
   updated_at: string;
 };
 
@@ -99,6 +104,10 @@ export type SeasonAdvancedStats = {
   fg3a?: number | null;
   ft_pct?: number | null;
   ts_pct?: number | null;
+  /** USG%, AST% y REB% (0-1) con los boxscores: solo la temporada en curso (explorador, Tarea 6.22). */
+  usg_pct?: number | null;
+  ast_pct?: number | null;
+  reb_pct?: number | null;
   age?: number | null;
   team_abbreviation?: string | null; // "TOT" en temporadas con traspaso
   // Desglose por equipo solo en temporadas con traspaso
@@ -121,6 +130,8 @@ export type PlayerSeasonStats = {
   fg_pct: number | null;
   fg3_pct: number | null;
   advanced_stats: SeasonAdvancedStats;
+  /** Totales exactos (solo donde se pide con `select("*")`, como la ficha del jugador). */
+  totals?: { fgm?: number | null; fga?: number | null; fg3m?: number | null; fg3a?: number | null } | null;
 };
 
 /** Fila de `player_awards` (nombre del premio tal cual lo da nba_api, en inglés). */

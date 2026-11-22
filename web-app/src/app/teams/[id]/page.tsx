@@ -1,5 +1,7 @@
 import { Suspense, type ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import type { TeamCardData } from "@/components/share/TeamShareCard";
@@ -8,14 +10,15 @@ import { BRAND } from "@/lib/brand";
 import { RosterTable } from "@/components/teams/RosterTable";
 import { TeamGameRow, type RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
-import { getRecentMatchups, getStandingsBefore, getTeamRosterStats, getTeams, getUpcomingGames } from "@/lib/queries";
+import type { GmTeam } from "@/lib/gm";
+import { tradeSearch } from "@/lib/gm-link";
+import { getGmData, getRecentMatchups, getStandingsBefore, getTeamRosterStats, getTeams, getUpcomingGames } from "@/lib/queries";
 import { teamLogoUrl } from "@/lib/nba-cdn";
+import { conferenceLabel, divisionLabel } from "@/lib/places";
 import type { StandingsBefore } from "@/lib/standings";
-import { teamAccent } from "@/lib/team-colors";
+import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import type { Team } from "@/lib/supabase";
-import { SEASON } from "@/lib/trade-rules";
-
-const CONFERENCE_LABEL: Record<string, string> = { East: "Este", West: "Oeste" };
+import { formatMoney, salaryZone, SEASON, ZONE_LABEL } from "@/lib/trade-rules";
 
 export default function TeamPage({ params }: PageProps<"/teams/[id]">) {
   return (
@@ -34,12 +37,14 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   const team = teams.find((t) => t.id === teamId);
   if (!team) notFound();
 
-  const [roster, recent, upcoming, standings] = await Promise.all([
+  const [roster, recent, upcoming, standings, gm] = await Promise.all([
     getTeamRosterStats(teamId),
     getRecentMatchups(teamId),
     getUpcomingGames(teamId),
     getStandingsBefore(),
+    getGmData(),
   ]);
+  const payroll = gm.teams.find((t) => t.id === teamId) ?? null;
   const teamsById = new Map(teams.map((t) => [t.id, t]));
   // Rivales de los partidos: solo lo que se pinta (al navegador no viajan balances ni nóminas)
   const rivals: Record<number, RivalLite> = Object.fromEntries(
@@ -54,11 +59,11 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   const card: Omit<TeamCardData, "record" | "beforeDay"> = {
     id: team.id,
     name: team.name,
-    primary: team.primary_color ?? "#334155",
+    primary: teamBackdrop(team.primary_color),
     secondary: team.secondary_color ?? team.primary_color ?? "#334155",
     accent,
-    conference: team.conference ? CONFERENCE_LABEL[team.conference] : null,
-    division: team.division,
+    conference: conferenceLabel(team.conference),
+    division: divisionLabel(team.division),
     upcoming: upcoming.map((g) => {
       const home = g.home_team_id === teamId;
       const rivalId = home ? g.away_team_id : g.home_team_id;
@@ -69,7 +74,7 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   return (
     <>
       <title>{`${team.name} · ${BRAND.name}`}</title>
-      <TeamHero team={team} card={card} before={before} />
+      <TeamHero team={team} card={card} before={before} payroll={payroll} />
       {/* minmax(0, 1fr): ninguna tabla ni fila ensancha la página en móvil (la plantilla se desplaza dentro) */}
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-3">
         <section className="min-w-0 lg:col-span-2">
@@ -109,9 +114,20 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
   );
 }
 
-function TeamHero({ team, card, before }: { team: Team; card: Omit<TeamCardData, "record" | "beforeDay">; before: StandingsBefore }) {
-  const primary = team.primary_color ?? "#334155";
-  const conference = team.conference ? CONFERENCE_LABEL[team.conference] : null;
+function TeamHero({
+  team,
+  card,
+  before,
+  payroll,
+}: {
+  team: Team;
+  card: Omit<TeamCardData, "record" | "beforeDay">;
+  before: StandingsBefore;
+  payroll: GmTeam | null;
+}) {
+  const primary = teamBackdrop(team.primary_color);
+  const conference = conferenceLabel(team.conference);
+  const division = divisionLabel(team.division);
 
   return (
     // Márgenes negativos: la cabecera ocupa todo el ancho del área de contenido
@@ -145,7 +161,7 @@ function TeamHero({ team, card, before }: { team: Team; card: Omit<TeamCardData,
           />
           <div className="min-w-0">
             <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-white/75">
-              {[conference && `Conferencia ${conference}`, team.division && `División ${team.division}`]
+              {[conference && `Conferencia ${conference}`, division && `División ${division}`]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -162,10 +178,42 @@ function TeamHero({ team, card, before }: { team: Team; card: Omit<TeamCardData,
           card={card}
           actions={<FavoriteButton kind="team" team={{ id: team.id, name: team.name, abbreviation: team.abbreviation }} />}
         />
+        {payroll && <PayrollLink team={payroll} />}
       </div>
       {/* Franja inferior con el color secundario de la franquicia */}
       <div className="relative h-1" style={{ background: team.secondary_color ?? primary }} aria-hidden />
     </header>
+  );
+}
+
+/**
+ * Resumen de la nómina con acceso al GM con el equipo ya elegido (Tarea 6.21). No depende de ningún
+ * resultado: se ve en los tres niveles, como el resto del GM.
+ */
+function PayrollLink({ team }: { team: GmTeam }) {
+  const pending = team.pendingContracts ?? 0;
+  return (
+    <Link
+      href={`/gm-simulator${tradeSearch({ teamIds: [team.id], players: [], picks: [] })}`}
+      className="group mt-6 flex max-w-md items-center gap-4 border border-white/20 bg-slate-950/50 px-4 py-2.5 outline-none transition-colors hover:border-orange-400/70 hover:bg-slate-950/70 focus-visible:ring-2 focus-visible:ring-orange-400"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">Nómina {SEASON}</span>
+        <span className="flex flex-wrap items-baseline gap-x-2">
+          <span className="font-display text-2xl font-bold leading-tight tabular-nums text-white">{formatMoney(team.payroll)}</span>
+          <span className="text-sm text-slate-200">{ZONE_LABEL[salaryZone(team.payroll)]}</span>
+        </span>
+        {pending > 0 && (
+          <span className="block text-xs text-white/70">
+            Sin contar {pending === 1 ? "1 contrato" : `${pending} contratos`} sin cifra pública
+          </span>
+        )}
+      </span>
+      <span className="flex shrink-0 items-center gap-0.5 font-display text-sm font-bold uppercase tracking-wider text-orange-400 transition-colors group-hover:text-orange-300">
+        Abrir en GM
+        <ChevronRight className="size-4" aria-hidden />
+      </span>
+    </Link>
   );
 }
 

@@ -283,8 +283,8 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
 }
 
 const HINTS: Record<SpoilerLevel, { icon: LucideIcon; title: string; tip: string; className: string }> = {
-  1: { icon: EyeOff, title: "Sin spoilers", tip: "Solo partidos y horarios · Toca ★ para ver la nota", className: "text-emerald-400" },
-  2: { icon: Star, title: "Solo nota", tip: "8+ partidazo · menos de 5, flojo · Mantén pulsado 👁 para resultados", className: "text-amber-400" },
+  1: { icon: EyeOff, title: "Sin spoilers", tip: "Partidos y horarios · Toca Nota para ver la nota", className: "text-emerald-400" },
+  2: { icon: Star, title: "Solo nota", tip: "8+ partidazo · menos de 5, flojo · Mantén pulsado Resultados para los marcadores", className: "text-amber-400" },
   3: { icon: Eye, title: "Resultados visibles", tip: "Marcadores, cuartos y nota del partido", className: "text-orange-400" },
 };
 

@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
+import Link from "next/link";
+import { ArrowLeftRight } from "lucide-react";
 import { GameFlowChart } from "@/components/games/detail/GameFlowChart";
 import { Eyebrow, Section, Swatch } from "@/components/games/detail/ui";
 import type { GameDetail, PlayerLine, ScoringRun, TeamBox, TeamTotals } from "@/lib/game-detail";
@@ -27,14 +29,24 @@ type SummaryProps = {
   onOpenPlayer: (playerId: number) => void;
 };
 
-/** Pestaña "Resumen": lo esencial del partido de un vistazo. */
-export function GameSummary({ detail, away, home, onOpenPlayer }: SummaryProps) {
+/**
+ * Pestaña "Resumen": lo esencial del partido de un vistazo. `compare` (solo Nivel 3, nunca en diferido;
+ * Tarea 6.21): cada fila de líderes enlaza al comparador con los dos jugadores.
+ */
+export function GameSummary({ detail, away, home, onOpenPlayer, compare = false }: SummaryProps & { compare?: boolean }) {
+  // Sin nadie destacado aún (salto inicial o el arranque del diferido), los líderes ocupan todo el ancho
+  const star = playerOfTheGame(detail);
   return (
     <>
       {/* grid-cols-1 (minmax(0, 1fr)): los nombres largos se recortan en vez de ensanchar la columna */}
-      <div className="grid grid-cols-1 divide-y divide-slate-800 border-b border-slate-800 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:divide-x lg:divide-y-0">
-        <StarPlayer detail={detail} away={away} home={home} onOpenPlayer={onOpenPlayer} />
-        <Leaders detail={detail} away={away} home={home} onOpenPlayer={onOpenPlayer} />
+      <div
+        className={cn(
+          "grid grid-cols-1 divide-y divide-slate-800 border-b border-slate-800",
+          star && "lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:divide-x lg:divide-y-0"
+        )}
+      >
+        {star && <StarPlayer star={star} detail={detail} away={away} home={home} onOpenPlayer={onOpenPlayer} />}
+        <Leaders detail={detail} away={away} home={home} onOpenPlayer={onOpenPlayer} compare={compare} />
       </div>
 
       <Section title="Flujo del partido">
@@ -59,9 +71,7 @@ function teamColors(team: TeamBox, away: MatchupTeam, home: MatchupTeam): Matchu
   return team.id === home.id ? home : away;
 }
 
-function StarPlayer({ detail, away, home, onOpenPlayer }: SummaryProps) {
-  const star = playerOfTheGame(detail);
-  if (!star) return null;
+function StarPlayer({ star, detail, away, home, onOpenPlayer }: SummaryProps & { star: NonNullable<ReturnType<typeof playerOfTheGame>> }) {
   const { player } = star;
   const team = teamColors(star.team, away, home);
   const badge = doubleDouble(player);
@@ -136,7 +146,7 @@ function TeamsHeader({ away, home }: { away: MatchupTeam; home: MatchupTeam }) {
   );
 }
 
-function Leaders({ detail, away, home, onOpenPlayer }: SummaryProps) {
+function Leaders({ detail, away, home, onOpenPlayer, compare }: SummaryProps & { compare: boolean }) {
   return (
     <Section title="Líderes" className="border-b-0">
       <TeamsHeader away={away} home={home} />
@@ -149,8 +159,21 @@ function Leaders({ detail, away, home, onOpenPlayer }: SummaryProps) {
           return (
             <li key={stat.label} className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 py-2.5 sm:gap-3">
               <LeaderCell player={awayLeader} value={awayValue} leads={awayValue >= homeValue} accent={away.accent} onOpen={onOpenPlayer} />
-              <span className="w-20 text-center font-display text-[11px] font-semibold uppercase leading-tight tracking-[0.15em] text-slate-300 sm:w-28">
-                {stat.label}
+              <span className="flex w-20 flex-col items-center sm:w-28">
+                <span className="text-center font-display text-[11px] font-semibold uppercase leading-tight tracking-[0.15em] text-slate-300">
+                  {stat.label}
+                </span>
+                {compare && awayLeader && homeLeader && (
+                  <Link
+                    href={`/compare?a=${awayLeader.id}&b=${homeLeader.id}`}
+                    aria-label={`Comparar a ${awayLeader.name} y ${homeLeader.name}`}
+                    title="Comparar en el cara a cara"
+                    className="mt-0.5 flex h-7 items-center gap-1 px-1.5 font-display text-[11px] font-bold uppercase tracking-wider text-orange-400 outline-none transition-colors hover:text-orange-300 focus-visible:ring-2 focus-visible:ring-orange-400"
+                  >
+                    <ArrowLeftRight className="size-3.5" aria-hidden />
+                    Comparar
+                  </Link>
+                )}
               </span>
               <LeaderCell player={homeLeader} value={homeValue} leads={homeValue >= awayValue} accent={home.accent} onOpen={onOpenPlayer} right />
             </li>

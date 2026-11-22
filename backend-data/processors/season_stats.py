@@ -132,14 +132,16 @@ def line_from_totals(t: dict) -> dict:
     }
 
 
-def season_row(ps: PlayerSeason, abbreviations: dict[int, str], valid_teams: set[int], age: int | None) -> dict:
-    """Fila de `player_season_stats` de la temporada en curso (mismo formato que fetch_career_awards)."""
+def season_row(ps: PlayerSeason, abbreviations: dict[int, str], valid_teams: set[int], age: int | None,
+               rates: dict | None = None) -> dict:
+    """Fila de `player_season_stats` de la temporada en curso (mismo formato que fetch_career_awards).
+    `rates`: USG%, AST% y REB% de `usage_rates` (explorador de jugadores, Tarea 6.22)."""
     totals = ps.total.as_dict()
     line = line_from_totals(totals)
     traded = len(ps.team_order) > 1
     extra = {"team_abbreviation": "TOT" if traded else abbreviations.get(ps.last_team), "age": age,
              # Máximos de la temporada (Tarea 6.8): solo el job diario, como los promedios
-             "season_highs": update_highs(None, ps.games, abbreviations)}
+             "season_highs": update_highs(None, ps.games, abbreviations), **(rates or {})}
     if traded:
         extra["teams"] = [{
             "team_id": tid,
@@ -283,6 +285,15 @@ def radar_inputs(ps: PlayerSeason, team_games: dict[tuple[str, int], dict]) -> d
         "BLK": c["blk"] / gp,
         "FG3M": c["fg3m"] / gp,
         "FG3A": c["fg3a"] / gp,
+        # Game Score de la media (Tarea 6.19)
+        "FGM": c["fgm"] / gp,
+        "FGA": c["fga"] / gp,
+        "FTM": c["ftm"] / gp,
+        "FTA": c["fta"] / gp,
+        "OREB": c["oreb"] / gp,
+        "DREB": c["dreb"] / gp,
+        "TOV": c["tov"] / gp,
+        "PF": c["pf"] / gp,
         "FG3_PCT": c["fg3m"] / c["fg3a"] if c["fg3a"] else 0.0,
         "TS_PCT": c["pts"] / ts_den if ts_den else None,
         "USG_PCT": usg_num / usg_den if usg_den else None,
@@ -291,6 +302,20 @@ def radar_inputs(ps: PlayerSeason, team_games: dict[tuple[str, int], dict]) -> d
         "PIE": pie_num / pie_den if pie_den else None,
         "DEF_RATING": 100 * drtg_num / drtg_den if drtg_den else None,
     }
+
+
+def usage_rates(ps: PlayerSeason, team_games: dict[tuple[str, int], dict]) -> dict:
+    """USG%, AST% y REB% de la temporada (fracción 0-1, 3 decimales), con las fórmulas del radar, para el
+    explorador de jugadores (Tarea 6.22). Si falta el total de equipo de algún partido, vacío: mejor sin
+    dato que con uno incompleto (y el job diario sigue)."""
+    try:
+        r = radar_inputs(ps, team_games)
+    except ValueError:
+        return {}
+    if r is None:
+        return {}
+    return {key: round_half_up(r[metric], 3) for key, metric in
+            (("usg_pct", "USG_PCT"), ("ast_pct", "AST_PCT"), ("reb_pct", "REB_PCT"))}
 
 
 def group_team_games(team_rows: list[dict]) -> dict[tuple[str, int], dict]:

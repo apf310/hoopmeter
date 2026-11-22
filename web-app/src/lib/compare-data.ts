@@ -1,6 +1,6 @@
 // Datos del comparador (solo servidor): cada jugador con sus temporadas, su radar histórico y su palmarés.
 import { cacheLife } from "next/cache";
-import { trophyCounts } from "@/components/players/TrophyCabinet";
+import { trophyCounts } from "@/components/trophies/trophy-catalog";
 import { buildRadarScale, CAREER, isRepresentative, radarOf, scaleKey, type Radar, type RadarScales, type StatLine } from "@/lib/compare";
 import { ageFrom, formatDraft } from "@/lib/player-profile";
 import { getPlayer, getPlayerAwards, getPlayerCareer, getTeams } from "@/lib/queries";

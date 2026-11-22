@@ -7,6 +7,7 @@ import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from
 import { CAREER, score, type DuelRow } from "@/lib/compare";
 import type { DuelPlayer, DuelSeason } from "@/lib/compare-data";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamBackdrop } from "@/lib/team-colors";
 import { cn } from "@/lib/utils";
 
 type ShareProps = {
@@ -86,7 +87,7 @@ function CompareShareCard({ format, a, b, seasonA, seasonB, attributes, stats, c
 function PlayerPanel({ player, season, attributes, side, format }: { player: DuelPlayer; season: DuelSeason; attributes: DuelRow[]; side: "a" | "b"; format: CardFormat }) {
   const vertical = format === "9:16";
   const right = side === "b";
-  const primary = player.team?.primary_color ?? "#334155";
+  const primary = teamBackdrop(player.team?.primary_color);
   const [firstName, ...rest] = player.name.split(" ");
   const surname = rest.join(" ") || firstName;
   const width = vertical ? 460 : 520;

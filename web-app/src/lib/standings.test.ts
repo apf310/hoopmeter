@@ -1,7 +1,7 @@
 // Tests de la clasificación sin spoilers (Tarea 6.6). Se lanzan con `npm test`.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { lastStartedDay, pickStandingsBefore, standingsDiffer } from "./standings.ts";
+import { lastStartedDay, pickStandingsBefore, sortLeague, standingsDiffer } from "./standings.ts";
 
 const extra = (streak: string) => ({ streak });
 // Al día: 5-3 con la jornada del 16 jugada; antes de ella: 4-3
@@ -54,5 +54,26 @@ describe("aviso de resultados al compartir", () => {
     assert.equal(standingsDiffer([row(4)], [row(4)]), false);
     assert.equal(standingsDiffer([row(4)], [row(5)]), true);
     assert.equal(standingsDiffer(null, [row(5)]), true);
+  });
+});
+
+describe("clasificación de la liga (30)", () => {
+  it("ordena por porcentaje de victorias, sin mirar la conferencia", () => {
+    const rows = [
+      { id: 1, wins: 8, losses: 6 },
+      { id: 2, wins: 12, losses: 2 },
+      { id: 3, wins: 0, losses: 0 },
+      { id: 4, wins: 10, losses: 5 },
+    ];
+    assert.deepEqual(sortLeague(rows).map((t) => t.id), [2, 4, 1, 3]);
+  });
+
+  it("a igual porcentaje, primero quien más ha ganado y después el id", () => {
+    const rows = [
+      { id: 9, wins: 5, losses: 5 },
+      { id: 7, wins: 6, losses: 6 },
+      { id: 8, wins: 6, losses: 6 },
+    ];
+    assert.deepEqual(sortLeague(rows).map((t) => t.id), [7, 8, 9]);
   });
 });

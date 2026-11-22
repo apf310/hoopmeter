@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { BellOff, BellRing, Check, EyeOff, Star } from "lucide-react";
+import { BellOff, BellRing, Check, EyeOff, Share, SquarePlus, Star } from "lucide-react";
 import { LogoMark } from "@/components/layout/LogoMark";
 import { useFavorites } from "@/lib/favorites-store";
 import { PUSH_EXAMPLES, PUSH_HOURS, pushTeamIds, type PushHour } from "@/lib/push";
@@ -68,10 +68,10 @@ export function PushSettings() {
           Al tocarlo, {BRAND.name} abre en «Todo oculto», como siempre.
         </p>
 
-        {support === "ios-install" && (
-          <p className="mt-4 max-w-2xl border-l-2 border-orange-500 pl-3 text-sm text-slate-200">
-            En iPhone y iPad los avisos solo funcionan con {BRAND.name} en la pantalla de inicio: en Safari, pulsa Compartir › «Añadir a
-            pantalla de inicio» y ábrelo desde ese icono.
+        {support === "ios-install" && <IosInstallGuide />}
+        {support === "ios-update" && (
+          <p className="mt-4 max-w-2xl border-l-2 border-slate-600 pl-3 text-sm text-slate-300">
+            Los avisos necesitan iOS 16.4 o posterior. Actualiza el iPhone en Ajustes › General › Actualización de software y vuelve aquí.
           </p>
         )}
         {support === "unsupported" && (
@@ -172,6 +172,60 @@ export function PushSettings() {
         )}
       </section>
     </>
+  );
+}
+
+/**
+ * iPhone y iPad (Tarea 6.20): Safari solo da avisos a las webs añadidas a la pantalla de inicio, así que en vez de
+ * un botón que no puede funcionar, los pasos para añadirla. Al abrirla desde el icono, esta pantalla ya deja activarlo.
+ */
+function IosInstallGuide() {
+  const steps = [
+    {
+      icon: <Share className="size-5 text-sky-400" aria-hidden />,
+      text: (
+        <>
+          Toca <strong className="text-white">Compartir</strong>, el cuadrado con la flecha hacia arriba (en Safari, en la barra de
+          abajo; en Chrome, junto a la dirección).
+        </>
+      ),
+    },
+    {
+      icon: <SquarePlus className="size-5 text-white" aria-hidden />,
+      text: (
+        <>
+          Baja en el menú y elige <strong className="text-white">«Añadir a pantalla de inicio»</strong>; después, «Añadir».
+        </>
+      ),
+    },
+    {
+      icon: <LogoMark className="size-5" />,
+      text: (
+        <>
+          Abre <strong className="text-white">{BRAND.name}</strong> desde ese icono, vuelve a esta pantalla y pulsa «Activar aviso».
+        </>
+      ),
+    },
+  ];
+
+  return (
+    <div className="mt-5 max-w-2xl border-l-2 border-orange-500 pl-4">
+      <h2 className="font-display text-xs font-semibold uppercase tracking-[0.25em] text-orange-400">En iPhone y iPad, antes de activarlo</h2>
+      <p className="mt-1 text-sm text-slate-300">Apple solo deja avisar a las webs que están en la pantalla de inicio. Es un momento:</p>
+      <ol className="mt-3 space-y-3">
+        {steps.map((step, i) => (
+          <li key={i} className="flex items-start gap-3 text-sm text-slate-200">
+            <span className="flex size-7 shrink-0 items-center justify-center bg-slate-800 font-display text-base font-extrabold text-white">
+              {i + 1}
+            </span>
+            <span className="flex min-w-0 items-start gap-2 pt-1">
+              <span className="mt-px shrink-0">{step.icon}</span>
+              <span>{step.text}</span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

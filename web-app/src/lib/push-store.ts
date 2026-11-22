@@ -19,7 +19,9 @@ import {
 /** Clave pública VAPID (la privada solo está en el secreto VAPID_PRIVATE_KEY de GitHub). */
 const VAPID_PUBLIC_KEY = "BM9HJa2yogWbV38SkR_bdiR8_FbIzOq8tesFYQ9sA69S0KmjpTJQQmWS5KjOVOJ7oa9HOh4RUJP1zBomGttzMs8";
 
-export type PushSupport = "native" | "web" | "ios-install" | "unsupported";
+// ios-install: iPhone/iPad en el navegador (hay que añadirla a la pantalla de inicio); ios-update: ya añadida, pero
+// su iOS es anterior al 16.4 y no tiene avisos
+export type PushSupport = "native" | "web" | "ios-install" | "ios-update" | "unsupported";
 export type PushErrorCode = "denied" | "unsupported" | "server" | "device";
 
 export class PushError extends Error {
@@ -67,9 +69,12 @@ export function usePushState(): PushState {
 export function getPushSupport(): PushSupport {
   if (isNativeApp()) return Capacitor.getPlatform() === "android" ? "native" : "unsupported";
   if ("serviceWorker" in navigator && "PushManager" in window && "Notification" in window) return "web";
-  // iPhone/iPad: Safari solo admite avisos con la web añadida a la pantalla de inicio (iOS 16.4+)
-  if (/iPhone|iPad|iPod/.test(navigator.userAgent)) return "ios-install";
-  return "unsupported";
+  // iPhone/iPad: Safari solo admite avisos con la web añadida a la pantalla de inicio (iOS 16.4+).
+  // El iPad dice ser un Mac: se distingue por la pantalla táctil.
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (!ios) return "unsupported";
+  const installed = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return installed ? "ios-update" : "ios-install";
 }
 
 function base64UrlToBytes(value: string): Uint8Array<ArrayBuffer> {

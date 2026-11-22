@@ -63,7 +63,7 @@ export function PlayByPlay({ detail, away, home }: { detail: GameDetail; away: M
               <Fragment key={play.id}>
                 {header && (
                   // Fijo bajo la barra de pestañas (h-12) y, en móvil, bajo la barra superior (h-14)
-                  <li className="sticky top-[calc(6.5rem+env(safe-area-inset-top))] z-[1] border-b border-slate-800 bg-slate-950/95 px-4 py-2 font-display text-sm font-bold uppercase tracking-[0.2em] text-orange-400 backdrop-blur md:top-12 md:px-8">
+                  <li className="sticky top-[calc(6.5rem+env(safe-area-inset-top))] z-[1] border-b border-slate-800 bg-slate-950 px-4 py-2 font-display text-sm font-bold uppercase tracking-[0.2em] text-orange-400 backdrop-blur md:top-12 md:px-8">
                     {periodName(play.period, regulation)}
                   </li>
                 )}

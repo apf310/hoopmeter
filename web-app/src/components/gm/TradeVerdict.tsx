@@ -1,5 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import Image from "next/image";
-import { CheckCircle2, Clock, Info, TriangleAlert, XCircle, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronUp, Clock, Info, TriangleAlert, XCircle, type LucideIcon } from "lucide-react";
 import { pickLabel, type GmTeam } from "@/lib/gm";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { formatMoney, RULE_LABEL, verdictTitle, type TeamReport, type Trade, type TradeVerdict } from "@/lib/trade-rules";
@@ -19,13 +22,32 @@ function verdictDetail(verdict: TradeVerdict): string {
   return "Toca un jugador o una ronda para incluirlos en el traspaso.";
 }
 
-/** Veredicto siempre a la vista mientras se monta el traspaso. */
+/**
+ * Veredicto siempre a la vista mientras se monta el traspaso. En el móvil se pliega a una píldora con el
+ * estado (Tarea 6.20): entre la cabecera, la barra inferior y la franja entera quedaba poco sitio para la plantilla.
+ */
 export function VerdictBar({ verdict }: { verdict: TradeVerdict }) {
   const { Icon, bar, title } = TONE[verdict.status];
+  const [folded, setFolded] = useState(false);
 
   return (
-    <div className="sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 md:bottom-0" role="status">
-      <div className={cn("flex items-center gap-3 border-y px-4 py-2.5 backdrop-blur md:px-8", bar)}>
+    <div className="pointer-events-none sticky bottom-[calc(4rem+env(safe-area-inset-bottom))] z-20 md:bottom-0" role="status">
+      {folded && (
+        <div className="flex justify-end px-4 pb-2 md:hidden">
+          <button
+            type="button"
+            onClick={() => setFolded(false)}
+            aria-expanded={false}
+            aria-label={`${verdictTitle(verdict)}. Desplegar el aviso del convenio`}
+            className={cn("pointer-events-auto flex h-[2.625rem] items-center gap-1.5 rounded-full border pl-3 pr-2.5 shadow-lg backdrop-blur", bar)}
+          >
+            <Icon className={cn("size-5 shrink-0", title)} />
+            <span className={cn("font-display text-base font-extrabold uppercase leading-none", title)}>{verdictTitle(verdict)}</span>
+            <ChevronUp className="size-4 text-slate-300" aria-hidden />
+          </button>
+        </div>
+      )}
+      <div className={cn("pointer-events-auto flex items-center gap-3 border-y px-4 py-2.5 backdrop-blur md:flex md:px-8", bar, folded && "hidden")}>
         <Icon className={cn("size-7 shrink-0", title)} />
         <div className="min-w-0 flex-1">
           <p className={cn("font-display text-2xl font-extrabold uppercase leading-none", title)}>{verdictTitle(verdict)}</p>
@@ -36,6 +58,16 @@ export function VerdictBar({ verdict }: { verdict: TradeVerdict }) {
             Ver detalle
           </a>
         )}
+        <button
+          type="button"
+          onClick={() => setFolded(true)}
+          aria-expanded
+          aria-label="Plegar el aviso del convenio"
+          title="Plegar"
+          className="-mr-2 flex size-10 shrink-0 items-center justify-center text-slate-300 hover:text-white md:hidden"
+        >
+          <ChevronDown className="size-5" />
+        </button>
       </div>
     </div>
   );

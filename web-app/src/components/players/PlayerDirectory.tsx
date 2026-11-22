@@ -1,20 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Search, X } from "lucide-react";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
-import { positionLabel, tierOf } from "@/lib/player-profile";
-import type { StarPlayer } from "@/lib/queries";
+import { positionLabel } from "@/lib/player-profile";
 import { search, type SearchIndex, type SearchPlayer } from "@/lib/search";
 import { teamAccent } from "@/lib/team-colors";
-import { cn } from "@/lib/utils";
 
 const RESULT_LIMIT = 40;
 
-/** Directorio de jugadores: buscador instantáneo y, sin búsqueda, los mejores, los equipos y las leyendas. */
-export function PlayerDirectory({ index, stars, legends }: { index: SearchIndex; stars: StarPlayer[]; legends: { id: number; name: string }[] }) {
+/**
+ * Directorio de jugadores: buscador instantáneo (activos y leyendas) y, sin búsqueda, el explorador de
+ * estadísticas (Tarea 6.22), los equipos y las leyendas. El explorador solo se oculta mientras se busca:
+ * al borrar la búsqueda sigue con sus filtros.
+ */
+export function PlayerDirectory({ index, legends, explorer }: { index: SearchIndex; legends: { id: number; name: string }[]; explorer: ReactNode }) {
   const [query, setQuery] = useState("");
   const teams = useMemo(() => new Map(index.teams.map((team) => [team.id, team])), [index.teams]);
   const results = useMemo(() => search(index, query, { teams: 0, players: RESULT_LIMIT }).players, [index, query]);
@@ -22,7 +24,7 @@ export function PlayerDirectory({ index, stars, legends }: { index: SearchIndex;
 
   return (
     <>
-      <div className="sticky top-14 z-10 border-b border-slate-800 bg-slate-950/95 px-4 py-3 backdrop-blur md:top-0 md:px-8">
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 border-b border-slate-800 bg-slate-950 px-4 py-3 md:top-0 md:px-8">
         <label className="flex items-center gap-3 bg-slate-900 px-4 ring-1 ring-inset ring-slate-700 focus-within:ring-2 focus-within:ring-orange-500">
           <Search className="size-5 shrink-0 text-slate-400" aria-hidden />
           <input
@@ -42,7 +44,7 @@ export function PlayerDirectory({ index, stars, legends }: { index: SearchIndex;
         </label>
       </div>
 
-      {searching ? (
+      {searching && (
         <section aria-live="polite">
           {results.length === 0 ? (
             <p className="px-4 py-8 text-slate-300 md:px-8">Ningún jugador coincide con «{query}».</p>
@@ -54,64 +56,44 @@ export function PlayerDirectory({ index, stars, legends }: { index: SearchIndex;
             </ul>
           )}
         </section>
-      ) : (
-        <>
-          <SectionTitle>Los mejores de la temporada</SectionTitle>
-          <ul className="grid grid-cols-2 gap-px bg-slate-800 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-            {stars.map((star, rank) => {
-              const team = teams.get(star.teamId);
-              const tier = tierOf(star.overall);
-              return (
-                <li key={star.id} className="bg-slate-950">
-                  <Link href={`/players/${star.id}`} className="group relative block overflow-hidden" style={{ background: `linear-gradient(160deg, ${team?.primary_color ?? "#334155"}55 0%, #020617 75%)` }}>
-                    <span className="absolute left-3 top-2 font-display text-3xl font-extrabold text-white/25">{rank + 1}</span>
-                    <span className={cn("absolute right-3 top-2 font-display text-3xl font-extrabold leading-none", tier.textClass)}>{star.overall}</span>
-                    <Image src={playerHeadshotUrl(star.id)} alt="" width={260} height={190} className="mx-auto mt-6 h-[120px] w-auto object-contain object-bottom transition-transform group-hover:scale-105" />
-                    <span className="block h-1" style={{ background: team ? teamAccent(team) : "#f97316" }} aria-hidden />
-                    <span className="block px-3 pb-3 pt-2">
-                      <span className="block truncate font-display text-lg font-extrabold uppercase leading-tight text-white">{star.name}</span>
-                      <span className="block truncate text-xs text-slate-300">{[team?.abbreviation, positionLabel(star.position)].filter(Boolean).join(" · ")}</span>
-                    </span>
+      )}
+
+      <div hidden={searching}>
+        {explorer}
+
+        <SectionTitle>Por equipo</SectionTitle>
+        <ul className="grid grid-cols-3 gap-px bg-slate-800 sm:grid-cols-5 lg:grid-cols-10">
+          {index.teams.map((team) => (
+            <li key={team.id} className="bg-slate-950">
+              <Link href={`/teams/${team.id}`} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
+                {/* Halo claro: muchos logos son oscuros y desaparecerían sobre el fondo */}
+                <Image src={teamLogoUrl(team.id)} alt="" width={44} height={44} unoptimized className="size-11 drop-shadow-[0_0_2px_rgba(255,255,255,0.75)]" />
+                <span className="font-display text-sm font-bold uppercase text-slate-200">{team.abbreviation}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        {legends.length > 0 && (
+          <>
+            <SectionTitle>Leyendas</SectionTitle>
+            <ul className="flex flex-wrap gap-2 px-4 py-4 md:px-8">
+              {legends.map((legend) => (
+                <li key={legend.id}>
+                  <Link href={`/players/${legend.id}`} className="block bg-slate-900 px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wide text-slate-200 ring-1 ring-inset ring-slate-700 transition-colors hover:bg-orange-500 hover:text-slate-950">
+                    {legend.name}
                   </Link>
                 </li>
-              );
-            })}
-          </ul>
-
-          <SectionTitle>Por equipo</SectionTitle>
-          <ul className="grid grid-cols-3 gap-px bg-slate-800 sm:grid-cols-5 lg:grid-cols-10">
-            {index.teams.map((team) => (
-              <li key={team.id} className="bg-slate-950">
-                <Link href={`/teams/${team.id}`} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
-                  {/* Halo claro: muchos logos son oscuros y desaparecerían sobre el fondo */}
-                  <Image src={teamLogoUrl(team.id)} alt="" width={44} height={44} unoptimized className="size-11 drop-shadow-[0_0_2px_rgba(255,255,255,0.75)]" />
-                  <span className="font-display text-sm font-bold uppercase text-slate-200">{team.abbreviation}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-
-          {legends.length > 0 && (
-            <>
-              <SectionTitle>Leyendas</SectionTitle>
-              <ul className="flex flex-wrap gap-2 px-4 py-4 md:px-8">
-                {legends.map((legend) => (
-                  <li key={legend.id}>
-                    <Link href={`/players/${legend.id}`} className="block bg-slate-900 px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wide text-slate-200 ring-1 ring-inset ring-slate-700 transition-colors hover:bg-orange-500 hover:text-slate-950">
-                      {legend.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </>
-      )}
+              ))}
+            </ul>
+          </>
+        )}
+      </div>
     </>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <h2 className="border-b border-slate-800 px-4 pb-2 pt-6 font-display text-lg font-bold uppercase tracking-wide text-white md:px-8">{children}</h2>
   );

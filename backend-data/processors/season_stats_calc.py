@@ -111,6 +111,8 @@ def resolve_history(player_id: int, season_type: str, season: str, existing: dic
 def build(client, season: str, today: date) -> dict:
     game_rows = select_all(client, "player_game_stats", "*", lambda q: q.eq("season_id", season))
     seasons = S.aggregate(game_rows)
+    # Totales de equipo de cada partido: USG%, AST% y REB% del explorador de jugadores (Tarea 6.22)
+    team_games = S.group_team_games(select_all(client, "team_game_stats", "*", lambda q: q.eq("season_id", season)))
     teams = client.table("teams").select("id, abbreviation").execute().data
     abbreviations = {t["id"]: t["abbreviation"] for t in teams}
     valid_teams = set(abbreviations)
@@ -139,7 +141,7 @@ def build(client, season: str, today: date) -> dict:
         age = S.season_age(players[pid].get("birth_date"), season, today)
         if age is None:
             age = ((existing.get(current_id) or {}).get("advanced_stats") or {}).get("age")
-        rows.append(S.season_row(ps, abbreviations, valid_teams, age))
+        rows.append(S.season_row(ps, abbreviations, valid_teams, age, rates=S.usage_rates(ps, team_games)))
 
     # Carrera: para cada jugador con partidos esta temporada, regular y playoffs
     for pid in player_ids:

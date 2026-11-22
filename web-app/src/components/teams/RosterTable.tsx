@@ -10,7 +10,8 @@ import { DEFAULT_ROSTER_SORT, nextSort, sortRoster, type RosterRow, type RosterS
 import { formatMoney } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
 
-const TH = "px-1.5 py-3 sm:px-2 font-display text-xs font-semibold uppercase tracking-wider text-slate-300";
+// Sin relleno: el botón ocupa toda la celda (44 px de alto en móvil, Tarea 6.20) y se acierta con el dedo
+const TH = "p-0 font-display text-xs font-semibold uppercase tracking-wider text-slate-300";
 const TD = "px-1.5 text-right tabular-nums sm:px-2";
 const SM = "hidden sm:table-cell";
 
@@ -36,7 +37,8 @@ export function RosterTable({ rows, accent, salarySeason }: { rows: RosterRow[];
 
   if (rows.length === 0) return <p className="py-4 text-sm text-slate-400">Sin jugadores registrados.</p>;
 
-  const header = (column: Pick<Column, "key" | "label" | "title">, className?: string, align: "left" | "right" = "right") => {
+  // `edge`: primera o última columna, pegadas al borde de la sección (sin relleno por ese lado, como sus celdas)
+  const header = (column: Pick<Column, "key" | "label" | "title">, className?: string, align: "left" | "right" = "right", edge?: "start" | "end") => {
     const active = sort.key === column.key;
     return (
       <th
@@ -50,8 +52,10 @@ export function RosterTable({ rows, accent, salarySeason }: { rows: RosterRow[];
           title={column.title}
           onClick={() => setSort((current) => nextSort(current, column.key))}
           className={cn(
-            "inline-flex items-center gap-0.5 uppercase hover:text-white",
+            "flex min-h-[3.125rem] w-full items-center gap-0.5 px-1.5 uppercase outline-none hover:text-white focus-visible:text-orange-300 sm:min-h-11 sm:px-2",
             align === "right" && "flex-row-reverse",
+            edge === "start" && "pl-0 sm:pl-0",
+            edge === "end" && "pr-0 sm:pr-0",
             active && "text-orange-400 hover:text-orange-300"
           )}
         >
@@ -70,7 +74,7 @@ export function RosterTable({ rows, accent, salarySeason }: { rows: RosterRow[];
       <table className="w-full whitespace-nowrap text-sm">
         <thead className="border-b border-slate-800">
           <tr>
-            {header({ key: "name", label: "Jugador", title: "Nombre" }, "sticky left-0 z-10 w-full bg-slate-950 pl-0", "left")}
+            {header({ key: "name", label: "Jugador", title: "Nombre" }, "sticky left-0 z-10 w-full bg-slate-950", "left", "start")}
             {COLUMNS.map((column) => header(column, column.className))}
             {header(
               {
@@ -84,7 +88,9 @@ export function RosterTable({ rows, accent, salarySeason }: { rows: RosterRow[];
                 ),
                 title: `Salario ${salarySeason}`,
               },
-              "pr-0"
+              undefined,
+              "right",
+              "end"
             )}
           </tr>
         </thead>

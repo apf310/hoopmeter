@@ -1,7 +1,7 @@
 // Capturas de la web como en un Galaxy S24 (360×780, densidad 3) o en escritorio, por CDP y sin dependencias.
 // Necesita Google Chrome instalado. Uso (desde web-app/):
 //   node scripts/screenshot.mjs <url> <salida.png> [nivel=1] [ancho=360] [alto=780] [esperaMs=3500] [paginaCompleta=1]
-// Variables opcionales: CLICK="selector||selector" (pulsa en orden), CLICK_WAIT=ms, DOWNLOAD_DIR=carpeta (permite descargas),
+// Variables opcionales: CLICK="selector||selector" (pulsa en orden), CLICK_WAIT=ms, SCROLL=px (baja antes de capturar), DOWNLOAD_DIR=carpeta (permite descargas),
 //   LOCAL_STORAGE=JSON y COOKIES="a=1;b=2" (estado ya guardado en el navegador, p. ej. favoritos).
 // Imprime JSON con el ancho real de la página: si scrollW > W, algo se sale por la derecha (y lista qué).
 import { spawn } from "node:child_process";
@@ -50,6 +50,11 @@ for (const selector of (process.env.CLICK ?? "").split("||").filter(Boolean)) {
   const r = await send("Runtime.evaluate", { returnByValue: true, expression: `(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return "no encontrado"; el.click(); return "ok"; })()` });
   console.error("click:", selector, r.result.result.value);
   await sleep(Number(process.env.CLICK_WAIT ?? 3500));
+}
+// Opcional: SCROLL=px baja la página antes de la captura (para ver barras fijas; usar con paginaCompleta=0)
+if (process.env.SCROLL) {
+  await send("Runtime.evaluate", { expression: `window.scrollTo(0, ${Number(process.env.SCROLL)})` });
+  await sleep(600);
 }
 // Medidas de desbordamiento horizontal (contenido que no cabe en la pantalla)
 const probe = await send("Runtime.evaluate", { returnByValue: true, expression: `(() => {

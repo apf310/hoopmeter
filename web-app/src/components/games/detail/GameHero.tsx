@@ -79,6 +79,10 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
       />
 
       <div className="relative px-4 pb-6 pt-3 md:px-8 md:pb-8 md:pt-6">
+        {/* Título de la página para lectores de pantalla y buscadores: solo el emparejamiento (Nivel 1) */}
+        <h1 className="sr-only">
+          {away.name} – {home.name} · {formatWeekday(day, "long")} {formatDayMonth(day)}
+        </h1>
         {/* Volver y compartir en los extremos; la fecha, debajo en móvil y entre los dos en escritorio */}
         <div className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-y-3 md:grid-cols-[1fr_auto_1fr]">
           <Link

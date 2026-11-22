@@ -209,7 +209,7 @@ export function radarRows(a: Radar, b: Radar, labels: Record<RadarCategory, stri
   return CATEGORIES.map((category) => buildRow(category, labels[category], a[category], b[category], { format: "integer" }));
 }
 
-/** Premios que se comparan, por orden de prestigio (claves de `TrophyCabinet`). */
+/** Premios que se comparan, por orden de prestigio (claves de `components/trophies/trophy-catalog.ts`). */
 const TROPHY_ROWS = [
   ["champion", "Anillos"],
   ["mvp", "MVP"],

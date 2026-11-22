@@ -61,3 +61,79 @@ export function search(index: SearchIndex, rawQuery: string, limits = { teams: M
     players: rank(index.players, (p) => [normalize(p.full_name)], (p) => p.full_name, query, limits.players),
   };
 }
+
+// --- Ctrl+K vacío (Tarea 6.21): búsquedas recientes y favoritos encima de los 30 escudos.
+// Las recientes se guardan en el dispositivo y solo con ids: nombre, foto y equipo salen siempre del índice
+// del día (un traspasado aparece con su equipo nuevo). Nada que ver con el nivel de spoilers.
+
+export type RecentPick = { kind: "team" | "player"; id: number };
+export type SearchEntry = { kind: "team"; team: SearchTeam } | { kind: "player"; player: SearchPlayer };
+
+export const RECENT_SEARCH_KEY = "hoopmeter:search-recent";
+export const MAX_RECENT = 6;
+
+const isId = (value: unknown): value is number => Number.isInteger(value) && (value as number) > 0;
+
+/** Lee las recientes guardadas. Cualquier dato roto se descarta: nunca rompe el buscador. */
+export function parseRecent(raw: string | null): RecentPick[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw ?? "null");
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const picks: RecentPick[] = [];
+  for (const item of parsed) {
+    const { kind, id } = (item ?? {}) as Record<string, unknown>;
+    if ((kind === "team" || kind === "player") && isId(id) && !picks.some((p) => p.kind === kind && p.id === id)) picks.push({ kind, id });
+  }
+  return picks.slice(0, MAX_RECENT);
+}
+
+/** La última elegida pasa la primera (sin repetirse) y la lista nunca pasa de `MAX_RECENT`. */
+export function addRecent(recent: readonly RecentPick[], pick: RecentPick): RecentPick[] {
+  return [pick, ...recent.filter((p) => p.kind !== pick.kind || p.id !== pick.id)].slice(0, MAX_RECENT);
+}
+
+/** Lo que pide el buscador vacío de los favoritos (mismo formato que `Favorites`, sin depender de él). */
+type FavoriteRefs = { teams: { id: number }[]; players: { id: number; name: string; teamId: number | null }[] };
+
+/**
+ * Filas del buscador vacío: favoritos (equipos y después jugadores) y recientes que no lo son. Una reciente
+ * que ya no está en el índice se omite; un jugador favorito que no está sale con lo que se guardó al marcarlo.
+ */
+export function emptySearchEntries(
+  index: SearchIndex,
+  recent: readonly RecentPick[],
+  favorites: FavoriteRefs
+): { recent: SearchEntry[]; favorites: SearchEntry[] } {
+  const teams = new Map(index.teams.map((t) => [t.id, t]));
+  const players = new Map(index.players.map((p) => [p.id, p]));
+
+  const favoriteEntries: SearchEntry[] = [
+    ...favorites.teams.flatMap((t): SearchEntry[] => {
+      const team = teams.get(t.id);
+      return team ? [{ kind: "team", team }] : [];
+    }),
+    ...favorites.players.map(
+      (p): SearchEntry => ({
+        kind: "player",
+        player: players.get(p.id) ?? { id: p.id, full_name: p.name, position: null, team_id: p.teamId, is_active: true },
+      })
+    ),
+  ];
+  const isFavorite = (pick: RecentPick) =>
+    pick.kind === "team" ? favorites.teams.some((t) => t.id === pick.id) : favorites.players.some((p) => p.id === pick.id);
+
+  const recentEntries = recent.filter((pick) => !isFavorite(pick)).flatMap((pick): SearchEntry[] => {
+    if (pick.kind === "team") {
+      const team = teams.get(pick.id);
+      return team ? [{ kind: "team", team }] : [];
+    }
+    const player = players.get(pick.id);
+    return player ? [{ kind: "player", player }] : [];
+  });
+
+  return { recent: recentEntries, favorites: favoriteEntries };
+}

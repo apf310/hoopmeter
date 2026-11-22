@@ -4,8 +4,8 @@
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "recharts";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
-import { archetypeOf, avg, overallRating, pct, positionLabel, RADAR_LABEL, tierOf } from "@/lib/player-profile";
-import { teamAccent } from "@/lib/team-colors";
+import { archetypeOf, avg, overallRating, pct, positionLabel, RADAR_LABEL, shotPct, tierOf } from "@/lib/player-profile";
+import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -50,7 +50,7 @@ function PlayerShareCard({ format, player, team, radar, season, age }: CardData 
   const vertical = format === "9:16";
   const { width, height } = CARD_SIZE[format];
   const contentHeight = height - WATERMARK_HEIGHT[format];
-  const primary = team?.primary_color ?? "#334155";
+  const primary = teamBackdrop(team?.primary_color);
   const accent = team ? teamAccent(team) : "#f97316";
   const [firstName, ...rest] = player.full_name.split(" ");
   const lastName = rest.join(" ") || firstName;
@@ -162,18 +162,18 @@ function Identity({
 /** Insignia estilo videojuego: media global + arquetipo (misma que en la ficha). */
 function RatingBadge({ radar, big }: { radar: RadarAttributes; big?: boolean }) {
   const overall = overallRating(radar);
-  const tier = tierOf(overall);
+  const tier = overall === null ? null : tierOf(overall);
   return (
     <div className={cn("flex w-fit items-stretch", big ? "mt-8" : "mt-6")}>
       <div
         className="flex flex-col items-center justify-center py-2 pl-6 pr-10 text-slate-950 [clip-path:polygon(0_0,100%_0,82%_100%,0_100%)]"
-        style={{ background: tier.color }}
+        style={{ background: tier?.color ?? "#64748b" }}
       >
-        <span className={cn("font-display font-extrabold leading-none tabular-nums", big ? "text-8xl" : "text-7xl")}>{overall}</span>
+        <span className={cn("font-display font-extrabold leading-none tabular-nums", big ? "text-8xl" : "text-7xl")}>{overall ?? "–"}</span>
         <span className="font-display text-base font-bold uppercase tracking-[0.25em]">Media</span>
       </div>
       <div className="-ml-4 flex flex-col justify-center bg-slate-950/80 py-2 pl-9 pr-7">
-        <span className="font-display text-base font-semibold uppercase tracking-[0.25em] text-white/60">Perfil · {tier.label}</span>
+        <span className="font-display text-base font-semibold uppercase tracking-[0.25em] text-white/60">{tier ? `Perfil · ${tier.label}` : "Perfil"}</span>
         <span className={cn("font-display font-bold uppercase leading-tight text-white", big ? "text-5xl" : "text-4xl")}>{archetypeOf(radar)}</span>
       </div>
     </div>
@@ -185,8 +185,8 @@ function StatGrid({ season, columns = 3, className }: { season: PlayerSeasonStat
     { label: "Puntos", value: avg(season.pts) },
     { label: "Rebotes", value: avg(season.reb) },
     { label: "Asistencias", value: avg(season.ast) },
-    { label: "% Tiro", value: pct(season.fg_pct) },
-    { label: "% Triple", value: pct(season.fg3_pct) },
+    { label: "% Tiro", value: shotPct(season.fg_pct, season.totals?.fgm, season.totals?.fga) },
+    { label: "% Triple", value: shotPct(season.fg3_pct, season.totals?.fg3m, season.totals?.fg3a) },
     { label: "TS%", value: pct(season.advanced_stats.ts_pct) },
   ];
   return (

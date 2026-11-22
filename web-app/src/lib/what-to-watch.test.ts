@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   gameOfTheWeek,
   parseTeamFilter,
+  periodEnd,
   periodStart,
   rankGames,
   watchSearch,
@@ -32,6 +33,13 @@ describe("periodStart", () => {
     assert.equal(periodStart("temporada", TODAY), null);
   });
 
+  it("anoche es solo la jornada de ayer", () => {
+    assert.equal(periodStart("anoche", TODAY), "2026-11-18");
+    assert.equal(periodEnd("anoche", TODAY), "2026-11-18");
+    assert.equal(periodStart("anoche", "2027-01-01"), "2026-12-31");
+    assert.equal(periodEnd("semana", TODAY), TODAY);
+  });
+
   it("cruza meses y años sin saltarse días", () => {
     assert.equal(periodStart("semana", "2027-01-03"), "2026-12-28");
     assert.equal(periodStart("semana", "2027-03-01"), "2027-02-23");
@@ -49,6 +57,13 @@ describe("rankGames", () => {
 
   it("ordena por nota y deja fuera lo que no tiene nota o aún no toca", () => {
     assert.deepEqual(rankGames(all, { period: "semana", today: TODAY, dayOf }), [today, weekStart]);
+  });
+
+  it("anoche deja fuera hoy y los días anteriores a ayer", () => {
+    const lastNight = game("2026-11-18", 6.4, LAL, MIA);
+    const lastNightBetter = game("2026-11-18", 8.8);
+    const twoDaysAgo = game("2026-11-17", 9.9);
+    assert.deepEqual(rankGames([...all, lastNight, lastNightBetter, twoDaysAgo], { period: "anoche", today: TODAY, dayOf }), [lastNightBetter, lastNight]);
   });
 
   it("el mes y la temporada abarcan más jornadas", () => {
@@ -105,6 +120,7 @@ describe("filtros en la URL", () => {
   it("solo escribe lo que no es por defecto", () => {
     assert.equal(watchSearch("semana", "todos"), "");
     assert.equal(watchSearch("mes", "todos"), "?periodo=mes");
+    assert.equal(watchSearch("anoche", "todos"), "?periodo=anoche");
     assert.equal(watchSearch("semana", LAL), `?equipo=${LAL}`);
     assert.equal(watchSearch("temporada", "favoritos"), "?periodo=temporada&equipo=favoritos");
   });

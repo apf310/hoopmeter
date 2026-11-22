@@ -25,14 +25,8 @@ export function getRadar(player: Pick<Player, "radar_attributes">): RadarAttribu
   return RADAR_CATEGORIES.every((c) => typeof radar?.[c] === "number") ? (radar as RadarAttributes) : null;
 }
 
-/**
- * "Media" estilo videojuego: promedio de sus 4 mejores atributos. Así un especialista
- * de élite (p. ej. un pívot que no tira de tres) no queda penalizado por su rol.
- */
-export function overallRating(radar: RadarAttributes): number {
-  const top = RADAR_CATEGORIES.map((c) => radar[c]).sort((a, b) => b - a).slice(0, 4);
-  return Math.round(top.reduce((sum, v) => sum + v, 0) / top.length);
-}
+// Media, avisos de muestra corta y % de tiro con pocos intentos (Tarea 6.19): módulo puro con tests
+export { MIN_PCT_ATTEMPTS, OVERALL_EXPLAINED, overallRating, SHORT_SAMPLE_GAMES, sampleNote, shotPct } from "./player-rating";
 
 // Arquetipo según sus dos mejores atributos (clave ordenada como RADAR_CATEGORIES).
 const ARCHETYPES: Record<string, string> = {

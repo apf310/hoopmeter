@@ -52,7 +52,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Sidebar />
             <div className="flex min-h-screen flex-col pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0 md:pl-60">
               {/* Barra superior móvil: el selector de spoilers siempre a un toque */}
-              <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950/90 pt-[env(safe-area-inset-top)] backdrop-blur md:hidden">
+              {/* Opaca: con transparencia, lo que pasa por debajo se ve cortado a media letra (Tarea 6.20) */}
+              <header className="sticky top-0 z-20 border-b border-slate-800 bg-slate-950 pt-[env(safe-area-inset-top)] md:hidden">
                 <div className="flex h-14 items-center justify-between gap-3 px-4">
                   <Wordmark />
 

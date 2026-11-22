@@ -3,11 +3,12 @@ import { cacheLife } from "next/cache";
 import { gameDayOf, gameDayUtcRange, previousSeason, seasonOf, type GameMatchup } from "@/lib/game-day";
 import type { GmData, GmPlayer, GmTeam } from "@/lib/gm";
 import { ageFrom, getRadar, overallRating } from "@/lib/player-profile";
+import type { ExplorerRow, ExplorerSeason, ExplorerTotals } from "@/lib/player-explorer";
 import type { SearchIndex } from "@/lib/search";
 import type { Game } from "@/lib/spoilers";
 import { lastStartedDay, pickStandingsBefore, type StandingsBefore } from "@/lib/standings";
 import { getSupabase, type DeadMoney, type Player, type PlayerAward, type PlayerContract, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
-import { teamAccent } from "@/lib/team-colors";
+import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import type { RosterRow } from "@/lib/team-roster";
 import { SPAIN, type SpanishPlayer } from "@/lib/spanish-players";
 import type { ScoredGame } from "@/lib/what-to-watch";
@@ -410,7 +411,7 @@ export async function getGmData(): Promise<GmData> {
         conference: team.conference,
         wins: team.wins,
         losses: team.losses,
-        primary: team.primary_color ?? "#334155",
+        primary: teamBackdrop(team.primary_color),
         accent: teamAccent(team),
         deadMoney: current(team.dead_money.filter((entry) => entry.waived)),
       };
@@ -477,29 +478,159 @@ export async function getScoutingReports(playerIds: number[], season: string, pr
   );
 }
 
-/** Índice compacto del buscador: los 30 equipos y todos los jugadores, leyendas incluidas (solo campos necesarios). */
-/** Jugador destacado del directorio: los mejores de la temporada según la media de su radar. */
-export type StarPlayer = { id: number; name: string; position: string | null; teamId: number; overall: number };
-
-/** Todo lo que necesita /players: buscador completo, los mejores de la temporada y las leyendas. */
-export async function getPlayersDirectory(): Promise<{ index: SearchIndex; stars: StarPlayer[]; legends: { id: number; name: string }[] }> {
+/** Lo que necesita /players además del explorador: el buscador completo y las leyendas. */
+export async function getPlayersDirectory(): Promise<{ index: SearchIndex; legends: { id: number; name: string }[] }> {
   "use cache";
   cacheLife("hours");
 
-  const [index, radars] = await Promise.all([
-    getSearchIndex(),
-    getSupabase().from("players").select("id, full_name, position, team_id, radar_attributes").eq("is_active", true).not("team_id", "is", null),
-  ]);
-  if (radars.error) throw new Error(`Error cargando jugadores: ${radars.error.message}`);
-
-  const stars = (radars.data as Pick<Player, "id" | "full_name" | "position" | "team_id" | "radar_attributes">[])
-    .map((p) => ({ p, radar: getRadar(p) }))
-    .filter(({ radar }) => radar !== null)
-    .map(({ p, radar }) => ({ id: p.id, name: p.full_name, position: p.position, teamId: p.team_id!, overall: overallRating(radar!) }))
-    .sort((a, b) => b.overall - a.overall || a.name.localeCompare(b.name, "es"))
-    .slice(0, 12);
+  const index = await getSearchIndex();
   const legends = index.players.filter((p) => !p.is_active).map((p) => ({ id: p.id, name: p.full_name }));
-  return { index, stars, legends };
+  return { index, legends };
+}
+
+/** Temporadas anteriores que ofrece el explorador (Tarea 6.22), además de la en curso. */
+const EXPLORER_PAST_SEASONS = 2;
+
+/**
+ * Temporadas del explorador de jugadores, de la más reciente a la más antigua. La primera es la en curso;
+ * en verano, antes del primer partido, la que acaba de terminar.
+ */
+export async function getExplorerSeasons(): Promise<string[]> {
+  "use cache";
+  cacheLife("hours");
+
+  let current = seasonOf(new Date().toISOString());
+  const { count, error } = await getSupabase()
+    .from("player_season_stats")
+    .select("id", { count: "exact", head: true })
+    .eq("season_id", current)
+    .eq("season_type", "Regular Season");
+  if (error) throw new Error(`Error cargando temporadas: ${error.message}`);
+  if (!count) current = previousSeason(current);
+  const seasons = [current];
+  while (seasons.length <= EXPLORER_PAST_SEASONS) seasons.push(previousSeason(seasons.at(-1)!));
+  return seasons;
+}
+
+type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+
+/** Lee todas las páginas de una consulta (Supabase devuelve como mucho 1.000 filas). Necesita un orden fijo. */
+async function selectPages<T>(label: string, page: (from: number, to: number) => Page): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await page(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Error cargando ${label}: ${error.message}`);
+    out.push(...((data ?? []) as T[]));
+    if ((data ?? []).length < PAGE_SIZE) return out;
+  }
+}
+
+const EXPLORER_TOTALS = ["gs", "min", "pts", "reb", "oreb", "dreb", "ast", "stl", "blk", "tov", "pf", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta"] as const;
+const numberOrNull = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
+
+/**
+ * Una temporada del explorador de jugadores (Tarea 6.22): totales de la temporada regular de cada jugador,
+ * con lo justo de su ficha (posición, país, edad, rookie), su salario y su media. Cambia una vez al día
+ * (job diario), como los promedios de la ficha: sin spoilers. Las temporadas anteriores solo tienen a
+ * los jugadores con historial guardado (los que siguen en la NBA).
+ */
+export async function getPlayerExplorer(season: string): Promise<ExplorerSeason> {
+  "use cache";
+  cacheLife("hours");
+
+  const seasons = await getExplorerSeasons();
+  const current = season === seasons[0];
+  const supabase = getSupabase();
+  type StatRow = {
+    player_id: number;
+    team_id: number | null;
+    totals: Record<string, unknown> | null;
+    age: unknown;
+    teams: { team_id: number | null }[] | null;
+    usg: unknown;
+    astp: unknown;
+    rebp: unknown;
+  };
+  type PlayerRow = Pick<Player, "id" | "full_name" | "position" | "team_id" | "country" | "birth_date"> & {
+    radar_season: string | null;
+    overall: unknown;
+  };
+  type ContractRow = Pick<PlayerContract, "player_id" | "salary_current" | "status"> & { precision: string | null };
+
+  const [stats, players, contracts, earlier, careers] = await Promise.all([
+    selectPages<StatRow>("estadísticas", (from, to) =>
+      supabase
+        .from("player_season_stats")
+        .select(
+          "player_id, team_id, totals, age:advanced_stats->age, teams:advanced_stats->teams, usg:advanced_stats->usg_pct, astp:advanced_stats->ast_pct, rebp:advanced_stats->reb_pct"
+        )
+        .eq("season_id", season)
+        .eq("season_type", "Regular Season")
+        .order("id")
+        .range(from, to)
+    ),
+    selectPages<PlayerRow>("jugadores", (from, to) =>
+      supabase
+        .from("players")
+        .select("id, full_name, position, team_id, country, birth_date, radar_season:radar_attributes->>season, overall:radar_attributes->overall")
+        .order("id")
+        .range(from, to)
+    ),
+    selectPages<ContractRow>("contratos", (from, to) =>
+      supabase.from("player_contracts").select("player_id, salary_current, status, precision:source->>precision").order("player_id").range(from, to)
+    ),
+    // Rookie = ninguna temporada regular anterior a esta ("Career" queda fuera: va después de los números)
+    selectPages<{ player_id: number }>("temporadas anteriores", (from, to) =>
+      supabase.from("player_season_stats").select("player_id").eq("season_type", "Regular Season").lt("season_id", season).order("id").range(from, to)
+    ),
+    // En la temporada en curso, además, con la carrera resuelta: un veterano sin historial oficial aún no es rookie
+    current
+      ? selectPages<{ player_id: number }>("carreras", (from, to) =>
+          supabase.from("player_season_stats").select("player_id").eq("season_id", "Career").eq("season_type", "Regular Season").order("id").range(from, to)
+        )
+      : Promise.resolve(null),
+  ]);
+
+  const playerById = new Map(players.map((p) => [p.id, p]));
+  const contractById = new Map(contracts.map((c) => [c.player_id, c]));
+  const veterans = new Set(earlier.map((r) => r.player_id));
+  const withCareer = careers ? new Set(careers.map((r) => r.player_id)) : null;
+  // Edad de una temporada anterior sin dato guardado: la del 1 de febrero de esa temporada
+  const ageDate = current ? new Date() : new Date(`${Number(season.slice(0, 4)) + 1}-02-01T00:00:00Z`);
+
+  const rows = stats.flatMap((s): ExplorerRow[] => {
+    const player = playerById.get(s.player_id);
+    const gp = numberOrNull(s.totals?.gp);
+    if (!player || !gp) return [];
+    const totals = { gp } as ExplorerTotals;
+    for (const key of EXPLORER_TOTALS) totals[key] = numberOrNull(s.totals?.[key]);
+
+    const teamIds = new Set<number>();
+    for (const id of [s.team_id, ...(s.teams ?? []).map((t) => t.team_id), current ? player.team_id : null]) if (id) teamIds.add(id);
+
+    const contract = contractById.get(player.id);
+    const pending = contract !== undefined && (contract.status === "pending" || contract.salary_current === null);
+    return [
+      {
+        id: player.id,
+        name: player.full_name,
+        position: player.position,
+        teamId: current ? (player.team_id ?? s.team_id) : s.team_id,
+        teamIds: [...teamIds],
+        country: player.country,
+        age: numberOrNull(s.age) ?? ageFrom(player.birth_date, ageDate),
+        rookie: !veterans.has(player.id) && (withCareer === null || withCareer.has(player.id)),
+        salary: contract && !pending ? contract.salary_current : null,
+        salaryStatus: !contract ? null : pending ? "pending" : contract.precision === "approx" ? "approx" : "confirmed",
+        overall: player.radar_season === season ? numberOrNull(player.overall) : null,
+        usgPct: numberOrNull(s.usg),
+        astPct: numberOrNull(s.astp),
+        rebPct: numberOrNull(s.rebp),
+        totals,
+      },
+    ];
+  });
+  return { season, current, rows };
 }
 
 /** Españoles en activo con equipo ("Los nuestros", Tarea 6.12): solo nombre y equipo actual, sin spoilers. */
@@ -519,6 +650,7 @@ export async function getSpanishPlayers(): Promise<SpanishPlayer[]> {
   return (data as Pick<Player, "id" | "full_name" | "team_id">[]).map((p) => ({ id: p.id, name: p.full_name, teamId: p.team_id! }));
 }
 
+/** Índice compacto del buscador: los 30 equipos y todos los jugadores, leyendas incluidas (solo campos necesarios). */
 export async function getSearchIndex(): Promise<SearchIndex> {
   "use cache";
   // Las plantillas cambian con traspasos y fichajes: refresco horario.

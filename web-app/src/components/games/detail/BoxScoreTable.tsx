@@ -4,6 +4,7 @@ import { Fragment, useState } from "react";
 import Image from "next/image";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Eyebrow, Segmented, TeamToggle } from "@/components/games/detail/ui";
+import { useFloatingHead } from "@/lib/floating-head";
 import type { GameDetail, PlayerLine, TeamBox } from "@/lib/game-detail";
 import { decimal, doubleDouble, minutes, pct, shooting, signed, teamOf, type MatchupTeam } from "@/lib/game-format";
 import { playerHeadshotUrl } from "@/lib/nba-cdn";
@@ -124,6 +125,39 @@ export function BoxScoreTable({
     setSort((current) => (current?.key !== key ? { key, dir: -1 } : current.dir === -1 ? { key, dir: 1 } : null));
   }
 
+  const { anchorRef, boxRef, copyRef, scrollerRef, tableRef, floating, syncScroll } = useFloatingHead();
+
+  /** Celdas de la cabecera: las de la tabla y las de su copia fija (`copy`, fuera del orden de tabulación). */
+  const headerCells = (copy: boolean) => (
+    <>
+      <th scope="col" className={cn(TH, "sticky left-0 z-[2] bg-slate-950 pl-4 text-left md:pl-8")}>
+        Jugador
+      </th>
+      {columns.map((column) => {
+        const active = sort?.key === column.key;
+        return (
+          <th
+            key={column.key}
+            scope="col"
+            aria-sort={copy ? undefined : active ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
+            className={cn(TH, "text-right last:pr-4 md:last:pr-8")}
+          >
+            <button
+              type="button"
+              title={column.title}
+              tabIndex={copy ? -1 : undefined}
+              onClick={() => toggleSort(column.key)}
+              className={cn("inline-flex items-center gap-0.5 uppercase hover:text-white", active && "text-orange-400")}
+            >
+              {column.label}
+              {active && (sort.dir === -1 ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />)}
+            </button>
+          </th>
+        );
+      })}
+    </>
+  );
+
   return (
     <div>
       <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 px-4 py-3 md:gap-3 md:px-8">
@@ -142,72 +176,61 @@ export function BoxScoreTable({
         />
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full whitespace-nowrap text-sm tabular-nums">
-          <thead className="border-b border-slate-800">
-            <tr>
-              <th scope="col" className={cn(TH, "sticky left-0 z-[2] bg-slate-950 pl-4 text-left md:pl-8")}>
-                Jugador
-              </th>
-              {columns.map((column) => {
-                const active = sort?.key === column.key;
-                return (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    aria-sort={active ? (sort.dir === -1 ? "descending" : "ascending") : undefined}
-                    className={cn(TH, "text-right last:pr-4 md:last:pr-8")}
-                  >
-                    <button
-                      type="button"
-                      title={column.title}
-                      onClick={() => toggleSort(column.key)}
-                      className={cn("inline-flex items-center gap-0.5 uppercase hover:text-white", active && "text-orange-400")}
+      <div className="relative">
+        {/* Copia de la cabecera que se queda fija bajo las pestañas al bajar (Tarea 6.20): la de la tabla vive dentro
+            de su scroll horizontal y no puede fijarse en vertical. Mismos anchos y mismo desplazamiento lateral. */}
+        <div ref={anchorRef} aria-hidden className="sticky top-[calc(6.5rem+env(safe-area-inset-top))] z-[3] h-0 md:top-12">
+          <div ref={boxRef} className={cn("overflow-hidden bg-slate-950 shadow-[0_8px_12px_-8px_rgba(0,0,0,0.9)]", !floating && "invisible")}>
+            <table ref={copyRef} className="table-fixed whitespace-nowrap text-sm tabular-nums">
+              <thead className="border-b border-slate-800">
+                <tr>{headerCells(true)}</tr>
+              </thead>
+            </table>
+          </div>
+        </div>
+
+        <div ref={scrollerRef} onScroll={syncScroll} className="overflow-x-auto">
+          <table ref={tableRef} className="w-full whitespace-nowrap text-sm tabular-nums">
+            <thead className="border-b border-slate-800">
+              <tr>{headerCells(false)}</tr>
+            </thead>
+            <tbody>
+              {groups.map((group) => (
+                <Fragment key={group.label}>
+                  <tr className="border-b border-slate-800 bg-slate-900/50">
+                    <th
+                      scope="colgroup"
+                      colSpan={columns.length + 1}
+                      className="sticky left-0 py-1.5 pl-4 text-left font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400 md:pl-8"
                     >
-                      {column.label}
-                      {active && (sort.dir === -1 ? <ArrowDown className="size-3" /> : <ArrowUp className="size-3" />)}
-                    </button>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((group) => (
-              <Fragment key={group.label}>
-                <tr className="border-b border-slate-800 bg-slate-900/50">
-                  <th
-                    scope="colgroup"
-                    colSpan={columns.length + 1}
-                    className="sticky left-0 py-1.5 pl-4 text-left font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400 md:pl-8"
-                  >
-                    {group.label}
-                  </th>
-                </tr>
-                {group.players.map((player) => (
-                  <PlayerRow
-                    key={player.id}
-                    player={player}
-                    columns={columns}
-                    best={bestByColumn}
-                    accent={team.accent}
-                    onOpen={() => onOpenPlayer(player.id)}
-                  />
-                ))}
-              </Fragment>
-            ))}
-            <tr className="border-b border-slate-800 font-display text-base font-bold text-white">
-              <th scope="row" className="sticky left-0 bg-slate-950 py-2.5 pl-4 text-left uppercase tracking-wide md:pl-8">
-                Totales
-              </th>
-              {columns.map((column) => (
-                <td key={column.key} className="px-2 py-2.5 text-right last:pr-4 md:last:pr-8">
-                  {column.total(box)}
-                </td>
+                      {group.label}
+                    </th>
+                  </tr>
+                  {group.players.map((player) => (
+                    <PlayerRow
+                      key={player.id}
+                      player={player}
+                      columns={columns}
+                      best={bestByColumn}
+                      accent={team.accent}
+                      onOpen={() => onOpenPlayer(player.id)}
+                    />
+                  ))}
+                </Fragment>
               ))}
-            </tr>
-          </tbody>
-        </table>
+              <tr className="border-b border-slate-800 font-display text-base font-bold text-white">
+                <th scope="row" className="sticky left-0 bg-slate-950 py-2.5 pl-4 text-left uppercase tracking-wide md:pl-8">
+                  Totales
+                </th>
+                {columns.map((column) => (
+                  <td key={column.key} className="px-2 py-2.5 text-right last:pr-4 md:last:pr-8">
+                    {column.total(box)}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {absent.length > 0 && (

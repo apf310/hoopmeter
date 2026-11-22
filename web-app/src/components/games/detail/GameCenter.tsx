@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent } from "react";
 import { WifiOff } from "lucide-react";
 import { BoxScoreTable } from "@/components/games/detail/BoxScoreTable";
 import { DeferredBar, DeferredInvite } from "@/components/games/detail/DeferredMode";
@@ -76,14 +76,28 @@ function deferredResultOf(detail: GameDetail | null | undefined): GameResult | u
   };
 }
 
-const noSubscription = () => () => {};
+// Mayor espera que admite setTimeout (~24,8 días)
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
-/** ¿Ha llegado ya la hora del salto inicial? Sin pedir nada (en Nivel 1 no se sabe ni el estado). */
-function useKickedOff(utc: string): boolean {
+/**
+ * ¿Ha llegado ya la hora del salto inicial? Solo con la hora del calendario, sin pedir nada (en Nivel 1
+ * no se sabe ni el estado). Al hidratar vale lo que calculó el servidor (sin saltos) y cambia sola a la hora.
+ */
+function useKickedOff(utc: string, atRender: boolean): boolean {
+  const start = Date.parse(utc);
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      const wait = start - Date.now();
+      if (!(wait > 0 && wait < MAX_TIMEOUT_MS)) return () => {};
+      const timer = setTimeout(notify, wait + 250);
+      return () => clearTimeout(timer);
+    },
+    [start]
+  );
   return useSyncExternalStore(
-    noSubscription,
-    () => Date.now() >= Date.parse(utc),
-    () => false
+    subscribe,
+    () => Date.now() >= start,
+    () => atRender
   );
 }
 
@@ -106,6 +120,8 @@ type GameCenterProps = {
   away: MatchupTeam;
   home: MatchupTeam;
   keyPlayers: KeyPlayer[];
+  /** Si ya era la hora del salto inicial cuando el servidor pintó la página (solo calendario). */
+  kickedOffAtRender: boolean;
 };
 
 /**
@@ -115,12 +131,12 @@ type GameCenterProps = {
  * En Niveles 1 y 2 se puede pasar al modo diferido (Tarea 6.13): la ficha rehecha solo hasta el
  * instante que diga el usuario, sin nota. En Nivel 3 se ve todo y el diferido queda en pausa.
  */
-export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProps) {
+export function GameCenter({ game, day, away, home, keyPlayers, kickedOffAtRender }: GameCenterProps) {
   const level = useSpoilerLevel();
   const level2 = useDayLevel2(level, day);
   const level3 = useDayLevel3(level, day);
   const detailEntry = useGameDetail(level, game.id);
-  const kickedOff = useKickedOff(game.game_datetime_utc);
+  const kickedOff = useKickedOff(game.game_datetime_utc, kickedOffAtRender);
   const storedPosition = useDeferredPosition(game.id);
   const deferredPosition = level === 3 ? null : storedPosition;
   const deferred = useDeferred(game.id, deferredPosition);
@@ -275,8 +291,15 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
         </>
       ) : level !== 3 ? (
         <>
-          <LockedStats level={level} />
-          {kickedOff && <DeferredInvite onStart={() => setDeferredPosition(game.id, DEFERRED_START)} />}
+          {/* Sin empezar según la hora (nunca el estado): no hay nada oculto todavía */}
+          {kickedOff ? (
+            <>
+              <LockedStats level={level} />
+              <DeferredInvite onStart={() => setDeferredPosition(game.id, DEFERRED_START)} />
+            </>
+          ) : (
+            <NotStarted finished={false} locked />
+          )}
           <KeyPlayers players={keyPlayers} away={away} home={home} />
         </>
       ) : detail ? (
@@ -304,7 +327,7 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
             role="tablist"
             aria-label="Secciones del partido"
             onKeyDown={onTabKeyDown}
-            className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 flex h-12 items-stretch gap-5 border-b border-slate-800 bg-slate-950/90 px-4 backdrop-blur md:top-0 md:gap-7 md:px-8"
+            className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-10 flex h-12 items-stretch gap-5 border-b border-slate-800 bg-slate-950 px-4 md:top-0 md:gap-7 md:px-8"
           >
             {TABS.map(({ id, label }) => {
               const active = tab === id;
@@ -336,7 +359,9 @@ export function GameCenter({ game, day, away, home, keyPlayers }: GameCenterProp
           </div>
 
           <div id="game-panel" role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-[60vh]">
-            {tab === "resumen" && <GameSummary detail={detail} away={away} home={home} onOpenPlayer={setSheetPlayer} />}
+            {tab === "resumen" && (
+              <GameSummary detail={detail} away={away} home={home} onOpenPlayer={setSheetPlayer} compare={!isDeferred && level === 3} />
+            )}
             {tab === "boxscore" && <BoxScoreTable detail={detail} away={away} home={home} onOpenPlayer={setSheetPlayer} />}
             {tab === "tiros" && (
               <ShotChartPanel

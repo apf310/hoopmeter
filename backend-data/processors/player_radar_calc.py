@@ -5,14 +5,23 @@ stats.nba.com bloquea la nube), con las mismas claves que LeagueDashPlayerStats 
 guarda en `players.radar_attributes`:
 
     {"season": "2025-26", "scoring": 91, "shooting": 64, "playmaking": 99,
-     "defense": 72, "rebounding": 97, "efficiency": 95,
-     "qualified": true, "games_played": 70, "updated_at": "..."}
+     "defense": 72, "rebounding": 97, "efficiency": 95, "overall": 98,
+     "qualified": true, "games_played": 70, "minutes": 2436, "updated_at": "..."}
 
-Cada atributo combina varias métricas: se calcula el percentil de cada métrica, se hace
-la media ponderada y se vuelve a convertir en percentil. Las referencias son los jugadores
-cualificados (suficientes partidos y minutos); los demás se sitúan sobre esa misma
-distribución con `qualified: false`. Si la temporada lleva menos de 10 partidos
-se usa la anterior (salvo que se pase --season).
+Tarea 6.19 — lo más justo y objetivo posible, siempre la temporada frente a los jugadores actuales:
+- Cada atributo combina varias métricas (percentil de cada una o, en defensa, desviaciones típicas)
+  con su media ponderada, que se vuelve a convertir en percentil.
+- La escala la marcan los jugadores de rotación (40 % de los partidos y 15+ minutos); los demás se
+  sitúan sobre ella con `qualified: false`, sin media, y la ficha avisa de la muestra corta.
+- Defensa = robos + tapones en desviaciones típicas, como el comparador (Tarea 6.4). DEF_RATING
+  medía sobre todo al equipo: Holmgren, del Quinteto Defensivo de 2025-26, era el 35.º.
+- Los porcentajes (triples, TS%) se acercan a la media de la liga según los intentos (Bayes
+  empírico, `PRIOR_*`): con 15 triples un 13 % o un 54 % no dicen casi nada.
+- `overall` ("Media") = percentil del Game Score por partido (Hollinger, público). La media de los
+  4 mejores atributos subía a los pívots de rol (rebote, eficiencia y tapones van juntos): con
+  2024-25 y 2025-26, Game Score coloca a los All-NBA igual o mejor y deja a Hartenstein o Allen
+  por detrás de LeBron o Brunson.
+Si la temporada lleva menos de 10 partidos se usa la anterior (salvo que se pase --season).
 
 Uso (desde backend-data/):
     python -m processors.player_radar_calc                    # temporada actual
@@ -36,20 +45,25 @@ from extractors.fetch_teams_players import upsert
 TIMEOUT = 60
 PAGE_SIZE = 1000
 MIN_SEASON_GAMES = 10      # por debajo, la temporada es demasiado ruidosa: se usa la anterior
-QUALIFY_GP_SHARE = 0.4     # cualificado: >= 40% de los partidos del líder en GP...
-QUALIFY_MIN = 12.0         # ...y >= 12 minutos por partido
+QUALIFY_GP_SHARE = 0.4     # en la escala: >= 40% de los partidos del líder en GP...
+QUALIFY_MIN = 15.0         # ...y >= 15 minutos por partido (la rotación; como el comparador)
 MIN_FG3A = 1.0             # el % de triples solo cuenta con >= 1 intento por partido
+# Fuerza del prior hacia la media de la liga, en intentos (Bayes empírico por método de momentos con
+# los jugadores de rotación: 311 y 324 triples, 163 y 160 tiros en 2024-25 y 2025-26)
+PRIOR_FG3A = 320
+PRIOR_TSA = 160
 
-# atributo -> [(métrica, peso, más_alto_es_mejor)]
+# atributo -> (cómo se combinan, [(métrica, peso)]). "percentile": percentil de cada métrica;
+# "spread": desviaciones típicas sin techo (un récord de tapones no vale lo mismo que ser el 1 % mejor).
 CATEGORIES = {
-    "scoring":    [("PTS", 0.7, True), ("USG_PCT", 0.3, True)],
-    "shooting":   [("FG3M", 0.5, True), ("FG3_PCT_ADJ", 0.5, True)],
-    "playmaking": [("AST", 0.6, True), ("AST_PCT", 0.4, True)],
-    "defense":    [("STL", 0.35, True), ("BLK", 0.35, True), ("DEF_RATING", 0.3, False)],
-    "rebounding": [("REB", 0.6, True), ("REB_PCT", 0.4, True)],
-    "efficiency": [("TS_PCT", 0.6, True), ("PIE", 0.4, True)],
+    "scoring":    ("percentile", [("PTS", 0.7), ("USG_PCT", 0.3)]),
+    "shooting":   ("percentile", [("FG3M", 0.5), ("FG3_PCT_ADJ", 0.5)]),
+    "playmaking": ("percentile", [("AST", 0.6), ("AST_PCT", 0.4)]),
+    "defense":    ("spread", [("STL", 0.5), ("BLK", 0.5)]),
+    "rebounding": ("percentile", [("REB", 0.6), ("REB_PCT", 0.4)]),
+    "efficiency": ("percentile", [("TS_PCT_ADJ", 0.6), ("PIE", 0.4)]),
 }
-ADVANCED_COLS = ["USG_PCT", "AST_PCT", "REB_PCT", "DEF_RATING", "TS_PCT", "PIE"]
+ADVANCED_COLS = ["USG_PCT", "AST_PCT", "REB_PCT", "TS_PCT", "PIE"]
 
 
 def previous_season(season: str) -> str:
@@ -79,21 +93,50 @@ def percentile_vs(values: pd.Series, pool: np.ndarray) -> np.ndarray:
     return (lo + hi) / 2 / len(pool)
 
 
+def shrink(made: pd.Series, attempts: pd.Series, prior: float, pool: np.ndarray) -> pd.Series:
+    """Porcentaje acercado a la media de la liga (`pool` = jugadores de la escala) con `prior` intentos ficticios."""
+    league = made[pool].sum() / attempts[pool].sum()
+    return (made + prior * league) / (attempts + prior)
+
+
+def game_score(df: pd.DataFrame) -> pd.Series:
+    """Game Score de Hollinger por partido (es lineal: vale con los promedios)."""
+    return (df["PTS"] + 0.4 * df["FGM"] - 0.7 * df["FGA"] - 0.4 * (df["FTA"] - df["FTM"])
+            + 0.7 * df["OREB"] + 0.3 * df["DREB"] + df["STL"] + 0.7 * df["AST"] + 0.7 * df["BLK"]
+            - 0.4 * df["PF"] - df["TOV"])
+
+
+def to_scale(values: pd.Series, pool: np.ndarray) -> np.ndarray:
+    """Percentil 0-99 frente a los jugadores de la escala."""
+    return np.round(percentile_vs(values, values[pool].to_numpy()) * 99).astype(int)
+
+
 def compute_radar(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
-    df["FG3_PCT_ADJ"] = df["FG3_PCT"].where(df["FG3A"] >= MIN_FG3A, 0.0)
     max_gp = df["GP"].max()
     df["qualified"] = (df["GP"] >= max(1, QUALIFY_GP_SHARE * max_gp)) & (df["MIN"] >= QUALIFY_MIN)
-    qualified = df["qualified"].to_numpy()
+    pool = df["qualified"].to_numpy()
 
-    for category, metrics in CATEGORIES.items():
+    fg3a = df["FG3A"] * df["GP"]
+    fg3_pct = shrink(df["FG3M"] * df["GP"], fg3a, PRIOR_FG3A, pool)
+    df["FG3_PCT_ADJ"] = fg3_pct.where(df["FG3A"] >= MIN_FG3A, 0.0)
+    tsa = (df["FGA"] + 0.44 * df["FTA"]) * df["GP"]
+    df["TS_PCT_ADJ"] = shrink(df["PTS"] * df["GP"] / 2, tsa, PRIOR_TSA, pool)
+
+    for category, (how, metrics) in CATEGORIES.items():
         composite = np.zeros(len(df))
-        for metric, weight, higher_is_better in metrics:
-            values = df[metric].astype(float) * (1 if higher_is_better else -1)
-            values = values.fillna(-np.inf)  # sin dato = peor posible
-            composite += weight * percentile_vs(values, values[qualified].to_numpy())
-        composite = pd.Series(composite, index=df.index)
-        df[category] = np.round(percentile_vs(composite, composite[qualified].to_numpy()) * 99).astype(int)
+        for metric, weight in metrics:
+            values = df[metric].astype(float)
+            if how == "spread":
+                ref = values[pool]
+                score = ((values - ref.mean()) / ref.std(ddof=0)).fillna(ref.min())
+            else:
+                score = percentile_vs(values.fillna(-np.inf), values[pool].fillna(-np.inf).to_numpy())  # sin dato = peor posible
+            composite += weight * np.asarray(score, dtype=float)
+        df[category] = to_scale(pd.Series(composite, index=df.index), pool)
+
+    df["GAME_SCORE"] = game_score(df)
+    df["overall"] = to_scale(df["GAME_SCORE"], pool)
     return df
 
 
@@ -101,8 +144,11 @@ def radar_payload(r, season: str, updated_at: str) -> dict:
     return {
         "season": season,
         **{category: int(r[category]) for category in CATEGORIES},
+        # Fuera de la escala no hay media: su percentil frente a la rotación (1-5) solo diría "juega poco"
+        "overall": int(r["overall"]) if r["qualified"] else None,
         "qualified": bool(r["qualified"]),
         "games_played": int(r["GP"]),
+        "minutes": int(round(r["MIN"] * r["GP"])),
         "updated_at": updated_at,
     }
 
@@ -175,9 +221,9 @@ def main() -> None:
     print(f"  {len(df)} jugadores · {int(df['qualified'].sum())} cualificados")
 
     if args.dry_run:
-        top = df[df["qualified"]].sort_values("PTS", ascending=False).head(10)
-        print("\n[dry-run] Top 10 anotadores:")
-        print(top[["PLAYER_NAME", "GP", *CATEGORIES]].to_string(index=False))
+        top = df[df["qualified"]].sort_values("GAME_SCORE", ascending=False).head(25)
+        print("\n[dry-run] Top 25 por media:")
+        print(top[["PLAYER_NAME", "GP", *CATEGORIES, "overall"]].to_string(index=False))
         return
 
     names = load_player_names(client)

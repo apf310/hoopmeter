@@ -17,6 +17,12 @@ export type SpanishLinesPayload = { day: string; level: 3; lines: Record<string,
 
 const surname = (name: string) => name.split(" ").slice(1).join(" ") || name;
 
+/** "Baba Miller" → "B. Miller": con solo el apellido hay varios Miller en la liga. */
+export function shortName(name: string): string {
+  const [first, ...rest] = name.trim().split(/\s+/);
+  return rest.length > 0 ? `${first[0]}. ${rest.join(" ")}` : name;
+}
+
 /**
  * Españoles con partido en la jornada, por hora de su partido y, a igual hora, por apellido. Nunca por
  * nada del partido: el orden es el mismo en los 3 niveles.
@@ -37,13 +43,16 @@ export function spanishPlayersOfDay<G extends GameMatchup>(players: SpanishPlaye
 }
 
 /**
- * Línea compacta de Nivel 3: "18 PTS · 7 REB · 3 AST" (+ robos y tapones si los hay), "No jugó · Lesión"
+ * Línea compacta de Nivel 3: "30 MIN · 18 PTS · 7 REB · 3 AST" (+ robos y tapones si los hay), "No jugó · Lesión"
  * o null si aún no hay nada que enseñar (sin empezar, o no estaba en el boxscore: lo traspasaron después).
+ * Los minutos van siempre: "1 MIN · 0 PTS · 0 REB · 0 AST" es un minuto de la basura, no un mal partido.
  */
 export function compactLine(line: PlayerGameLine | null | undefined): string | null {
   if (!line) return null;
-  if (!line.played) return line.absence ? `No jugó · ${line.absence}` : "No jugó";
-  const parts: [number, string][] = [
+  if (!line.played || line.seconds <= 0) return line.absence ? `No jugó · ${line.absence}` : "No jugó";
+  const mins = line.seconds < 60 ? "<1" : String(Math.round(line.seconds / 60));
+  const parts: [number | string, string][] = [
+    [mins, "MIN"],
     [line.pts, "PTS"],
     [line.reb, "REB"],
     [line.ast, "AST"],

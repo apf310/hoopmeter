@@ -76,7 +76,8 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
                 "relative flex touch-manipulation select-none items-center justify-center gap-1.5 overflow-hidden outline-none transition-colors duration-300 [-webkit-touch-callout:none]",
                 "focus-visible:ring-2 focus-visible:ring-orange-400",
                 // Barra móvil: texto corto bajo el icono (en línea no cabe a 360 px junto al logo), cada uno a su ancho
-                withLabel ? "h-8 flex-1 rounded-full px-2" : "h-9 min-w-9 flex-col gap-0.5 rounded-xl px-2",
+                // Móvil: 40 px de alto (2,875 rem con la letra base al 87,5 %), que se acierta con el pulgar al mantener pulsado (Tarea 6.20)
+                withLabel ? "h-8 flex-1 rounded-full px-2" : "h-11.5 min-w-11.5 flex-col gap-0.5 rounded-xl px-2",
                 active
                   ? level === 3
                     ? "bg-orange-500 text-slate-950 shadow-[0_0_14px] shadow-orange-500/50"
@@ -84,17 +85,20 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
                   : "text-slate-400 hover:text-slate-200"
               )}
             >
-              {/* Relleno de progreso mientras se mantiene pulsado */}
+              {/* Mientras se mantiene pulsado: el botón se tiñe y un anillo naranja lo rodea en 1 s */}
               {needsHold && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    "absolute inset-0 origin-left bg-orange-500/45 ease-linear motion-reduce:transition-none",
-                    hold.holding ? "scale-x-100 transition-transform duration-1000" : "scale-x-0 transition-transform duration-150"
-                  )}
-                />
+                <>
+                  <span
+                    aria-hidden
+                    className={cn(
+                      "absolute inset-0 bg-orange-500/20 transition-opacity motion-reduce:transition-none",
+                      hold.holding ? "opacity-100 duration-1000" : "opacity-0 duration-150"
+                    )}
+                  />
+                  <HoldRing holding={hold.holding} pill={withLabel} />
+                </>
               )}
-              <Icon className={cn("relative", withLabel ? "size-4" : "size-3.5 shrink-0")} />
+              <Icon className={cn("relative", withLabel ? "size-4" : "size-4 shrink-0")} />
               {withLabel ? (
                 <span className="relative font-display text-xs font-bold uppercase tracking-wide">{short}</span>
               ) : (
@@ -116,6 +120,32 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
         {hold.hint ? "Mantén pulsado para ver resultados" : ""}
       </p>
     </div>
+  );
+}
+
+/**
+ * Anillo que se llena alrededor del botón en HOLD_MS (al soltar, se vacía rápido). Sus esquinas = las del
+ * botón (en rem, que en móvil escala) menos medio trazo. Sin animaciones (reduce motion), sale entero al pulsar.
+ */
+function HoldRing({ holding, pill }: { holding: boolean; pill: boolean }) {
+  return (
+    <svg aria-hidden className="pointer-events-none absolute inset-[1.5px] h-[calc(100%-3px)] w-[calc(100%-3px)] overflow-visible">
+      <rect
+        width="100%"
+        height="100%"
+        rx={pill ? 14.5 : 9}
+        pathLength={100}
+        fill="none"
+        strokeWidth={3}
+        strokeDasharray="100 100"
+        className={cn(
+          // En reposo, además, transparente: con el trazo "vacío" algunos navegadores dejan ver una raya en el inicio
+          "stroke-orange-400 ease-linear [transition-property:stroke-dashoffset,opacity] motion-reduce:transition-none",
+          pill ? "[rx:calc(1rem-1.5px)]" : "[rx:calc(0.75rem-1.5px)]",
+          holding ? "opacity-100 [stroke-dashoffset:0] duration-1000" : "opacity-0 [stroke-dashoffset:100] duration-150"
+        )}
+      />
+    </svg>
   );
 }
 

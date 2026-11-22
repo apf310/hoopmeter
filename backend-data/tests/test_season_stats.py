@@ -197,6 +197,22 @@ class SeasonRows(unittest.TestCase):
         row = S.season_row(ps, {1: "AAA"}, {1}, None)
         self.assertEqual((row["fg_pct"], row["fg3_pct"], row["advanced_stats"]["ft_pct"]), (0.0, 0.0, 0.0))
 
+    def test_usage_rates_for_the_explorer(self):
+        # 30 de los 48 minutos: USG% = (20 + 0,44·5 + 3)·48 / (30·(80 + 0,44·20 + 12)) = 0,4
+        game = game_row(7, "0022600001", "2026-10-21", 1, 20, reb=10, ast=6, fgm=8, fga=20, opponent=2)
+        game.update(fta=5, tov=3)
+        def team_row(tid, **kw):
+            return {**dict.fromkeys(S.COUNT_KEYS, 0), "game_id": "0022600001", "team_id": tid, "seconds": 14400,
+                    "team_tov": 0, **kw}
+        teams = S.group_team_games([team_row(1, fgm=40, fga=80, fta=20, tov=12, reb=45), team_row(2, reb=45)])
+        ps = S.aggregate([game])[(7, "2026-27", "Regular Season")]
+        rates = S.usage_rates(ps, teams)
+        self.assertEqual(rates, {"usg_pct": 0.4, "ast_pct": 0.353, "reb_pct": 0.178})  # 6 / (0,625·40 − 8) y 480 / 2700
+        self.assertEqual(S.season_row(ps, {1: "AAA"}, {1}, None, rates=rates)["advanced_stats"]["usg_pct"], 0.4)
+        # Sin los totales del rival no se inventa nada, y la fila se escribe igual
+        self.assertEqual(S.usage_rates(ps, S.group_team_games([team_row(1, fga=80)])), {})
+        self.assertNotIn("usg_pct", S.season_row(ps, {1: "AAA"}, {1}, None)["advanced_stats"])
+
     def test_play_in_and_cup_final_do_not_count(self):
         rows = [game_row(9, "0052600001", "2027-04-15", 1, 30, game_type="005"),
                 game_row(9, "0062600001", "2026-12-16", 1, 30, game_type="006")]

@@ -106,8 +106,11 @@ function LockedBackdrop() {
   );
 }
 
-/** Nivel 3 sin ficha: antes del salto inicial o, si ya terminó, cuando la NBA no la publica. */
-export function NotStarted({ finished }: { finished: boolean }) {
+/**
+ * Sin ficha: antes del salto inicial o, si ya terminó, cuando la NBA no la publica (Nivel 3).
+ * `locked` = Niveles 1 y 2, donde "no ha empezado" sale solo de la hora del calendario, nunca del estado.
+ */
+export function NotStarted({ finished, locked = false }: { finished: boolean; locked?: boolean }) {
   return (
     <section className="border-b border-slate-800 px-4 py-10 text-center md:px-8">
       <p className="font-display text-2xl font-bold uppercase text-slate-200">
@@ -116,7 +119,9 @@ export function NotStarted({ finished }: { finished: boolean }) {
       <p className="mt-2 text-sm text-slate-400">
         {finished
           ? "La NBA no ha publicado el boxscore de este partido."
-          : "El boxscore, el mapa de tiro y la jugada a jugada aparecerán aquí en directo en cuanto empiece."}
+          : locked
+            ? "En cuanto empiece, el boxscore, el mapa de tiro y la jugada a jugada estarán en Resultados (mantén pulsado) o en diferido, hasta donde vayas."
+            : "El boxscore, el mapa de tiro y la jugada a jugada aparecerán aquí en directo en cuanto empiece."}
       </p>
     </section>
   );

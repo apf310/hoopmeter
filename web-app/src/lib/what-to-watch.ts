@@ -1,4 +1,4 @@
-// "Qué ver" (Tarea 6.11): los mejores partidos de la semana, del mes y de la temporada por nota.
+// "Qué ver" (Tarea 6.11): los mejores partidos de anoche (Tarea 6.21), la semana, el mes y la temporada por nota.
 // Puro y sin dependencias (lo usan los tests con `node --test`).
 //
 // Regla de spoilers: aquí solo entran emparejamiento, fecha y nota (Nivel 2). Nunca marcadores,
@@ -14,13 +14,18 @@ export type ScoredGame = {
   excitement_score: number | null;
 };
 
-export type WatchPeriod = "semana" | "mes" | "temporada";
+export type WatchPeriod = "anoche" | "semana" | "mes" | "temporada";
 
-/** `days`: jornadas que cuenta el periodo hasta hoy incluido (null = toda la temporada). */
-export const WATCH_PERIODS: { id: WatchPeriod; label: string; hint: string; days: number | null }[] = [
-  { id: "semana", label: "Semana", hint: "Últimos 7 días", days: 7 },
-  { id: "mes", label: "Mes", hint: "Últimos 30 días", days: 30 },
-  { id: "temporada", label: "Temporada", hint: "Toda la temporada", days: null },
+/**
+ * `days`: jornadas que cuenta el periodo (null = toda la temporada) y `endsDaysAgo`: cuántas jornadas antes
+ * de hoy acaba (0 = hoy incluido). "Anoche" es la jornada NBA de ayer, la misma que el "Ayer" de la portada:
+ * desde España, la de la madrugada pasada (o la noche anterior a los partidos de la tarde de hoy).
+ */
+export const WATCH_PERIODS: { id: WatchPeriod; label: string; hint: string; days: number | null; endsDaysAgo: number }[] = [
+  { id: "anoche", label: "Anoche", hint: "Jornada de ayer", days: 1, endsDaysAgo: 1 },
+  { id: "semana", label: "Semana", hint: "Últimos 7 días", days: 7, endsDaysAgo: 0 },
+  { id: "mes", label: "Mes", hint: "Últimos 30 días", days: 30, endsDaysAgo: 0 },
+  { id: "temporada", label: "Temporada", hint: "Toda la temporada", days: null, endsDaysAgo: 0 },
 ];
 
 export const DEFAULT_WATCH_PERIOD: WatchPeriod = "semana";
@@ -55,10 +60,19 @@ function addDays(day: string, amount: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function periodOf(period: WatchPeriod) {
+  return WATCH_PERIODS.find((p) => p.id === period) ?? WATCH_PERIODS.find((p) => p.id === DEFAULT_WATCH_PERIOD)!;
+}
+
+/** Última jornada del periodo (incluida). */
+export function periodEnd(period: WatchPeriod, today: string): string {
+  return addDays(today, -periodOf(period).endsDaysAgo);
+}
+
 /** Primera jornada del periodo (incluida) o null si es la temporada entera. */
 export function periodStart(period: WatchPeriod, today: string): string | null {
-  const days = WATCH_PERIODS.find((p) => p.id === period)?.days ?? null;
-  return days === null ? null : addDays(today, -(days - 1));
+  const { days } = periodOf(period);
+  return days === null ? null : addDays(periodEnd(period, today), -(days - 1));
 }
 
 const hasScore = (game: ScoredGame): boolean => typeof game.excitement_score === "number" && Number.isFinite(game.excitement_score);
@@ -79,11 +93,12 @@ type RankOptions = {
  */
 export function rankGames<T extends ScoredGame>(games: readonly T[], { period, today, dayOf, teams = null }: RankOptions): T[] {
   const from = periodStart(period, today);
+  const to = periodEnd(period, today);
   return games
     .filter((game) => {
       if (!hasScore(game)) return false;
       const day = dayOf(game.game_datetime_utc);
-      if (day > today || (from !== null && day < from)) return false;
+      if (day > to || (from !== null && day < from)) return false;
       return teams === null || teams.has(game.home_team_id) || teams.has(game.away_team_id);
     })
     .sort(

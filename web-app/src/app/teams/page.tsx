@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { BRAND } from "@/lib/brand";
 import { teamLogoUrl } from "@/lib/nba-cdn";
+import { divisionLabel } from "@/lib/places";
 import { getTeams } from "@/lib/queries";
 import type { Team } from "@/lib/supabase";
 import { teamAccent } from "@/lib/team-colors";
@@ -48,7 +49,7 @@ export default async function TeamsPage() {
               {divisions.map((division) => (
                 <div key={division}>
                   <h3 className="px-4 pb-1 pt-4 font-display text-xs font-semibold uppercase tracking-[0.25em] text-slate-400 md:px-8">
-                    División {division}
+                    División {divisionLabel(division)}
                   </h3>
                   <ul>
                     {own

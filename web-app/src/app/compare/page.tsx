@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { CompareView } from "@/components/compare/CompareView";
+import { CompareLoading, CompareView } from "@/components/compare/CompareView";
 import { BRAND } from "@/lib/brand";
 import { getDuelPlayer } from "@/lib/compare-data";
 
@@ -9,10 +9,12 @@ export const metadata: Metadata = {
   description: "Enfrenta a dos jugadores de cualquier época: radares superpuestos, estadísticas y palmarés.",
 };
 
-async function loadPlayer(id: string | string[] | undefined) {
+function playerIdOf(id: string | string[] | undefined): number | null {
   const playerId = Number(id);
-  return Number.isInteger(playerId) && playerId > 0 ? getDuelPlayer(playerId) : null;
+  return Number.isInteger(playerId) && playerId > 0 ? playerId : null;
 }
+
+const loadPlayer = (id: number | null) => (id ? getDuelPlayer(id) : null);
 
 export default function ComparePage({ searchParams }: PageProps<"/compare">) {
   return (
@@ -30,8 +32,21 @@ export default function ComparePage({ searchParams }: PageProps<"/compare">) {
   );
 }
 
+/**
+ * Los ids llegan al instante; los datos del duelo tardan (todas las temporadas de los dos). Mientras, la cabecera
+ * ya enseña foto y nombre desde el índice del buscador (Tarea 6.20), sin dos cajas vacías.
+ */
 async function CompareContent({ searchParams }: { searchParams: PageProps<"/compare">["searchParams"] }) {
   const { a, b } = await searchParams;
+  const ids = [playerIdOf(a), playerIdOf(b)] as const;
+  return (
+    <Suspense fallback={<CompareLoading a={ids[0]} b={ids[1]} />}>
+      <CompareDuel a={ids[0]} b={ids[1]} />
+    </Suspense>
+  );
+}
+
+async function CompareDuel({ a, b }: { a: number | null; b: number | null }) {
   const [playerA, playerB] = await Promise.all([loadPlayer(a), loadPlayer(b)]);
   return <CompareView a={playerA} b={playerB} />;
 }

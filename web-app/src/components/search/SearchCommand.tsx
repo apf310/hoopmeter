@@ -8,7 +8,18 @@ import { Dialog } from "@base-ui/react/dialog";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
-import { search, type SearchIndex, type SearchTeam } from "@/lib/search";
+import { useFavorites } from "@/lib/favorites-store";
+import {
+  addRecent,
+  emptySearchEntries,
+  parseRecent,
+  RECENT_SEARCH_KEY,
+  search,
+  type RecentPick,
+  type SearchEntry,
+  type SearchIndex,
+  type SearchTeam,
+} from "@/lib/search";
 import { teamAccent } from "@/lib/team-colors";
 
 type SearchContextValue = { openSearch: () => void; prefetch: () => void };
@@ -152,27 +163,78 @@ export function SearchTrigger({ variant, className }: SearchTriggerProps) {
 
 type SearchPanelProps = { index: SearchIndex | null; failed: boolean; onRetry: () => void; onClose: () => void };
 
-type Option = { key: string; href: string };
+type Option = { key: string; href: string; pick: RecentPick };
+
+const entryOption = (entry: SearchEntry): Option =>
+  entry.kind === "team"
+    ? { key: `team-${entry.team.id}`, href: `/teams/${entry.team.id}`, pick: { kind: "team", id: entry.team.id } }
+    : { key: `player-${entry.player.id}`, href: `/players/${entry.player.id}`, pick: { kind: "player", id: entry.player.id } };
+
+// Búsquedas recientes (Tarea 6.21): solo ids en localStorage; sin almacenamiento, solo durante la sesión
+let memoryRecent: RecentPick[] | null = null;
+
+function readRecent(): RecentPick[] {
+  if (memoryRecent) return memoryRecent;
+  try {
+    memoryRecent = parseRecent(localStorage.getItem(RECENT_SEARCH_KEY));
+  } catch {
+    memoryRecent = [];
+  }
+  return memoryRecent;
+}
+
+function writeRecent(recent: RecentPick[]) {
+  memoryRecent = recent;
+  try {
+    if (recent.length > 0) localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(recent));
+    else localStorage.removeItem(RECENT_SEARCH_KEY);
+  } catch {
+    // Sin almacenamiento: se quedan en memoria.
+  }
+}
 
 function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
+  // El panel solo se monta en el navegador al abrir el diálogo: leer el almacenamiento aquí no desajusta nada
+  const [recent, setRecent] = useState(readRecent);
+  const favorites = useFavorites();
 
+  const hasQuery = query.trim().length > 0;
   const teamsById = useMemo(() => new Map(index?.teams.map((t) => [t.id, t])), [index]);
   const results = useMemo(() => (index ? search(index, query) : { teams: [], players: [] }), [index, query]);
-  const options: Option[] = useMemo(
-    () => [
-      ...results.teams.map((t) => ({ key: `team-${t.id}`, href: `/teams/${t.id}` })),
-      ...results.players.map((p) => ({ key: `player-${p.id}`, href: `/players/${p.id}` })),
-    ],
-    [results]
+  // Sin texto: recientes y favoritos encima de los 30 escudos (Tarea 6.21)
+  const empty = useMemo(() => (index && !hasQuery ? emptySearchEntries(index, recent, favorites) : null), [index, hasQuery, recent, favorites]);
+  const entries: SearchEntry[] = useMemo(
+    () =>
+      empty
+        ? [...empty.recent, ...empty.favorites]
+        : [
+            ...results.teams.map((team): SearchEntry => ({ kind: "team", team })),
+            ...results.players.map((player): SearchEntry => ({ kind: "player", player })),
+          ],
+    [empty, results]
   );
+  const options = useMemo(() => entries.map(entryOption), [entries]);
   const activeKey = options[active]?.key;
 
   useEffect(() => {
     if (activeKey) document.getElementById(`search-${activeKey}`)?.scrollIntoView({ block: "nearest" });
   }, [activeKey]);
+
+  function pick(choice: RecentPick) {
+    const next = addRecent(recent, choice);
+    setRecent(next);
+    writeRecent(next);
+    onClose();
+  }
+
+  function clearRecent() {
+    setRecent([]);
+    writeRecent([]);
+    setActive(0);
+  }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
     if (!options.length) return;
@@ -182,26 +244,72 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
       setActive((i) => (i + step + options.length) % options.length);
     } else if (event.key === "Enter") {
       event.preventDefault();
-      router.push(options[active].href);
-      onClose();
+      const option = options[Math.min(active, options.length - 1)];
+      router.push(option.href);
+      pick(option.pick);
     }
   }
 
-  const hasQuery = query.trim().length > 0;
   const noResults = index && hasQuery && options.length === 0;
-  // Índice plano: primero los equipos, después los jugadores (mismo orden que `options`)
-  function optionProps(key: string, i: number) {
-    return {
-      id: `search-${key}`,
+
+  /** Una fila de la lista; `i` = su posición en `options` (mismo orden en que se pintan). */
+  function renderRow(entry: SearchEntry, i: number) {
+    const option = options[i];
+    const props = {
+      href: option.href,
+      id: `search-${option.key}`,
       role: "option" as const,
       "aria-selected": i === active,
       onPointerMove: () => setActive(i),
-      onClick: onClose,
-      className: cn(
-        "relative flex items-center gap-3 px-4 py-2 transition-colors md:px-5",
-        i === active ? "bg-slate-900 text-white" : "text-slate-200"
-      ),
+      onClick: () => pick(option.pick),
+      className: cn("relative flex items-center gap-3 px-4 py-2 transition-colors md:px-5", i === active ? "bg-slate-900 text-white" : "text-slate-200"),
     };
+    if (entry.kind === "team") {
+      const { team } = entry;
+      return (
+        <Link key={option.key} {...props}>
+          <AccentStripe team={team} />
+          <Image src={teamLogoUrl(team.id)} alt="" width={36} height={36} unoptimized className="size-9 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-semibold">{team.name}</span>
+            <span className="block text-xs text-slate-400">
+              {team.abbreviation}
+              {team.conference && ` · Conferencia ${team.conference === "East" ? "Este" : "Oeste"}`}
+            </span>
+          </span>
+        </Link>
+      );
+    }
+    const { player } = entry;
+    const team = player.team_id ? teamsById.get(player.team_id) : undefined;
+    const accent = team ? teamAccent(team) : "#94a3b8";
+    return (
+      <Link key={option.key} {...props}>
+        {team && <AccentStripe team={team} />}
+        {/* Fondo teñido con el color del equipo detrás de la foto */}
+        <span className="flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: `${accent}26` }}>
+          <Image src={playerHeadshotUrl(player.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{player.full_name}</span>
+          <span className="block text-xs text-slate-400">
+            {[player.position, team?.abbreviation ?? (player.is_active ? "Sin equipo" : "Retirado")].filter(Boolean).join(" · ")}
+          </span>
+        </span>
+        {team && <Image src={teamLogoUrl(team.id)} alt="" width={24} height={24} unoptimized className="size-6 shrink-0 opacity-80" />}
+      </Link>
+    );
+  }
+
+  /** Grupo de filas con su rótulo; `offset` = posición de su primera fila en `options`. */
+  function renderGroup(label: string, group: SearchEntry[], offset: number, action?: React.ReactNode) {
+    if (group.length === 0) return null;
+    return (
+      <section aria-label={label}>
+        <GroupLabel action={action}>{label}</GroupLabel>
+        {group.map((entry, i) => renderRow(entry, offset + i))}
+      </section>
+    );
   }
 
   return (
@@ -246,65 +354,31 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
           </Message>
         ) : !index ? (
           <LoadingRows />
-        ) : !hasQuery ? (
-          <TeamGrid teams={index.teams} onPick={onClose} />
+        ) : empty ? (
+          <>
+            {entries.length > 0 && (
+              <div id="search-results" role="listbox" aria-label="Recientes y favoritos" className="pt-2">
+                {renderGroup(
+                  "Recientes",
+                  empty.recent,
+                  0,
+                  <button type="button" onClick={clearRecent} className="px-1 py-1 font-sans text-xs font-medium normal-case tracking-normal text-slate-400 hover:text-white">
+                    Borrar
+                  </button>
+                )}
+                {renderGroup("Favoritos", empty.favorites, empty.recent.length)}
+              </div>
+            )}
+            <TeamGrid teams={index.teams} onPick={(teamId) => pick({ kind: "team", id: teamId })} />
+          </>
         ) : noResults ? (
           <Message>
             Sin resultados para <span className="font-semibold text-white">«{query.trim()}»</span>
           </Message>
         ) : (
           <div id="search-results" role="listbox" aria-label="Resultados" className="py-2">
-            {results.teams.length > 0 && (
-              <section aria-label="Equipos">
-                <GroupLabel>Equipos</GroupLabel>
-                {results.teams.map((team, i) => (
-                  <Link key={team.id} href={`/teams/${team.id}`} {...optionProps(`team-${team.id}`, i)}>
-                    <AccentStripe team={team} />
-                    <Image src={teamLogoUrl(team.id)} alt="" width={36} height={36} unoptimized className="size-9 shrink-0" />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-semibold">{team.name}</span>
-                      <span className="block text-xs text-slate-400">
-                        {team.abbreviation}
-                        {team.conference && ` · Conferencia ${team.conference === "East" ? "Este" : "Oeste"}`}
-                      </span>
-                    </span>
-                  </Link>
-                ))}
-              </section>
-            )}
-            {results.players.length > 0 && (
-              <section aria-label="Jugadores">
-                <GroupLabel>Jugadores</GroupLabel>
-                {results.players.map((player, i) => {
-                  const team = player.team_id ? teamsById.get(player.team_id) : undefined;
-                  const accent = team ? teamAccent(team) : "#94a3b8";
-                  return (
-                    <Link key={player.id} href={`/players/${player.id}`} {...optionProps(`player-${player.id}`, results.teams.length + i)}>
-                      {team && <AccentStripe team={team} />}
-                      {/* Fondo teñido con el color del equipo detrás de la foto */}
-                      <span className="flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: `${accent}26` }}>
-                        <Image
-                          src={playerHeadshotUrl(player.id)}
-                          alt=""
-                          width={54}
-                          height={40}
-                          className="h-10 w-[54px] object-cover object-top"
-                        />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold">{player.full_name}</span>
-                        <span className="block text-xs text-slate-400">
-                          {[player.position, team?.abbreviation ?? (player.is_active ? "Sin equipo" : "Retirado")].filter(Boolean).join(" · ")}
-                        </span>
-                      </span>
-                      {team && (
-                        <Image src={teamLogoUrl(team.id)} alt="" width={24} height={24} unoptimized className="size-6 shrink-0 opacity-80" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </section>
-            )}
+            {renderGroup("Equipos", entries.slice(0, results.teams.length), 0)}
+            {renderGroup("Jugadores", entries.slice(results.teams.length), results.teams.length)}
           </div>
         )}
       </div>
@@ -319,7 +393,7 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
 }
 
 /** Sin texto escrito: los 30 equipos a un toque. */
-function TeamGrid({ teams, onPick }: { teams: SearchTeam[]; onPick: () => void }) {
+function TeamGrid({ teams, onPick }: { teams: SearchTeam[]; onPick: (teamId: number) => void }) {
   return (
     <div className="py-2">
       <GroupLabel>Equipos</GroupLabel>
@@ -328,7 +402,7 @@ function TeamGrid({ teams, onPick }: { teams: SearchTeam[]; onPick: () => void }
           <li key={team.id}>
             <Link
               href={`/teams/${team.id}`}
-              onClick={onPick}
+              onClick={() => onPick(team.id)}
               title={team.name}
               className="group flex flex-col items-center gap-1 py-2 outline-none transition-colors hover:bg-slate-900 focus-visible:bg-slate-900"
             >
@@ -348,11 +422,12 @@ function AccentStripe({ team }: { team: SearchTeam }) {
   return <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px]" style={{ background: teamAccent(team) }} />;
 }
 
-function GroupLabel({ children }: { children: React.ReactNode }) {
+function GroupLabel({ children, action }: { children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <p className="px-4 pb-1 pt-2 font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400 md:px-5">
-      {children}
-    </p>
+    <div className="flex items-center justify-between px-4 pb-1 pt-2 font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-slate-400 md:px-5">
+      <p>{children}</p>
+      {action}
+    </div>
   );
 }
 
