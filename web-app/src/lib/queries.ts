@@ -3,6 +3,7 @@ import { cacheLife } from "next/cache";
 import { gameDayOf, gameDayUtcRange, previousSeason, seasonOf, type GameMatchup } from "@/lib/game-day";
 import type { GmData, GmPlayer, GmTeam } from "@/lib/gm";
 import { ageFrom, getRadar, overallRating } from "@/lib/player-profile";
+import { LEGEND_AWARDS, legendLine, legendWeight, type LegendCounts } from "@/lib/player-card";
 import type { ExplorerRow, ExplorerSeason, ExplorerTotals } from "@/lib/player-explorer";
 import type { SearchIndex } from "@/lib/search";
 import type { Game } from "@/lib/spoilers";
@@ -479,13 +480,42 @@ export async function getScoutingReports(playerIds: number[], season: string, pr
 }
 
 /** Lo que necesita /players además del explorador: el buscador completo y las leyendas. */
-export async function getPlayersDirectory(): Promise<{ index: SearchIndex; legends: { id: number; name: string }[] }> {
+export async function getPlayersDirectory(): Promise<{ index: SearchIndex; legends: LegendCard[] }> {
   "use cache";
   cacheLife("hours");
 
-  const index = await getSearchIndex();
-  const legends = index.players.filter((p) => !p.is_active).map((p) => ({ id: p.id, name: p.full_name }));
+  const [index, counts] = await Promise.all([getSearchIndex(), getLegendCounts()]);
+  const legends = index.players
+    .filter((p) => !p.is_active)
+    .sort((a, b) => legendWeight(counts.get(b.id) ?? {}) - legendWeight(counts.get(a.id) ?? {}))
+    .map((p) => ({ id: p.id, name: p.full_name, line: legendLine(counts.get(p.id) ?? {}) }));
   return { index, legends };
+}
+
+/** Ficha dorada de una leyenda en `/players` (Tarea 7.4): sus mayores logros en lugar de la media. */
+export type LegendCard = { id: number; name: string; line: string };
+
+/** Anillos, MVP, MVP de las Finales y All-Star de cada retirado. */
+async function getLegendCounts(): Promise<Map<number, LegendCounts>> {
+  const counts = new Map<number, LegendCounts>();
+  const keyOf = new Map(Object.entries(LEGEND_AWARDS).map(([key, award]) => [award as string, key as keyof LegendCounts]));
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await getSupabase()
+      .from("player_awards")
+      .select("id, player_id, award_name, players!inner(is_active)")
+      .eq("players.is_active", false)
+      .in("award_name", Object.values(LEGEND_AWARDS))
+      .order("id")
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw new Error(`Error cargando el palmarés de las leyendas: ${error.message}`);
+    for (const { player_id, award_name } of data) {
+      const own = counts.get(player_id) ?? {};
+      const key = keyOf.get(award_name)!;
+      own[key] = (own[key] ?? 0) + 1;
+      counts.set(player_id, own);
+    }
+    if (data.length < PAGE_SIZE) return counts;
+  }
 }
 
 /** Temporadas anteriores que ofrece el explorador (Tarea 6.22), además de la en curso. */

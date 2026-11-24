@@ -34,6 +34,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        // Patrones de las fichas 3D (`npm run cards`)
+        source: "/cards/:file*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800, stale-while-revalidate=2592000" },
+          { key: "Content-Security-Policy", value: "default-src 'none'; style-src 'unsafe-inline'" },
+        ],
+      },
+      {
         // Sin caché: el navegador debe ver siempre la última versión del service worker
         source: "/sw.js",
         headers: [

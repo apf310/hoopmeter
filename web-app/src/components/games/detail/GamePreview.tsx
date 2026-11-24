@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { Lock } from "lucide-react";
 import { Section } from "@/components/games/detail/ui";
 import { SpoilerModeSelector } from "@/components/layout/SpoilerModeSelector";
@@ -28,9 +28,11 @@ export function KeyPlayers({ players, away, home }: { players: KeyPlayer[]; away
               <ul>
                 {own.map((player) => (
                   <li key={player.id} className="border-b border-slate-800/80">
-                    <Link href={`/players/${player.id}`} className="group flex items-center gap-3 py-2 transition-colors hover:bg-slate-900">
+                    <SharedLink href={`/players/${player.id}`} className="group flex items-center gap-3 py-2 transition-colors hover:bg-slate-900">
                       <span className="flex h-11 w-[60px] shrink-0 items-end overflow-hidden" style={{ background: `${team.accent}26` }}>
-                        <Image src={playerHeadshotUrl(player.id)} alt="" width={60} height={44} className="h-11 w-[60px] object-cover object-top" />
+                        <Shared>
+                          <Image src={playerHeadshotUrl(player.id)} alt="" width={60} height={44} className="h-11 w-[60px] object-cover object-top" />
+                        </Shared>
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-semibold text-white group-hover:text-orange-400">{player.full_name}</span>
@@ -50,7 +52,7 @@ export function KeyPlayers({ players, away, home }: { players: KeyPlayer[]; away
                           </div>
                         ))}
                       </dl>
-                    </Link>
+                    </SharedLink>
                   </li>
                 ))}
               </ul>

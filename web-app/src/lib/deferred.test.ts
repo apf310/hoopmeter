@@ -7,6 +7,7 @@ import { buildDeferredDetail, happenedBy } from "./deferred.ts";
 import { DEFERRED_START, parsePosition, positionLabel, stepPosition, type DeferredPosition } from "./deferred-position.ts";
 import type { GameDetail } from "./game-detail.ts";
 import type { RawAction, RawBoxscoreGame, RawPlayer, RawTeam } from "./game-pbp.ts";
+import { gameWinProbability } from "./win-probability.ts";
 
 const AWAY = 1;
 const HOME = 2;
@@ -194,6 +195,20 @@ describe("buildDeferredDetail", () => {
   it("nada posterior al instante elegido se cuela: dos partidos iguales hasta ahí dan la misma ficha", () => {
     const other = buildDeferredDetail(withOvertime.game, withOvertime.actions, position);
     assert.deepEqual(withoutTimestamp(detail), withoutTimestamp(other));
+  });
+
+  it("la probabilidad de victoria llega solo hasta ahí y es la misma en los dos partidos", () => {
+    const win = gameWinProbability(detail);
+    assert.deepEqual(win, gameWinProbability(buildDeferredDetail(withOvertime.game, withOvertime.actions, position)));
+    assert.equal(win.curve.at(-1)![0], detail.elapsed);
+    assert.equal(win.winner, null);
+    assert.ok(win.keyPlays.every((p) => p.seconds < detail.elapsed));
+    // Empatado al acabar el 4.º: 50 %, sin decir si hay prórroga
+    const tied = gameWinProbability(buildDeferredDetail(withOvertime.game, withOvertime.actions, at(4, 0)));
+    assert.equal(tied.winner, null);
+    assert.ok(Math.abs(tied.curve.at(-1)![1] - 0.5) < 1e-6);
+    // Al final del 4.º sin empate ya lo ha visto ganar
+    assert.equal(gameWinProbability(buildDeferredDetail(regular.game, regular.actions, at(4, 0))).winner, "home");
   });
 
   it("ni estado final, ni duración, ni prórroga, ni la jugada de 6:00", () => {

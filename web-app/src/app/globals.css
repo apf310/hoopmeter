@@ -146,3 +146,36 @@
     font-size: max(16px, 1em);
   }
 }
+
+/* Transiciones entre pantallas (Tarea 7.4, `components/layout/SharedLink.tsx`): fundido de la página y, si se ha tocado una
+   foto o un escudo, su viaje hasta la pantalla nueva. Siempre por debajo de 260 ms y sin bloquear los toques. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 160ms;
+}
+::view-transition-group(.shared) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+::view-transition-old(.shared),
+::view-transition-new(.shared) {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  object-position: 50% 20%;
+  animation-duration: 240ms;
+}
+::view-transition-old(.screen),
+::view-transition-new(.screen) {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

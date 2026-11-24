@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { formatGameTime, type TeamLite } from "@/lib/game-day";
 import type { Entry } from "@/lib/game-day-store";
 import { playerHeadshotUrl } from "@/lib/nba-cdn";
@@ -43,19 +43,21 @@ export function SpanishPlayersStrip({ entries, teamsById, level, lines }: Spanis
           const line = level === 3 ? compactLine(lines?.data?.lines[player.id]) : null;
           return (
             <li key={player.id} className="shrink-0">
-              <Link
+              <SharedLink
                 href={`/players/${player.id}`}
                 title={`${player.name} · ${team?.name ?? ""} ${home ? "vs" : "@"} ${opponent?.name ?? ""}`}
                 className="flex h-11 items-center gap-2 border border-slate-800 pl-1.5 pr-3 transition-colors hover:border-orange-500"
                 style={team ? { borderLeftColor: team.accent, borderLeftWidth: 3 } : undefined}
               >
-                <Image
-                  src={playerHeadshotUrl(player.id)}
-                  alt=""
-                  width={44}
-                  height={32}
-                  className="h-8 w-11 shrink-0 object-cover object-top"
-                />
+                <Shared>
+                  <Image
+                    src={playerHeadshotUrl(player.id)}
+                    alt=""
+                    width={44}
+                    height={32}
+                    className="h-8 w-11 shrink-0 object-cover object-top"
+                  />
+                </Shared>
                 <span className="leading-tight">
                   <span className="block whitespace-nowrap font-display text-sm font-bold uppercase tracking-wide text-white">
                     {shortName(player.name)}
@@ -70,7 +72,7 @@ export function SpanishPlayersStrip({ entries, teamsById, level, lines }: Spanis
                     {line ?? matchup}
                   </span>
                 </span>
-              </Link>
+              </SharedLink>
             </li>
           );
         })}

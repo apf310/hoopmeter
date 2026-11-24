@@ -6,18 +6,23 @@ import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 import { Swords } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { SharedLanding } from "@/components/layout/SharedLink";
 import { CareerTable } from "@/components/players/CareerTable";
 import { ContractTable } from "@/components/players/ContractTable";
+import { PlayerCard3D } from "@/components/players/PlayerCard3D";
+import { PlayerCardSkeleton } from "@/components/players/PlayerCardSkeleton";
 import { PlayerRadarChart } from "@/components/players/PlayerRadarChart";
 import { PlayerCardExport } from "@/components/share/PlayerShareCard";
 import { CareerHighs } from "@/components/players/CareerHighs";
+import { trophyCounts } from "@/components/trophies/trophy-catalog";
 import { TrophyShowcase } from "@/components/trophies/TrophyShowcase";
 import type { RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
 import type { GameMatchup } from "@/lib/game-day";
 import { buildContractView } from "@/lib/player-contract";
 import { getPlayer, getPlayerAwards, getPlayerCareer, getPlayerContract, getRecentMatchups, getTeams } from "@/lib/queries";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
+import { cardTier, legendLine, splitName } from "@/lib/player-card";
 import {
   ageFrom,
   archetypeOf,
@@ -121,7 +126,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
 
   return (
     <>
-      <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} />
+      <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} honours={player.is_active ? "" : legendLine(trophyCounts(awards))} />
       {latest && <SeasonBand season={latest} />}
       <SectionNav active={player.is_active} />
 
@@ -196,23 +201,30 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   );
 }
 
+// La misma caja en la ficha y en su hueco de carga, para que nada salte
+const CARD_SLOT = "mx-auto mb-3 w-[214px] shrink-0 sm:w-[250px] md:mx-0 md:mb-8 md:mr-4 lg:mr-10 lg:w-[290px]";
+
 function PlayerHero({
   player,
   age,
   team,
   radar,
   season,
+  honours,
 }: {
   player: Player;
   age: number | null;
   team: Team | null;
   radar: RadarAttributes | null;
   season: PlayerSeasonStats | null;
+  /** Retirados: sus mayores logros, en lugar de la media. */
+  honours: string;
 }) {
   const primary = teamBackdrop(team?.primary_color);
-  const [firstName, ...rest] = player.full_name.split(" ");
-  const lastName = rest.join(" ") || firstName;
+  const { first: firstName, last: lastName } = splitName(player.full_name);
   const position = positionLabel(player.position);
+  const overall = radar ? overallRating(radar) : null;
+  const line = radar ? archetypeOf(radar) : honours;
 
   return (
     // Márgenes negativos: la cabecera ocupa todo el ancho del área de contenido
@@ -254,11 +266,12 @@ function PlayerHero({
             {position && <span>{position}</span>}
           </p>
           <h1 className="mt-2 font-display font-extrabold uppercase leading-[0.85] text-white">
-            <span className="block text-2xl text-white/85 md:text-4xl">{rest.length ? firstName : ""}</span>
+            <span className="block text-2xl text-white/85 md:text-4xl">{firstName}</span>
             <span className="block text-5xl md:text-8xl">{lastName}</span>
           </h1>
 
-          {radar && <RatingBadge radar={radar} />}
+          {/* La media y el perfil van en la ficha 3D; aquí, en texto, para los lectores de pantalla */}
+          {line && <p className="sr-only">{overall === null ? line : `Media ${overall}: ${line}. ${OVERALL_EXPLAINED}`}</p>}
 
           <dl className="mt-7 flex flex-wrap gap-x-8 gap-y-4">
             <HeroStat label="Edad">{age ?? "–"}</HeroStat>
@@ -284,40 +297,28 @@ function PlayerHero({
           </div>
         </div>
 
-        <Image
-          src={playerHeadshotUrl(player.id)}
-          alt={player.full_name}
-          width={520}
-          height={380}
-          priority
-          className="mx-auto h-auto w-[210px] shrink-0 drop-shadow-[0_10px_30px_rgba(0,0,0,0.6)] sm:w-[380px] md:mx-0 lg:w-[480px]"
-        />
+        {/* Ficha 3D (Tarea 7.4): en lugar de la foto suelta y la insignia de la media */}
+        <SharedLanding target={{ kind: "player", id: player.id }}>
+          <div className={CARD_SLOT}>
+            <PlayerCard3D
+              id={player.id}
+              name={player.full_name}
+              tier={cardTier(player.is_active, overall)}
+              team={team}
+              overall={overall}
+              line={line || position || undefined}
+              note={overall === null ? ((radar && sampleNote(radar)) ?? undefined) : OVERALL_EXPLAINED}
+              bare
+              priority
+              greet
+              className="w-full"
+            />
+          </div>
+        </SharedLanding>
       </div>
       {/* Franja inferior con el color secundario de la franquicia */}
       <div className="relative h-1" style={{ background: team?.secondary_color ?? primary }} aria-hidden />
     </header>
-  );
-}
-
-/** Insignia estilo videojuego: media global + arquetipo del jugador. */
-function RatingBadge({ radar }: { radar: RadarAttributes }) {
-  const overall = overallRating(radar);
-  const tier = overall === null ? null : tierOf(overall);
-
-  return (
-    <div className="mt-5 flex w-fit items-stretch" title={overall === null ? (sampleNote(radar) ?? "Sin media esta temporada") : OVERALL_EXPLAINED}>
-      <div
-        className="flex flex-col items-center justify-center py-1.5 pl-4 pr-7 text-slate-950 [clip-path:polygon(0_0,100%_0,82%_100%,0_100%)]"
-        style={{ background: tier?.color ?? "#64748b" }}
-      >
-        <span className="font-display text-5xl font-extrabold leading-none tabular-nums">{overall ?? "–"}</span>
-        <span className="font-display text-[10px] font-bold uppercase tracking-[0.25em]">Media</span>
-      </div>
-      <div className="-ml-3 flex flex-col justify-center bg-slate-950/70 py-1.5 pl-6 pr-5 backdrop-blur-sm">
-        <span className="font-display text-[10px] font-semibold uppercase tracking-[0.25em] text-white/60">{tier ? `Perfil · ${tier.label}` : "Perfil"}</span>
-        <span className="font-display text-2xl font-bold uppercase leading-tight text-white">{archetypeOf(radar)}</span>
-      </div>
-    </div>
   );
 }
 
@@ -430,10 +431,12 @@ function SectionTitle({ accent, count, children }: { accent: string; count?: num
 
 function PlayerSkeleton() {
   return (
-    <div className="animate-pulse" aria-busy>
-      <div className="-mx-4 -mt-4 h-[420px] bg-slate-900 md:-mx-8 md:-mt-8" />
+    <div aria-busy>
+      <div className="-mx-4 -mt-4 flex min-h-[640px] flex-col bg-slate-900 px-4 pt-3 md:-mx-8 md:-mt-8 md:min-h-[480px] md:flex-row md:items-end md:justify-end md:px-8 md:pt-10">
+        <PlayerCardSkeleton className={CARD_SLOT} />
+      </div>
       <div className="-mx-4 h-24 border-b border-slate-800 md:-mx-8" />
-      <div className="mt-8 grid gap-8 lg:grid-cols-2">
+      <div className="mt-8 grid animate-pulse gap-8 lg:grid-cols-2">
         <div className="h-80 bg-slate-900/60" />
         <div className="h-80 bg-slate-900/60" />
       </div>

@@ -119,3 +119,26 @@ export function Placeholder({ className }: { className?: string }) {
 export function Swatch({ color, className }: { color: string; className?: string }) {
   return <span aria-hidden className={cn("inline-block size-2.5 shrink-0", className)} style={{ background: color }} />;
 }
+
+/** Dato suelto de una rejilla con filetes (`dl` con `border-l border-t`). */
+export function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="border-b border-r border-slate-800 px-4 py-3">
+      <dt className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">{label}</dt>
+      <dd className="mt-1 font-display text-3xl font-extrabold leading-none text-white">{children}</dd>
+    </div>
+  );
+}
+
+/** Valor de un equipo dentro de un `Fact`. */
+export function TeamValue({ team, note, children }: { team: MatchupTeam; note?: string; children: ReactNode }) {
+  return (
+    <span className="mt-1 flex items-baseline gap-2 first:mt-0" title={note}>
+      <span className="flex w-12 shrink-0 items-center gap-1.5 font-display text-xs font-bold uppercase text-slate-300">
+        <Swatch color={team.accent} className="size-2" />
+        {team.abbreviation}
+      </span>
+      <span className="text-2xl">{children}</span>
+    </span>
+  );
+}

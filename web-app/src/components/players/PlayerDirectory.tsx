@@ -2,10 +2,12 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { Search, X } from "lucide-react";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
+import { LegendStrip } from "@/components/players/LegendStrip";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel } from "@/lib/player-profile";
+import type { LegendCard } from "@/lib/queries";
 import { search, type SearchIndex, type SearchPlayer } from "@/lib/search";
 import { teamAccent } from "@/lib/team-colors";
 
@@ -16,7 +18,7 @@ const RESULT_LIMIT = 40;
  * estadísticas (Tarea 6.22), los equipos y las leyendas. El explorador solo se oculta mientras se busca:
  * al borrar la búsqueda sigue con sus filtros.
  */
-export function PlayerDirectory({ index, legends, explorer }: { index: SearchIndex; legends: { id: number; name: string }[]; explorer: ReactNode }) {
+export function PlayerDirectory({ index, legends, explorer }: { index: SearchIndex; legends: LegendCard[]; explorer: ReactNode }) {
   const [query, setQuery] = useState("");
   const teams = useMemo(() => new Map(index.teams.map((team) => [team.id, team])), [index.teams]);
   const results = useMemo(() => search(index, query, { teams: 0, players: RESULT_LIMIT }).players, [index, query]);
@@ -65,11 +67,13 @@ export function PlayerDirectory({ index, legends, explorer }: { index: SearchInd
         <ul className="grid grid-cols-3 gap-px bg-slate-800 sm:grid-cols-5 lg:grid-cols-10">
           {index.teams.map((team) => (
             <li key={team.id} className="bg-slate-950">
-              <Link href={`/teams/${team.id}`} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
+              <SharedLink href={`/teams/${team.id}`} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
                 {/* Halo claro: muchos logos son oscuros y desaparecerían sobre el fondo */}
-                <Image src={teamLogoUrl(team.id)} alt="" width={44} height={44} unoptimized className="size-11 drop-shadow-[0_0_2px_rgba(255,255,255,0.75)]" />
+                <Shared>
+                  <Image src={teamLogoUrl(team.id)} alt="" width={44} height={44} unoptimized className="size-11 drop-shadow-[0_0_2px_rgba(255,255,255,0.75)]" />
+                </Shared>
                 <span className="font-display text-sm font-bold uppercase text-slate-200">{team.abbreviation}</span>
-              </Link>
+              </SharedLink>
             </li>
           ))}
         </ul>
@@ -77,15 +81,7 @@ export function PlayerDirectory({ index, legends, explorer }: { index: SearchInd
         {legends.length > 0 && (
           <>
             <SectionTitle>Leyendas</SectionTitle>
-            <ul className="flex flex-wrap gap-2 px-4 py-4 md:px-8">
-              {legends.map((legend) => (
-                <li key={legend.id}>
-                  <Link href={`/players/${legend.id}`} className="block bg-slate-900 px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wide text-slate-200 ring-1 ring-inset ring-slate-700 transition-colors hover:bg-orange-500 hover:text-slate-950">
-                    {legend.name}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <LegendStrip legends={legends} />
           </>
         )}
       </div>
@@ -103,16 +99,18 @@ function ResultRow({ player, team }: { player: SearchPlayer; team?: SearchIndex[
   const detail = player.is_active ? [team?.name ?? "Agente libre", positionLabel(player.position)].filter(Boolean).join(" · ") : "Leyenda";
   return (
     <li>
-      <Link href={`/players/${player.id}`} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-slate-900 md:px-8">
+      <SharedLink href={`/players/${player.id}`} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-slate-900 md:px-8">
         <span className="relative flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: team ? `${teamAccent(team)}26` : "#1e293b" }}>
-          <Image src={playerHeadshotUrl(player.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+          <Shared>
+            <Image src={playerHeadshotUrl(player.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+          </Shared>
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold text-white">{player.full_name}</span>
           <span className="block truncate text-xs text-slate-300">{detail}</span>
         </span>
         {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />}
-      </Link>
+      </SharedLink>
     </li>
   );
 }

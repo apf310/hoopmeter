@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
 import { AppAnalytics } from "@/components/layout/AppAnalytics";
@@ -6,6 +7,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { BottomNav } from "@/components/layout/BottomNav";
 import { NativeBackButton } from "@/components/layout/NativeBackButton";
 import { PushSync } from "@/components/push/PushSync";
+import { SharedNavListener } from "@/components/layout/SharedLink";
 import { ServiceWorkerRegistrar } from "@/components/layout/ServiceWorkerRegistrar";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { SpoilerModeSelector } from "@/components/layout/SpoilerModeSelector";
@@ -80,6 +82,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         </SpoilerProvider>
         <ServiceWorkerRegistrar />
         <NativeBackButton />
+        {/* usePathname es dato de URL: en rutas dinámicas debe ir dentro de <Suspense> */}
+        <Suspense fallback={null}>
+          <SharedNavListener />
+        </Suspense>
         <PushSync />
         {/* Tarea 6.27: avisos de errores (sin IP ni parámetros) y visitas sin cookies */}
         <ErrorReporter />

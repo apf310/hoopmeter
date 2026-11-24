@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { notePlainNavigation } from "@/components/layout/SharedLink";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Search, X } from "lucide-react";
@@ -248,6 +249,7 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
     } else if (event.key === "Enter") {
       event.preventDefault();
       const option = options[Math.min(active, options.length - 1)];
+      notePlainNavigation(option.href);
       router.push(option.href);
       pick(option.pick);
     }

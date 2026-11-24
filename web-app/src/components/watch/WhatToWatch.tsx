@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ChevronRight, EyeOff, Star, WifiOff } from "lucide-react";
 import { PureScoreBadge } from "@/components/games/PureScoreBadge";
 import { announceLevelIntent, onLevelIntent, useSpoiler } from "@/context/SpoilerContext";
@@ -274,8 +274,9 @@ function GameOfTheWeek({ game, away, home }: { game: ScoredGame; away: TeamLite 
   const tint = (color: string | undefined) => `color-mix(in srgb, ${color ?? "#334155"} 28%, transparent)`;
   return (
     <section aria-labelledby="game-of-the-week" className="border-b border-slate-800">
-      <Link
+      <SharedLink
         href={`/games/${game.id}`}
+        teams={{ away: game.away_team_id, home: game.home_team_id }}
         className="group block px-4 py-4 transition-colors md:px-8 md:py-7"
         style={{ background: `linear-gradient(100deg, ${tint(away?.accent)} 0%, transparent 42%, transparent 58%, ${tint(home?.accent)} 100%)` }}
       >
@@ -283,10 +284,10 @@ function GameOfTheWeek({ game, away, home }: { game: ScoredGame; away: TeamLite 
           El partidazo de la semana
         </h2>
         <div className="mt-3 flex items-center gap-3 md:gap-5">
-          <HeroTeam team={away} />
+          <HeroTeam team={away} part="away" />
           <span aria-hidden className="font-display text-xl font-bold text-slate-400 md:text-3xl">@</span>
           <span className="sr-only">en casa de</span>
-          <HeroTeam team={home} />
+          <HeroTeam team={home} part="home" />
           <PureScoreBadge score={game.excitement_score} className="ml-auto min-w-16 px-3 py-1.5 text-3xl md:min-w-24 md:text-5xl" />
         </div>
         <p className="mt-3 flex items-center gap-1 font-display text-sm font-semibold uppercase tracking-wide text-slate-300">
@@ -295,15 +296,19 @@ function GameOfTheWeek({ game, away, home }: { game: ScoredGame; away: TeamLite 
           <span className="text-orange-400 group-hover:text-orange-300">Ver el partido</span>
           <ChevronRight className="size-4 text-orange-400 group-hover:text-orange-300" aria-hidden />
         </p>
-      </Link>
+      </SharedLink>
     </section>
   );
 }
 
-function HeroTeam({ team }: { team: TeamLite | undefined }) {
+function HeroTeam({ team, part }: { team: TeamLite | undefined; part: "away" | "home" }) {
   return (
     <span className="flex min-w-0 flex-col items-center gap-1 md:flex-row md:gap-3">
-      {team && <Image src={teamLogoUrl(team.id)} alt="" width={64} height={64} unoptimized className="size-12 shrink-0 md:size-16" />}
+      {team && (
+        <Shared part={part}>
+          <Image src={teamLogoUrl(team.id)} alt="" width={64} height={64} unoptimized className="size-12 shrink-0 md:size-16" />
+        </Shared>
+      )}
       <span className="font-display text-lg font-extrabold uppercase leading-none text-white md:text-3xl">
         <span className="lg:hidden">{team?.abbreviation ?? "—"}</span>
         <span className="hidden lg:inline">{team?.name ?? "—"}</span>
@@ -329,17 +334,18 @@ function RankedGame({
     <li className={cn("relative border-b border-slate-800", mine && "bg-orange-500/[0.05]")}>
       {/* Partido de tus favoritos: franja naranja a la izquierda, como en la portada */}
       {mine && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-orange-500" />}
-      <Link
+      <SharedLink
         href={`/games/${game.id}`}
+        teams={{ away: game.away_team_id, home: game.home_team_id }}
         className="group grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-x-3 px-4 py-2.5 transition-colors hover:bg-slate-900/70 md:grid-cols-[2.5rem_minmax(0,1fr)_auto_1rem] md:gap-x-5 md:px-8"
       >
         <span className="text-right font-display text-xl font-extrabold text-slate-500 tabular-nums md:text-2xl">{rank}</span>
         <span className="min-w-0">
           <span className="flex min-w-0 items-center gap-2 font-semibold text-white group-hover:text-orange-400">
-            <MatchupTeam team={away} />
+            <MatchupTeam team={away} part="away" />
             <span aria-hidden className="font-display text-sm font-bold text-slate-400">@</span>
             <span className="sr-only">en casa de</span>
-            <MatchupTeam team={home} />
+            <MatchupTeam team={home} part="home" />
           </span>
           <span className="mt-0.5 block font-display text-xs font-semibold uppercase tracking-wide text-slate-400">
             {shortDate(game.game_datetime_utc)}
@@ -347,15 +353,19 @@ function RankedGame({
         </span>
         <PureScoreBadge score={game.excitement_score} />
         <ChevronRight className="hidden size-4 text-slate-600 transition-colors group-hover:text-orange-400 md:block" aria-hidden />
-      </Link>
+      </SharedLink>
     </li>
   );
 }
 
-function MatchupTeam({ team }: { team: TeamLite | undefined }) {
+function MatchupTeam({ team, part }: { team: TeamLite | undefined; part: "away" | "home" }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />}
+      {team && (
+        <Shared part={part}>
+          <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />
+        </Shared>
+      )}
       {/* Nombre completo solo donde cabe; en móvil, la abreviatura */}
       <span className="truncate">
         <span className="whitespace-nowrap md:hidden">{team?.abbreviation ?? "—"}</span>

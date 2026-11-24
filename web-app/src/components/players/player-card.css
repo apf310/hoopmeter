@@ -1,0 +1,600 @@
+/* Fichas 3D de jugador (Tarea 7.4), de `PlayerCard3D`. Todo se mide en cqw (ancho de la ficha), así que valen igual a
+   130 que a 320 px. --rx/--ry (giro), --mx/--my (luz) y --on (0-1) los mueve `TiltSurface`; --tm1 y --tm3 son los
+   colores del equipo. Las capas con profundidad llevan un `scale` que compensa la perspectiva: de frente todo encaja. */
+.hc {
+  --rx: 0;
+  --ry: 0;
+  --mx: 50;
+  --my: 35;
+  --on: 0;
+  perspective: 900px;
+  container-type: inline-size;
+  width: 280px;
+  max-width: 100%;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  flex: none;
+}
+.hc-card {
+  --tm2: color-mix(in srgb, var(--tm1) 62%, #000);
+  --tmd: color-mix(in srgb, var(--tm1) 45%, #02040a);
+  --gl: 1;
+  --clip: inset(0);
+  position: relative;
+  aspect-ratio: 5/7;
+  transform-style: preserve-3d;
+  transform: rotateX(calc(var(--rx)*1deg)) rotateY(calc(var(--ry)*1deg));
+  font-family: var(--font-barlow-condensed), sans-serif;
+  color: #fff;
+  text-transform: uppercase;
+  cursor: grab;
+}
+.hc-card::before {
+  content: "";
+  position: absolute;
+  inset: 6% 4% -3%;
+  background: var(--aura,#000);
+  filter: blur(22px);
+  opacity: calc(.5 + var(--on)*.25);
+  transform: translateZ(-30px);
+}
+.hc-frame,
+.hc-gap,
+.hc-rim,
+.hc-art,
+.hc-glare {
+  clip-path: var(--clip);
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hc-frame {
+  background: var(--edge);
+  background-size: 240% 240%;
+  background-position: calc(var(--mx)*1%) calc(var(--my)*1%);
+}
+.hc-gap {
+  inset: var(--b1,1.7cqw);
+  background: var(--gapc,#04060c);
+}
+.hc-rim {
+  inset: var(--b2,.7cqw);
+  background: var(--edge2,var(--edge));
+  background-size: 240% 240%;
+  background-position: calc(100% - var(--mx)*1%) calc(var(--my)*1%);
+}
+.hc-art {
+  inset: var(--b3,.5cqw);
+  background: var(--base);
+  isolation: isolate;
+}
+.hc-art>* {
+  position: absolute;
+  inset: 0;
+}
+.hc-art .hc-mark {
+  inset: auto;
+  width: 104%;
+  left: -2%;
+  top: 8%;
+  opacity: var(--lgo,.13);
+  transform: translate(calc((var(--mx) - 50)*-.07cqw),calc((var(--my) - 50)*-.07cqw));
+}
+.hc-fx {
+  mix-blend-mode: var(--bl,color-dodge);
+  background-image: var(--foil);
+  background-size: var(--fs,240% 240%);
+  opacity: calc(var(--f0) + var(--on)*var(--f1));
+  -webkit-mask: var(--m) center/100% 100% no-repeat;
+  mask: var(--m) center/100% 100% no-repeat;
+}
+.hc-fx-a {
+  background-position: calc(var(--mx)*1%) calc(var(--my)*1%);
+}
+.hc-elite .hc-fx.hc-net {
+  opacity: calc(.75 + var(--on)*.25);
+}
+.hc-elite .hc-fx.hc-sparks {
+  --foil: linear-gradient(#fff,#fff);
+  opacity: calc(.2 + var(--on)*.7);
+}
+.hc-fx-b {
+  background-position: calc(100% - var(--mx)*1%) calc(var(--my)*.7%);
+}
+.hc-fx-c {
+  background-position: calc(20% + var(--mx)*.6%) calc(100% - var(--my)*1%);
+}
+.hc-vignette {
+  background: radial-gradient(ellipse 75% 62% at 50% 44%,#0000 55%,#000000a6 100%);
+}
+.hc-photo {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 31cqw;
+  height: 108cqw;
+  clip-path: inset(-20cqw 3.7cqw 0 3.7cqw);
+  transform: translateZ(34px) scale(.962);
+  transform-origin: 50% 69cqw;
+  pointer-events: none;
+}
+.hc-photo img {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 128cqw;
+  max-width: none;
+  transform: translateX(calc(-50% + (var(--mx) - 50)*.05cqw));
+  filter: drop-shadow(0 0 2.2cqw var(--halo,#000a)) drop-shadow(0 3cqw 4cqw #000a);
+  -webkit-user-drag: none;
+}
+.hc-plate {
+  position: absolute;
+  left: 3cqw;
+  right: 3cqw;
+  bottom: 3cqw;
+  height: 47cqw;
+  transform: translateZ(36px) scale(.96);
+  transform-origin: 50% -20cqw;
+  background: linear-gradient(#0000,var(--pl,#04060cf2) 36%,var(--pl,#04060cf2));
+  clip-path: var(--pclip,var(--clip));
+}
+.hc-plate>* {
+  position: absolute;
+}
+.hc-first {
+  left: 6.5cqw;
+  top: 14.5cqw;
+  font-weight: 700;
+  font-size: 5.6cqw;
+  line-height: 1;
+  letter-spacing: .2em;
+  color: #fffffff0;
+  text-shadow: 0 .4cqw 1.4cqw #000;
+}
+.hc-first i {
+  font-style: normal;
+}
+.hc-banner {
+  left: -2cqw;
+  right: 13cqw;
+  top: 21cqw;
+  height: 15.4cqw;
+  background: linear-gradient(95deg,var(--tm1),var(--tm2));
+  transform: skewX(-14deg);
+  border-right: 1.6cqw solid var(--tm3);
+  box-shadow: 0 .7cqw 2cqw #000a;
+}
+.hc-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#ffffff38,#fff0 48%,#0000002e 52%,#0000);
+}
+.hc-last {
+  left: 6.2cqw;
+  top: 21cqw;
+  height: 15.4cqw;
+  display: flex;
+  align-items: center;
+  font-weight: 800;
+  font-size: var(--lf);
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 .5cqw .8cqw #0009;
+}
+.hc-line {
+  left: 6.5cqw;
+  top: 38.4cqw;
+  font-weight: 700;
+  font-size: 5.7cqw;
+  line-height: 1;
+  color: var(--ink);
+  letter-spacing: .05em;
+  white-space: nowrap;
+}
+.hc-pos {
+  right: 6cqw;
+  top: 38.4cqw;
+  font-weight: 700;
+  font-size: 5.7cqw;
+  line-height: 1;
+  color: #ffffffc9;
+  letter-spacing: .05em;
+}
+.hc-badge {
+  position: absolute;
+  left: 8.6cqw;
+  top: 2.8cqw;
+  width: 27cqw;
+  padding: 3cqw 0 7cqw;
+  text-align: center;
+  transform: translateZ(48px) scale(.947);
+  transform-origin: 41.4cqw 67.2cqw;
+  background: var(--ob,#04060cc7);
+  clip-path: polygon(0 0,100% 0,100% 80%,50% 100%,0 80%);
+}
+.hc-badge::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1.1cqw;
+  background: var(--edge);
+  background-size: 240% 100%;
+  background-position: calc(var(--mx)*1%) 0;
+}
+.hc-badge b {
+  display: block;
+  font-weight: 800;
+  font-size: 20cqw;
+  line-height: .86;
+  font-variant-numeric: tabular-nums;
+  background: var(--metal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #0000;
+}
+.hc-badge small {
+  display: block;
+  margin-top: .8cqw;
+  font-weight: 700;
+  font-size: 4.5cqw;
+  line-height: 1;
+  letter-spacing: .2em;
+  color: #ffffffe0;
+}
+.hc-team {
+  position: absolute;
+  right: 6cqw;
+  top: 6cqw;
+  width: 17cqw;
+  height: 17cqw;
+  padding: 2.2cqw;
+  border-radius: 50%;
+  background: radial-gradient(circle,#0b1222e6,#04060ce6);
+  box-shadow: 0 0 0 .6cqw var(--ring),0 1cqw 3cqw #000b;
+  transform: translateZ(28px) scale(.969);
+  transform-origin: -27cqw 64cqw;
+}
+.hc-team img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 .4cqw #ffffffa0);
+}
+.hc-glare {
+  transform: translateZ(37px) scale(.94);
+  pointer-events: none;
+  background: radial-gradient(circle at calc(var(--mx)*1%) calc(var(--my)*1%),#ffffff4a 0,#ffffff10 28%,#fff0 56%);
+  opacity: calc(var(--on)*var(--gl));
+}
+
+/* Leyenda: grabado en oro, esquinas escalonadas */
+.hc-legend {
+  --clip: polygon(0 9cqw,3cqw 9cqw,3cqw 6cqw,6cqw 6cqw,6cqw 3cqw,9cqw 3cqw,9cqw 0,calc(100% - 9cqw) 0,calc(100% - 9cqw) 3cqw,calc(100% - 6cqw) 3cqw,calc(100% - 6cqw) 6cqw,calc(100% - 3cqw) 6cqw,calc(100% - 3cqw) 9cqw,100% 9cqw,100% calc(100% - 9cqw),calc(100% - 3cqw) calc(100% - 9cqw),calc(100% - 3cqw) calc(100% - 6cqw),calc(100% - 6cqw) calc(100% - 6cqw),calc(100% - 6cqw) calc(100% - 3cqw),calc(100% - 9cqw) calc(100% - 3cqw),calc(100% - 9cqw) 100%,9cqw 100%,9cqw calc(100% - 3cqw),6cqw calc(100% - 3cqw),6cqw calc(100% - 6cqw),3cqw calc(100% - 6cqw),3cqw calc(100% - 9cqw),0 calc(100% - 9cqw));
+  --pclip: polygon(0 0, 100% 0, 100% calc(100% - 9cqw), calc(100% - 3cqw) calc(100% - 9cqw), calc(100% - 3cqw) calc(100% - 6cqw), calc(100% - 6cqw) calc(100% - 6cqw), calc(100% - 6cqw) calc(100% - 3cqw), calc(100% - 9cqw) calc(100% - 3cqw), calc(100% - 9cqw) 100%, 9cqw 100%, 9cqw calc(100% - 3cqw), 6cqw calc(100% - 3cqw), 6cqw calc(100% - 6cqw), 3cqw calc(100% - 6cqw), 3cqw calc(100% - 9cqw), 0 calc(100% - 9cqw));
+  --edge: linear-gradient(120deg,#6b420a,#fff1bd 20%,#b97d1e 36%,#fff8dc 50%,#7d4f10 66%,#ffe39a 82%,#8a5a12);
+  --base: radial-gradient(circle at 50% 38%,#c98a25 0,#6d430f 34%,#2a1705 66%,#0d0702);
+  --foil: linear-gradient(115deg,#ffb52e00 8%,#ffcf5e 28%,#fff6d8 44%,#ffc23d 58%,#ffb52e00 84%);
+  --bl: screen;
+  --f0: .5;
+  --f1: .45;
+  --ink: #fde7ab;
+  --halo: #ffd56a90;
+  --aura: #b97d1e;
+  --pl: #120a02f5;
+  --metal: linear-gradient(170deg,#fffbe6,#f3cf6b 38%,#a8701a 56%,#ffe9a6 78%);
+  --ring: #e7bd5a;
+  --ob: #1a0f03d9;
+  --b1: 1.9cqw;
+  --b2: .9cqw;
+  --b3: .6cqw;
+  --gapc: #1a0f03;
+}
+.hc-legend .hc-photo img {
+  filter: sepia(.28) saturate(1.06) contrast(1.03) drop-shadow(0 0 2.6cqw var(--halo)) drop-shadow(0 3cqw 4cqw #000a);
+}
+.hc-legend .hc-banner,
+.hc-legend .hc-pos,
+.hc-legend .hc-badge::before {
+  display: none;
+}
+.hc-legend .hc-first {
+  left: 0;
+  right: 0;
+  text-align: center;
+  top: 16cqw;
+  color: #fde7ab;
+  letter-spacing: .34em;
+  text-indent: .34em;
+}
+.hc-legend .hc-last {
+  left: 0;
+  right: 0;
+  justify-content: center;
+  background: var(--metal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #0000;
+  text-shadow: none;
+  filter: drop-shadow(0 .5cqw .3cqw #0009);
+}
+.hc-legend .hc-line {
+  left: 8cqw;
+  right: 8cqw;
+  text-align: center;
+  top: 37.6cqw;
+  font-size: 5.3cqw;
+}
+.hc-legend .hc-plate::before {
+  content: "";
+  position: absolute;
+  left: 14cqw;
+  right: 14cqw;
+  top: 35.6cqw;
+  height: .45cqw;
+  background: linear-gradient(90deg,#0000,#f3cf6b,#0000);
+}
+.hc-legend .hc-badge {
+  width: auto;
+  clip-path: none;
+  left: 0;
+  right: 0;
+  top: 7.2cqw;
+  padding: 1.6cqw 0;
+  background: linear-gradient(90deg,#0000 6%,#140b02f0 30% 70%,#0000 94%);
+  transform: translateZ(48px) scale(.947);
+  transform-origin: 50% 62.8cqw;
+}
+.hc-legend .hc-badge small {
+  font-size: 6.4cqw;
+  letter-spacing: .42em;
+  text-indent: .42em;
+  margin: 0;
+  font-weight: 800;
+  background: var(--metal);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: #0000;
+  filter: drop-shadow(0 .4cqw .5cqw #000);
+}
+
+/* Élite: refractor, rayos y red con todo el arcoíris */
+.hc-elite {
+  --clip: polygon(0 5cqw,5cqw 0,36% 0,39% 2cqw,61% 2cqw,64% 0,calc(100% - 5cqw) 0,100% 5cqw,100% 43%,calc(100% - 2cqw) 45.5%,calc(100% - 2cqw) 54.5%,100% 57%,100% calc(100% - 5cqw),calc(100% - 5cqw) 100%,64% 100%,61% calc(100% - 2cqw),39% calc(100% - 2cqw),36% 100%,5cqw 100%,0 calc(100% - 5cqw),0 57%,2cqw 54.5%,2cqw 45.5%,0 43%);
+  --pclip: polygon(0 0,100% 0,100% calc(100% - 5cqw),calc(100% - 5cqw) 100%,5cqw 100%,0 calc(100% - 5cqw));
+  --edge: linear-gradient(120deg,#67e8f9,#a78bfa 18%,#f472b6 33%,#fde047 48%,#4ade80 62%,#22d3ee 78%,#c084fc);
+  --base: radial-gradient(circle at 50% 40%,var(--tm1) 0,var(--tmd) 48%,#03050d 100%);
+  --foil: linear-gradient(115deg,#ff2e7e,#ffb02e 15%,#f7ff4d 28%,#2bff88 42%,#22d3ff 56%,#7c5cff 70%,#ff4fd8 84%,#ff2e7e);
+  --fs: 150% 150%;
+  --bl: screen;
+  --f0: .62;
+  --f1: .3;
+  --ink: #fef08a;
+  --halo: #e9f7ffa8;
+  --aura: linear-gradient(120deg,#22d3ee,#a78bfa,#f472b6);
+  --metal: linear-gradient(170deg,#fff 20%,#a5f3fc 42%,#c4b5fd 58%,#fff 80%);
+  --ring: #c4b5fd;
+  --lgo: .2;
+}
+
+/* Notable: onda esmeralda */
+.hc-great {
+  --clip: polygon(0 7cqw,7cqw 0,calc(100% - 7cqw) 0,100% 7cqw,100% calc(100% - 7cqw),calc(100% - 7cqw) 100%,7cqw 100%,0 calc(100% - 7cqw));
+  --pclip: polygon(0 0,100% 0,100% calc(100% - 7cqw),calc(100% - 7cqw) 100%,7cqw 100%,0 calc(100% - 7cqw));
+  --edge: linear-gradient(120deg,#043d2c,#b9ffe2 22%,#0f9f6e 38%,#eafff6 50%,#05603f 66%,#6ee7b7 84%,#043d2c);
+  --base: radial-gradient(circle at 50% 40%,#12b981 0,#05573c 38%,#02241a 70%,#010c09);
+  --foil: linear-gradient(115deg,#34d39900 6%,#34d399 24%,#eafff5 42%,#10e09a 54%,#b6ffe0 66%,#34d39900 92%);
+  --bl: screen;
+  --f0: .42;
+  --f1: .5;
+  --ink: #86efc6;
+  --halo: #7dffcb80;
+  --aura: #059669;
+  --pl: #01120cf5;
+  --metal: linear-gradient(170deg,#fff 16%,#9df5d0 46%,#1fbf86 60%,#eafff6 82%);
+  --ring: #34d399;
+  --ob: #01170fd9;
+  --lgo: .14;
+}
+
+/* Bueno: zafiro facetado */
+.hc-good {
+  --clip: polygon(0 0,calc(100% - 11cqw) 0,100% 11cqw,100% 100%,11cqw 100%,0 calc(100% - 11cqw));
+  --pclip: polygon(0 0,100% 0,100% 100%,11cqw 100%,0 calc(100% - 11cqw));
+  --edge: linear-gradient(120deg,#082f5c,#cdeeff 24%,#2b8fe0 42%,#eef9ff 52%,#0c4a8e 68%,#7dd3fc 86%,#082f5c);
+  --base: radial-gradient(circle at 50% 40%,#2f86e6 0,#0d3f96 42%,#061b4d 74%,#020a1f);
+  --foil: linear-gradient(115deg,#38bdf800 4%,#1d6fe0 20%,#7cd0ff 38%,#fff 47%,#5ab4ff 58%,#1d6fe0 74%,#38bdf800 96%);
+  --bl: screen;
+  --f0: .58;
+  --f1: .4;
+  --ink: #a5dcff;
+  --halo: #8fd0ff80;
+  --aura: #1d4ed8;
+  --pl: #020a1ff5;
+  --metal: linear-gradient(170deg,#fff 16%,#bfe6ff 44%,#3f9ff0 60%,#f0faff 82%);
+  --ring: #60a5fa;
+  --ob: #03102fd9;
+  --lgo: .12;
+}
+.hc-good .hc-line {
+  left: 9cqw;
+}
+
+/* Resto: cartón mate y parquet */
+.hc-base {
+  --clip: inset(0 round 2.6cqw);
+  --edge: linear-gradient(160deg,#f5f1e6,#e4dccb);
+  --gapc: #e9e2d3;
+  --b1: 3cqw;
+  --b2: .01cqw;
+  --edge2: linear-gradient(var(--tm1),var(--tm1));
+  --b3: 1cqw;
+  --base: url(/cards/parquet.svg) center/cover;
+  --f0: 0;
+  --f1: 0;
+  --gl: .6;
+  --ink: #fff;
+  --halo: #0008;
+  --aura: #000;
+  --pclip: none;
+  --metal: linear-gradient(#fff,#fff);
+  --ob: var(--tm1);
+}
+.hc-base .hc-rim,
+.hc-base .hc-art {
+  clip-path: inset(0 round 1cqw);
+}
+.hc-base .hc-paint {
+  background: var(--tm1);
+  opacity: .9;
+  -webkit-mask: url(/cards/key.svg) center/100% 100%;
+  mask: url(/cards/key.svg) center/100% 100%;
+}
+.hc-base .hc-varnish {
+  background: linear-gradient(105deg,#fff0 30%,#ffffff40 46%,#fff0 60%);
+  background-size: 220% 100%;
+  background-position: calc(var(--mx)*1%) 0;
+  opacity: calc(.35 + var(--on)*.65);
+}
+.hc-base .hc-vignette {
+  background: linear-gradient(#0000 55%,#00000073);
+}
+.hc-base .hc-photo {
+  clip-path: inset(-20cqw 4.2cqw 0 4.2cqw);
+  bottom: 27cqw;
+}
+.hc-base .hc-plate {
+  background: none;
+}
+.hc-base .hc-first {
+  top: 18.2cqw;
+  left: 7.2cqw;
+  font-size: 5cqw;
+}
+.hc-base .hc-first i {
+  background: #f5f1e6;
+  color: #10151f;
+  padding: .9cqw 2.6cqw .7cqw;
+  letter-spacing: .14em;
+  text-shadow: none;
+}
+.hc-base .hc-banner {
+  left: 1.2cqw;
+  right: 1.2cqw;
+  top: 24.4cqw;
+  height: 14.6cqw;
+  transform: none;
+  border: 0;
+  border-top: 1cqw solid #f5f1e6;
+  box-shadow: none;
+}
+.hc-base .hc-last {
+  top: 25cqw;
+  height: 14.4cqw;
+}
+.hc-base .hc-strip {
+  left: 1.2cqw;
+  right: 1.2cqw;
+  top: 39cqw;
+  height: 8.1cqw;
+  background: #10151f;
+}
+.hc-base .hc-line,
+.hc-base .hc-pos {
+  top: 40.4cqw;
+  font-size: 5.2cqw;
+}
+.hc-base .hc-badge {
+  left: 8cqw;
+  top: 0;
+  padding-top: 6.4cqw;
+  transform: translateZ(40px) scale(.9556);
+  transform-origin: 42cqw 70cqw;
+}
+.hc-base .hc-badge::before {
+  display: none;
+}
+.hc-base .hc-team {
+  background: #10151f;
+  right: 7cqw;
+  top: 7cqw;
+  box-shadow: 0 .6cqw 1.6cqw #0007;
+}
+
+/* En la ficha de jugador: sin el nombre, que va debajo en grande */
+.hc-bare .hc-first,
+.hc-bare .hc-last,
+.hc-bare .hc-banner,
+.hc-bare .hc-pos {
+  display: none;
+}
+.hc-bare .hc-plate {
+  height: 26cqw;
+  transform-origin: 50% -41cqw;
+}
+.hc-bare .hc-photo {
+  bottom: 15cqw;
+  transform-origin: 50% 53cqw;
+}
+.hc-bare .hc-photo img {
+  width: 138cqw;
+}
+.hc-bare .hc-line {
+  top: 16.2cqw;
+  font-size: 7.2cqw;
+}
+.hc-bare .hc-legend .hc-plate::before {
+  display: none;
+}
+.hc-bare .hc-legend .hc-line {
+  top: 15.4cqw;
+  font-size: 6.4cqw;
+}
+.hc-bare .hc-base .hc-line {
+  top: 18.6cqw;
+  font-size: 6.2cqw;
+}
+.hc-bare .hc-base .hc-strip {
+  top: 16.4cqw;
+  height: 9.7cqw;
+}
+.hc-bare .hc-base .hc-photo {
+  bottom: 12.5cqw;
+}
+
+/* Hueco de carga: el marco y, si se sabe quién es, su foto */
+.hc-blank {
+  --edge: #334155;
+  --clip: polygon(0 5cqw, 5cqw 0, calc(100% - 5cqw) 0, 100% 5cqw, 100% calc(100% - 5cqw), calc(100% - 5cqw) 100%, 5cqw 100%, 0 calc(100% - 5cqw));
+  background: linear-gradient(#1e293b, #0b1222);
+  clip-path: var(--clip);
+}
+
+/* Tira de leyendas: pequeñas, con el dedo libre para deslizarla, y solo se pintan las que están a la vista */
+.hc-mini {
+  width: 140px;
+  touch-action: pan-x pan-y;
+}
+.hc-mini .hc-card {
+  cursor: pointer;
+}
+.hc-mini .hc-card::before {
+  filter: blur(10px);
+}
+.hc-cell {
+  content-visibility: auto;
+  contain-intrinsic-size: 156px 220px;
+}
+/* La que se ha tocado se pinta siempre: al volver, el viaje necesita su imagen desde el primer instante */
+.hc-cell:has([data-shared-origin]) {
+  content-visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hc-card {
+    cursor: auto;
+  }
+}

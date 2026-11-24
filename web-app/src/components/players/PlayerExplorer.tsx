@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ArrowDown, LoaderCircle, SlidersHorizontal, WifiOff, X } from "lucide-react";
 import { ExplorerTable } from "@/components/players/ExplorerTable";
 import { ExplorerCardExport } from "@/components/share/ExplorerShareCard";
@@ -612,18 +613,20 @@ function Leaders({
               {sortKey === key && <ArrowDown className="size-3.5" aria-hidden />}
             </button>
             {first ? (
-              <Link
+              <SharedLink
                 href={`/players/${first.id}`}
                 className="group relative block min-h-[5.75rem] overflow-hidden"
                 style={{ background: `linear-gradient(160deg, ${team?.backdrop ?? "#334155"}80 0%, #020617 72%)` }}
               >
-                <Image
-                  src={playerHeadshotUrl(first.id)}
-                  alt=""
-                  width={130}
-                  height={95}
-                  className="absolute bottom-0 right-0 h-[5.5rem] w-auto object-contain object-bottom transition-transform group-hover:scale-105"
-                />
+                <Shared>
+                  <Image
+                    src={playerHeadshotUrl(first.id)}
+                    alt=""
+                    width={130}
+                    height={95}
+                    className="absolute bottom-0 right-0 h-[5.5rem] w-auto object-contain object-bottom transition-transform group-hover:scale-105"
+                  />
+                </Shared>
                 <span className="relative block px-3 pt-1">
                   <span className="block font-display text-4xl font-extrabold leading-none tabular-nums text-white drop-shadow">
                     {formatStat(statValue(first, key, mode), key, mode)}
@@ -634,7 +637,7 @@ function Leaders({
                   <span className="block pb-2 text-xs font-semibold text-slate-300">{team?.abbreviation ?? "Sin equipo"}</span>
                 </span>
                 <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: team?.accent ?? "#f97316" }} aria-hidden />
-              </Link>
+              </SharedLink>
             ) : (
               <p className="flex min-h-[5.75rem] items-center px-3 text-sm text-slate-500">Nadie con estos filtros</p>
             )}

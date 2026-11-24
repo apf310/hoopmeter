@@ -4,7 +4,7 @@
 import { DuelRadar } from "@/components/compare/DuelRadar";
 import { fitFont, slugify } from "@/components/share/PlayerShareCard";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
-import { CAREER, score, type DuelRow } from "@/lib/compare";
+import { CAREER, score, type DuelRow, type Radar } from "@/lib/compare";
 import type { DuelPlayer, DuelSeason } from "@/lib/compare-data";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
 import { teamBackdrop } from "@/lib/team-colors";
@@ -17,7 +17,10 @@ type ShareProps = {
   seasonB: DuelSeason;
   attributes: DuelRow[];
   stats: DuelRow[];
+  radars: [Radar, Radar];
   colors: [string, string];
+  /** Temporada a la que van ajustadas las cifras, o null si son las reales (Tarea 7.3). */
+  era: string | null;
 };
 
 const CARD_ROWS = ["pts", "reb", "ast", "stl", "blk", "tsPct"];
@@ -28,16 +31,16 @@ const period = (season: DuelSeason) => (season.id === CAREER ? "Carrera" : seaso
 export function CompareCardExport(props: ShareProps) {
   return (
     <SocialCardExporter
-      fileName={`${slugify(props.a.name)}-vs-${slugify(props.b.name)}`}
+      fileName={`${slugify(props.a.name)}-vs-${slugify(props.b.name)}${props.era ? `-ajustado-${props.era}` : ""}`}
       caption="Cara a cara"
       title={`${props.a.name} vs ${props.b.name}`}
-      includes={[`${period(props.seasonA)} frente a ${period(props.seasonB)}`, "Radar comparado", "Puntos, rebotes, asistencias, robos, tapones y TS%"]}
+      includes={[`${period(props.seasonA)} frente a ${period(props.seasonB)}`, "Radar comparado", "Puntos, rebotes, asistencias, robos, tapones y TS%", ...(props.era ? [`Ajustado por épocas a la liga de ${props.era}`] : [])]}
       renderCard={(format) => <CompareShareCard format={format} {...props} />}
     />
   );
 }
 
-function CompareShareCard({ format, a, b, seasonA, seasonB, attributes, stats, colors }: ShareProps & { format: CardFormat }) {
+function CompareShareCard({ format, a, b, seasonA, seasonB, radars, attributes, stats, colors, era }: ShareProps & { format: CardFormat }) {
   const vertical = format === "9:16";
   const contentHeight = CARD_SIZE[format].height - WATERMARK_HEIGHT[format];
   const rows = stats.filter((row) => CARD_ROWS.includes(row.key));
@@ -49,8 +52,10 @@ function CompareShareCard({ format, a, b, seasonA, seasonB, attributes, stats, c
       <p className="font-display font-extrabold leading-none text-white tabular-nums" style={{ fontSize: vertical ? 120 : 96 }}>
         {wins.a} – {wins.b}
       </p>
-      <p className="font-display text-xl font-semibold uppercase tracking-[0.25em] text-white/70">Estadísticas ganadas</p>
-      <DuelRadar a={seasonA.radar} b={seasonB.radar} colors={colors} size={vertical ? { width: 960, height: 560 } : { width: 680, height: 400 }} />
+      <p className={cn("font-display text-xl font-semibold uppercase", era ? "tracking-[0.15em] text-orange-300" : "tracking-[0.25em] text-white/70")}>
+        {era ? `Estadísticas ajustadas a la liga de ${era}` : "Estadísticas ganadas"}
+      </p>
+      <DuelRadar a={radars[0]} b={radars[1]} colors={colors} size={vertical ? { width: 960, height: 560 } : { width: 680, height: 400 }} />
       <dl className="w-full">
         {rows.map((row) => (
           <div key={row.key} className={cn("grid grid-cols-3 items-baseline border-t-2 border-white/10 font-display tabular-nums", vertical && "py-1")}>

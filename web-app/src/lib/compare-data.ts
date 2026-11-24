@@ -2,9 +2,12 @@
 import { cacheLife } from "next/cache";
 import { trophyCounts } from "@/components/trophies/trophy-catalog";
 import { buildRadarScale, CAREER, isRepresentative, radarOf, scaleKey, type Radar, type RadarScales, type StatLine } from "@/lib/compare";
+import { averagesFromTotals, careerLeague, leagueOf, relativeLine, type LeagueAverages, type LeagueTable, type SeasonTotals } from "@/lib/era-adjust";
+import { LEAGUE_AVERAGES } from "@/lib/league-averages";
 import { ageFrom, formatDraft } from "@/lib/player-profile";
 import { getPlayer, getPlayerAwards, getPlayerCareer, getTeams } from "@/lib/queries";
 import { getSupabase, type PlayerContract, type PlayerSeasonStats, type SeasonType, type Team } from "@/lib/supabase";
+import { SEASON } from "@/lib/trade-rules";
 
 const PAGE_SIZE = 1000;
 
@@ -15,6 +18,9 @@ export type DuelSeason = {
   age: number | null;
   line: StatLine;
   radar: Radar;
+  /** La liga que tuvo delante (en una carrera, la de todas sus temporadas) y el radar ajustado con ella (Tarea 7.3). */
+  league: LeagueAverages | null;
+  eraRadar: Radar;
 };
 
 export type DuelTeam = Pick<Team, "id" | "name" | "abbreviation" | "primary_color" | "secondary_color">;
@@ -38,7 +44,7 @@ export type DuelPlayer = {
   salary: number | null;
 };
 
-type StatRow = Pick<PlayerSeasonStats, "season_id" | "season_type" | "games_played" | "pts" | "reb" | "ast" | "fg_pct" | "fg3_pct" | "advanced_stats">;
+type StatRow = Pick<PlayerSeasonStats, "player_id" | "season_id" | "season_type" | "games_played" | "pts" | "reb" | "ast" | "fg_pct" | "fg3_pct" | "advanced_stats">;
 
 function lineOf({ games_played, pts, reb, ast, fg_pct, fg3_pct, advanced_stats: extra }: StatRow): StatLine {
   return {
@@ -59,30 +65,72 @@ function lineOf({ games_played, pts, reb, ast, fg_pct, fg3_pct, advanced_stats: 
   };
 }
 
-/** Escalas del radar: se calculan con todas las temporadas guardadas y solo se conservan sus cortes. */
-async function getRadarScales(): Promise<RadarScales> {
+/** Medias de la liga por temporada: las cerradas, de la tabla fija; la de ahora, de los totales del job diario. */
+export async function getLeagueTable(): Promise<LeagueTable> {
+  "use cache";
+  cacheLife("hours");
+
+  const table: LeagueTable = { "Regular Season": { ...LEAGUE_AVERAGES["Regular Season"] }, Playoffs: { ...LEAGUE_AVERAGES.Playoffs } };
+  const { data, error } = await getSupabase().from("player_season_stats").select("season_type, totals").eq("season_id", SEASON).limit(PAGE_SIZE);
+  if (error) throw new Error(`Error cargando la temporada en curso: ${error.message}`);
+  for (const phase of ["Regular Season", "Playoffs"] as const) {
+    if (table[phase][SEASON]) continue; // Ya cerrada y en la tabla
+    const totals = (data as { season_type: SeasonType; totals: SeasonTotals | null }[]).flatMap((row) => (row.season_type === phase && row.totals ? [row.totals] : []));
+    const averages = averagesFromTotals(totals);
+    if (averages) table[phase][SEASON] = averages;
+  }
+  return table;
+}
+
+type LeagueSource = Pick<StatRow, "season_id" | "season_type"> & { line: StatLine };
+
+/** La liga de una fila: la de su temporada o, en la carrera, la de todas las del jugador en esa fase. */
+function leagueFor(row: LeagueSource, playerRows: LeagueSource[], table: LeagueTable): LeagueAverages | null {
+  if (row.season_id !== CAREER) return leagueOf(row.season_id, row.season_type, table);
+  const seasons = playerRows.filter(({ season_type }) => season_type === row.season_type).map(({ season_id, line }) => ({ id: season_id, line }));
+  return careerLeague(seasons, row.season_type, table);
+}
+
+/** Escalas del radar, normal y ajustado: se calculan con todas las temporadas guardadas y solo se conservan sus cortes. */
+async function getRadarScales(): Promise<{ plain: RadarScales; era: RadarScales }> {
   "use cache";
   cacheLife("hours");
 
   const supabase = getSupabase();
-  const groups = new Map<string, StatLine[]>();
+  const players = new Map<number, LeagueSource[]>();
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
       .from("player_season_stats")
-      .select("season_id, season_type, games_played, pts, reb, ast, fg_pct, fg3_pct, advanced_stats")
+      .select("player_id, season_id, season_type, games_played, pts, reb, ast, fg_pct, fg3_pct, advanced_stats")
       .order("id")
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`Error cargando temporadas: ${error.message}`);
 
     for (const row of data as StatRow[]) {
-      const line = lineOf(row);
-      if (!isRepresentative(line, row.season_id, row.season_type)) continue;
-      const key = scaleKey(row.season_id, row.season_type);
-      groups.set(key, [...(groups.get(key) ?? []), line]);
+      const rows = players.get(row.player_id) ?? [];
+      rows.push({ season_id: row.season_id, season_type: row.season_type, line: lineOf(row) });
+      players.set(row.player_id, rows);
     }
     if (data.length < PAGE_SIZE) break;
   }
-  return Object.fromEntries([...groups].map(([key, lines]) => [key, buildRadarScale(lines)]));
+
+  const table = await getLeagueTable();
+  const plain = new Map<string, StatLine[]>();
+  const era = new Map<string, StatLine[]>();
+  for (const rows of players.values()) {
+    for (const row of rows) {
+      if (!isRepresentative(row.line, row.season_id, row.season_type)) continue;
+      const key = scaleKey(row.season_id, row.season_type);
+      if (!plain.has(key)) {
+        plain.set(key, []);
+        era.set(key, []);
+      }
+      plain.get(key)!.push(row.line);
+      era.get(key)!.push(relativeLine(row.line, leagueFor(row, rows, table)));
+    }
+  }
+  const scales = (groups: Map<string, StatLine[]>) => Object.fromEntries([...groups].map(([key, lines]) => [key, buildRadarScale(lines)]));
+  return { plain: scales(plain), era: scales(era) };
 }
 
 async function getCurrentSalary(playerId: number): Promise<number | null> {
@@ -102,12 +150,13 @@ export async function getDuelPlayer(playerId: number): Promise<DuelPlayer | null
   "use cache";
   cacheLife("hours");
 
-  const [player, career, awards, teams, scales, salary] = await Promise.all([
+  const [player, career, awards, teams, scales, table, salary] = await Promise.all([
     getPlayer(playerId),
     getPlayerCareer(playerId),
     getPlayerAwards(playerId),
     getTeams(),
     getRadarScales(),
+    getLeagueTable(),
     getCurrentSalary(playerId),
   ]);
   if (!player) return null;
@@ -116,17 +165,21 @@ export async function getDuelPlayer(playerId: number): Promise<DuelPlayer | null
   const teamId = player.team_id ?? mostFrequentTeam(regular);
   const team = teams.find((candidate) => candidate.id === teamId) ?? null;
 
+  const sources = career.map((row): LeagueSource => ({ season_id: row.season_id, season_type: row.season_type, line: lineOf(row) }));
   const seasons = career
-    .map((row): DuelSeason => {
-      const line = lineOf(row);
-      const scale = scales[scaleKey(row.season_id, row.season_type)];
+    .map((row, i): DuelSeason => {
+      const { line } = sources[i];
+      const key = scaleKey(row.season_id, row.season_type);
+      const league = leagueFor(sources[i], sources, table);
       return {
         id: row.season_id,
         phase: row.season_type,
         team: row.advanced_stats.team_abbreviation ?? null,
         age: row.advanced_stats.age ?? null,
         line,
-        radar: radarOf(line, scale),
+        radar: radarOf(line, scales.plain[key]),
+        league,
+        eraRadar: radarOf(relativeLine(line, league), scales.era[key]),
       };
     })
     // "Career" va delante; las temporadas, de la más reciente a la más antigua

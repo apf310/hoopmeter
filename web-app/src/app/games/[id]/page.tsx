@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
+import { GameSkeleton } from "@/components/games/detail/GameSkeleton";
 import { GameCenter } from "@/components/games/detail/GameCenter";
 import { gameDayOf, isGameId, previousSeason, seasonOf } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
@@ -80,18 +81,5 @@ async function GameContent({ params }: { params: PageProps<"/games/[id]">["param
         kickedOffAtRender={kickedOffAtRender}
       />
     </>
-  );
-}
-
-function GameSkeleton() {
-  return (
-    <div aria-busy className="animate-pulse">
-      <div className="h-[19rem] border-b border-slate-800 bg-slate-900 md:h-[22rem]" />
-      <div className="h-12 border-b border-slate-800" />
-      <div className="grid gap-6 px-4 py-6 md:px-8 lg:grid-cols-2">
-        <div className="h-64 bg-slate-900/60" />
-        <div className="h-64 bg-slate-900/60" />
-      </div>
-    </div>
   );
 }

@@ -1,27 +1,10 @@
 "use client";
 
-import { useId, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useId } from "react";
+import { CHART_H as H, CHART_MID as MID, CHART_W as W, ChartMarker, indexAt, PeriodAxis, PeriodLines, useTimeCursor } from "@/components/games/detail/TimeChart";
 import { Swatch } from "@/components/games/detail/ui";
 import type { FlowPoint, GameDetail } from "@/lib/game-detail";
-import { clockAt, periodChip, periodName, periodStarts, type MatchupTeam } from "@/lib/game-format";
-import { cn } from "@/lib/utils";
-
-// Unidades internas del SVG: se estira a lo ancho (las líneas mantienen 2 px con non-scaling-stroke)
-const W = 1000;
-const H = 240;
-const MID = H / 2;
-
-/** Último punto del marcador en el instante `seconds` (el marcador cambia a saltos). */
-function indexAt(flow: FlowPoint[], seconds: number): number {
-  let lo = 0;
-  let hi = flow.length - 1;
-  while (lo < hi) {
-    const mid = Math.ceil((lo + hi) / 2);
-    if (flow[mid][0] <= seconds) lo = mid;
-    else hi = mid - 1;
-  }
-  return lo;
-}
+import { clockAt, periodName, type MatchupTeam } from "@/lib/game-format";
 
 /**
  * Diferencia en el marcador a lo largo del partido: por encima de la línea manda el visitante,
@@ -30,7 +13,7 @@ function indexAt(flow: FlowPoint[], seconds: number): number {
 export function GameFlowChart({ detail, away, home }: { detail: GameDetail; away: MatchupTeam; home: MatchupTeam }) {
   const { flow, length, elapsed, regulationPeriods: regulation } = detail;
   const id = useId().replace(/[^a-zA-Z0-9_-]/g, "");
-  const [hover, setHover] = useState<number | null>(null);
+  const { hover, handlers } = useTimeCursor(flow, length, elapsed);
 
   const maxLead = Math.max(...flow.map(([, a, h]) => Math.abs(a - h)));
   const top = Math.max(5, Math.ceil(maxLead / 5) * 5);
@@ -52,26 +35,9 @@ export function GameFlowChart({ detail, away, home }: { detail: GameDetail; away
     return best ? [{ side, point: best, lead: Math.abs(best[1] - best[2]) }] : [];
   });
 
-  const starts = periodStarts(length, regulation);
-  const bounds = [0, ...starts, length];
   const index = indexAt(flow, hover ?? elapsed);
   const [, scoreAway, scoreHome] = flow[index];
   const moment = hover !== null ? clockAt(hover, regulation) : null;
-
-  function onPointerMove(event: PointerEvent<HTMLDivElement>) {
-    const rect = event.currentTarget.getBoundingClientRect();
-    const fraction = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-    setHover(Math.min(fraction * length, elapsed));
-  }
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    const current = hover === null ? flow.length - 1 : indexAt(flow, hover);
-    const next =
-      event.key === "ArrowRight" ? current + 1 : event.key === "ArrowLeft" ? current - 1 : event.key === "Home" ? 0 : event.key === "End" ? flow.length - 1 : null;
-    if (next === null) return;
-    event.preventDefault();
-    setHover(flow[Math.min(flow.length - 1, Math.max(0, next))][0]);
-  }
 
   const leadText =
     scoreAway === scoreHome ? "Empate" : scoreAway > scoreHome ? `${away.abbreviation} +${scoreAway - scoreHome}` : `${home.abbreviation} +${scoreHome - scoreAway}`;
@@ -106,12 +72,7 @@ export function GameFlowChart({ detail, away, home }: { detail: GameDetail; away
         aria-roledescription="gráfico"
         tabIndex={0}
         aria-label={`Diferencia en el marcador a lo largo del partido. Mayor ventaja: ${peaks.map((p) => `${p.side === "away" ? away.abbreviation : home.abbreviation} ${p.lead}`).join(", ") || "ninguna"}. Usa las flechas para recorrer el marcador.`}
-        onPointerMove={onPointerMove}
-        onPointerDown={onPointerMove}
-        // Con el dedo la lectura se queda al soltar (se quita al tocar fuera)
-        onPointerLeave={(event) => event.pointerType === "mouse" && setHover(null)}
-        onKeyDown={onKeyDown}
-        onBlur={() => setHover(null)}
+        {...handlers}
         className="relative mt-3 h-56 touch-pan-y select-none outline-none focus-visible:ring-2 focus-visible:ring-orange-400 md:h-64"
       >
         <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
@@ -128,9 +89,7 @@ export function GameFlowChart({ detail, away, home }: { detail: GameDetail; away
           {[top, top / 2, -top / 2, -top].map((v) => (
             <line key={v} x1={0} x2={W} y1={y(v)} y2={y(v)} stroke="#1e293b" strokeWidth={1} vectorEffect="non-scaling-stroke" />
           ))}
-          {starts.map((s) => (
-            <line key={s} x1={x(s)} x2={x(s)} y1={0} y2={H} stroke="#334155" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          ))}
+          <PeriodLines length={length} regulation={regulation} />
 
           <path d={area} fill={away.accent} fillOpacity={0.2} clipPath={`url(#${id}-top)`} />
           <path d={area} fill={home.accent} fillOpacity={0.2} clipPath={`url(#${id}-bottom)`} />
@@ -149,11 +108,11 @@ export function GameFlowChart({ detail, away, home }: { detail: GameDetail; away
           // La etiqueta va hacia fuera de la línea central, salvo pegada al borde del gráfico
           const below = side === "home" ? height < 0.85 : height < 0.12;
           return (
-            <Marker key={side} left={x(point[0]) / W} top={height} color={side === "away" ? away.accent : home.accent} label={`+${lead}`} below={below} />
+            <ChartMarker key={side} left={x(point[0]) / W} top={height} color={side === "away" ? away.accent : home.accent} label={`+${lead}`} below={below} />
           );
         })}
         {hover !== null && (
-          <Marker left={x(hover) / W} top={y(scoreAway - scoreHome) / H} color={scoreAway >= scoreHome ? away.accent : home.accent} />
+          <ChartMarker left={x(hover) / W} top={y(scoreAway - scoreHome) / H} color={scoreAway >= scoreHome ? away.accent : home.accent} />
         )}
 
         <span className="pointer-events-none absolute left-1 top-0 font-display text-[11px] font-semibold uppercase tracking-wider text-slate-400 tabular-nums">
@@ -164,37 +123,7 @@ export function GameFlowChart({ detail, away, home }: { detail: GameDetail; away
         </span>
       </div>
 
-      {/* Eje de periodos */}
-      <div className="relative mt-1.5 h-4">
-        {bounds.slice(0, -1).map((start, i) => (
-          <span
-            key={start}
-            className="absolute -translate-x-1/2 font-display text-xs font-semibold uppercase tracking-wider text-slate-400"
-            style={{ left: `${(((start + bounds[i + 1]) / 2) / length) * 100}%` }}
-          >
-            {i < regulation ? `${periodChip(i + 1, regulation)}.º` : periodChip(i + 1, regulation)}
-          </span>
-        ))}
-      </div>
+      <PeriodAxis length={length} regulation={regulation} />
     </div>
-  );
-}
-
-function Marker({ left, top, color, label, below }: { left: number; top: number; color: string; label?: string; below?: boolean }) {
-  return (
-    <span className="pointer-events-none absolute" style={{ left: `${left * 100}%`, top: `${top * 100}%` }}>
-      {/* Punto con anillo del color del fondo: se lee aunque cruce la línea */}
-      <span className="absolute size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-slate-950" style={{ background: color }} />
-      {label && (
-        <span
-          className={cn(
-            "absolute -translate-x-1/2 whitespace-nowrap font-display text-xs font-bold text-white tabular-nums",
-            below ? "top-2" : "bottom-2"
-          )}
-        >
-          {label}
-        </span>
-      )}
-    </span>
   );
 }

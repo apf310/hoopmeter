@@ -2,7 +2,9 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, EyeOff } from "lucide-react";
+import { ExcitementGauge } from "@/components/games/detail/ExcitementGauge";
 import { Placeholder } from "@/components/games/detail/ui";
+import { SharedLanding } from "@/components/layout/SharedLink";
 import type { GameDetail } from "@/lib/game-detail";
 import {
   formatDayMonth,
@@ -15,7 +17,6 @@ import {
 } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
 import { teamLogoUrl } from "@/lib/nba-cdn";
-import { EXCITEMENT_TONE_CLASSES, formatExcitementScore, getExcitementTone } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
 
 /**
@@ -99,7 +100,7 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
         </div>
 
         <div className="mt-5 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 md:gap-6">
-          <TeamSide team={away} role="Visitante" dimmed={homeWins} live={live?.away} />
+          <TeamSide gameId={game.id} team={away} role="Visitante" dimmed={homeWins} live={live?.away} />
           <div className="flex min-w-[7.5rem] flex-col items-center px-1 text-center md:min-w-56">
             {view.level === 1 && <KickOff game={game} day={day} />}
             {view.level === 2 && <ScoreOnly game={game} day={day} score={view.score} upcoming={view.upcoming} />}
@@ -107,7 +108,7 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
               <ResultCenter game={game} day={day} result={result} awayWins={awayWins} homeWins={homeWins} deferred={deferred} />
             )}
           </div>
-          <TeamSide team={home} role="Local" align="right" dimmed={awayWins} live={live?.home} />
+          <TeamSide gameId={game.id} team={home} role="Local" align="right" dimmed={awayWins} live={live?.home} />
         </div>
 
         {result && result.status !== "Scheduled" && <QuarterTable result={result} away={away} home={home} />}
@@ -133,12 +134,14 @@ export function GameHero({ game, day, away, home, view, children }: GameHeroProp
 }
 
 function TeamSide({
+  gameId,
   team,
   role,
   align = "left",
   dimmed,
   live,
 }: {
+  gameId: string;
   team: MatchupTeam;
   role: string;
   align?: "left" | "right";
@@ -149,15 +152,17 @@ function TeamSide({
   return (
     <div className={cn("flex min-w-0 flex-col items-center gap-2 md:flex-row md:gap-5", right && "md:flex-row-reverse")}>
       <Link href={`/teams/${team.id}`} className="shrink-0" aria-label={team.name}>
-        <Image
-          src={teamLogoUrl(team.id)}
-          alt=""
-          width={112}
-          height={112}
-          unoptimized
-          priority
-          className={cn("size-14 drop-shadow-lg transition-opacity md:size-24 xl:size-28", dimmed && "opacity-60")}
-        />
+        <SharedLanding target={{ kind: "game", id: gameId }} part={right ? "home" : "away"}>
+          <Image
+            src={teamLogoUrl(team.id)}
+            alt=""
+            width={112}
+            height={112}
+            unoptimized
+            priority
+            className={cn("size-14 drop-shadow-lg transition-opacity md:size-24 xl:size-28", dimmed && "opacity-60")}
+          />
+        </SharedLanding>
       </Link>
       <div className={cn("min-w-0 text-center", right ? "md:text-right" : "md:text-left")}>
         <p className="font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">{role}</p>
@@ -208,31 +213,15 @@ function KickOff({ game, day }: { game: GameMatchup; day: string }) {
   );
 }
 
-/** Nivel 2: la nota y su color. Nada más (ni si se está jugando, ni cómo va). */
+/** Nivel 2: la nota y su color en el velocímetro (Tarea 7.1). Nada más (ni si se está jugando, ni cómo va). */
 function ScoreOnly({ game, day, score, upcoming }: { game: GameMatchup; day: string; score: number | null | undefined; upcoming: boolean }) {
-  if (score === undefined) return <Placeholder className="h-24 w-28" />;
+  if (score === undefined) return <Placeholder className="h-40 w-48 md:h-60 md:w-72" />;
   if (score === null && upcoming) return <KickOffTime game={game} day={day} />;
   return (
     <>
-      <BigScoreBadge score={score} />
+      <ExcitementGauge score={score} />
       <span className="mt-2 font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-white/75">Nota del partido</span>
     </>
-  );
-}
-
-export function BigScoreBadge({ score }: { score: number | null }) {
-  const tone = getExcitementTone(score);
-  const formatted = formatExcitementScore(score);
-  return (
-    <span
-      aria-label={tone === "pending" ? "Nota pendiente" : `Nota del partido: ${formatted} sobre 10`}
-      className={cn(
-        "inline-flex min-w-28 items-center justify-center px-4 py-2 font-display text-6xl font-extrabold leading-none ring-2 backdrop-blur-sm md:min-w-36 md:text-7xl",
-        EXCITEMENT_TONE_CLASSES[tone]
-      )}
-    >
-      {formatted}
-    </span>
   );
 }
 
@@ -284,21 +273,11 @@ function ResultCenter({
           Directo{result.periodText && <span className="text-white tabular-nums">{result.periodText}</span>}
         </p>
       ) : (
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-col items-center gap-2">
           <span className="font-display text-base font-bold uppercase tracking-wider text-white/85">
             Final{overtime > 0 && <span className="text-white/60">{overtime > 1 ? ` · ${overtime} prórrogas` : " · Prórroga"}</span>}
           </span>
-          {result.excitementScore !== null && (
-            <span
-              title="Nota del partido"
-              className={cn(
-                "inline-flex min-w-11 items-center justify-center px-1.5 py-0.5 font-display text-lg font-extrabold leading-none ring-1",
-                EXCITEMENT_TONE_CLASSES[getExcitementTone(result.excitementScore)]
-              )}
-            >
-              {formatExcitementScore(result.excitementScore)}
-            </span>
-          )}
+          {result.excitementScore !== null && <ExcitementGauge score={result.excitementScore} size="sm" />}
         </div>
       )}
     </>

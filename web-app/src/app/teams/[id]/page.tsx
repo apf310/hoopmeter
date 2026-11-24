@@ -5,10 +5,12 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { SharedLanding } from "@/components/layout/SharedLink";
 import type { TeamCardData } from "@/components/share/TeamShareCard";
 import { TeamRecordStats } from "@/components/standings/TeamRecordStats";
 import { RosterTable } from "@/components/teams/RosterTable";
 import { TeamGameRow, type RivalLite } from "@/components/teams/TeamGameRow";
+import { TeamLogoSkeleton } from "@/components/teams/TeamLogoSkeleton";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
 import type { GmTeam } from "@/lib/gm";
 import { tradeSearch } from "@/lib/gm-link";
@@ -158,15 +160,17 @@ function TeamHero({
 
       <div className="relative px-4 pb-7 pt-8 md:px-8 md:pt-12">
         <div className="flex items-center gap-4 md:gap-6">
-          <Image
-            src={teamLogoUrl(team.id)}
-            alt={`Logo de ${team.name}`}
-            width={112}
-            height={112}
-            unoptimized
-            priority
-            className="size-20 shrink-0 drop-shadow-lg md:size-28"
-          />
+          <SharedLanding target={{ kind: "team", id: team.id }}>
+            <Image
+              src={teamLogoUrl(team.id)}
+              alt={`Logo de ${team.name}`}
+              width={112}
+              height={112}
+              unoptimized
+              priority
+              className="size-20 shrink-0 drop-shadow-lg md:size-28"
+            />
+          </SharedLanding>
           <div className="min-w-0">
             <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-white/75">
               {[conference && `Conferencia ${conference}`, division && `División ${division}`]
@@ -237,9 +241,11 @@ function SectionTitle({ accent, count, children }: { accent: string; count?: num
 
 function TeamSkeleton() {
   return (
-    <div className="animate-pulse" aria-busy>
-      <div className="-mx-4 -mt-4 h-72 bg-slate-900 md:-mx-8 md:-mt-8" />
-      <div className="mt-8 grid gap-10 lg:grid-cols-3">
+    <div aria-busy>
+      <div className="-mx-4 -mt-4 h-72 bg-slate-900 px-4 pt-8 md:-mx-8 md:-mt-8 md:px-8 md:pt-12">
+        <TeamLogoSkeleton />
+      </div>
+      <div className="mt-8 grid animate-pulse gap-10 lg:grid-cols-3">
         <div className="h-96 bg-slate-900/60 lg:col-span-2" />
         <div className="space-y-10">
           <div className="h-56 bg-slate-900/60" />

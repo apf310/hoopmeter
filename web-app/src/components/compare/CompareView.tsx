@@ -7,19 +7,21 @@ import { useRouter } from "next/navigation";
 import { ArrowLeftRight, LoaderCircle } from "lucide-react";
 import { DuelRadar } from "@/components/compare/DuelRadar";
 import { DuelRows } from "@/components/compare/DuelRows";
+import { EraSwitch, LeagueContext } from "@/components/compare/EraAdjust";
 import { PlayerPicker } from "@/components/compare/PlayerPicker";
 import { loadSearchIndex } from "@/components/search/SearchCommand";
 import { Section, Segmented } from "@/components/games/detail/ui";
 import { CompareCardExport } from "@/components/share/CompareShareCard";
 import { CAREER, defaultSeason, FEATURED_DUELS, radarRows, score, statRows, trophyRows, type Side } from "@/lib/compare";
 import type { DuelPlayer, DuelSeason } from "@/lib/compare-data";
+import { adjustLine, pickReference, referenceSeasons, withRealValues, type LeagueTable } from "@/lib/era-adjust";
 import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel, RADAR_LABEL } from "@/lib/player-profile";
 import type { SearchIndex } from "@/lib/search";
 import type { SeasonType } from "@/lib/supabase";
 import { countryLabel } from "@/lib/places";
 import { matchupAccents, teamBackdrop } from "@/lib/team-colors";
-import { formatMoney } from "@/lib/trade-rules";
+import { formatMoney, SEASON } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
 
 const FALLBACK_COLORS = { primary_color: "#f97316", secondary_color: null };
@@ -28,7 +30,12 @@ const PHASES: { value: SeasonType; label: string }[] = [
   { value: "Playoffs", label: "Playoffs" },
 ];
 
+/** Ajuste por épocas: encendido o no y la temporada a la que se lleva todo ("" = la última cerrada). */
+type Era = { on: boolean; reference: string };
+
 export const seasonLabel = (season: Pick<DuelSeason, "id">) => (season.id === CAREER ? "Carrera" : season.id);
+/** Referencia por defecto: la última temporada cerrada, que no cambia de un día a otro. */
+const LAST_CLOSED_SEASON = `${Number(SEASON.slice(0, 4)) - 1}-${SEASON.slice(2, 4)}`;
 const lastName = (name: string) => name.split(" ").slice(1).join(" ") || name;
 const yearsOld = (age: number | null) => (age ? `${age} años` : null);
 
@@ -39,10 +46,12 @@ export function duelColors(a: DuelPlayer, b: DuelPlayer): [string, string] {
 }
 
 /** Comparador: los jugadores van en la URL, así que cualquier duelo se puede enlazar y compartir. */
-export function CompareView({ a, b }: { a: DuelPlayer | null; b: DuelPlayer | null }) {
+export function CompareView({ a, b, leagues }: { a: DuelPlayer | null; b: DuelPlayer | null; leagues: LeagueTable | null }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [changing, setChanging] = useState<Side | null>(null);
+  // Aquí y no en el duelo: al cambiar de jugador se mantiene
+  const [era, setEra] = useState<Era>({ on: false, reference: "" });
   // El buscador va al lado que se quiere cambiar o, si no, al primero que esté libre
   const target = changing ?? (!a ? "a" : !b ? "b" : null);
 
@@ -77,7 +86,7 @@ export function CompareView({ a, b }: { a: DuelPlayer | null; b: DuelPlayer | nu
         </div>
       )}
 
-      {a && b ? <Duel key={`${a.id}-${b.id}`} a={a} b={b} /> : <FeaturedDuels />}
+      {a && b && leagues ? <Duel key={`${a.id}-${b.id}`} a={a} b={b} leagues={leagues} era={era} onEra={setEra} /> : <FeaturedDuels />}
     </>
   );
 }
@@ -273,7 +282,7 @@ function pickSeason(player: DuelPlayer, phase: SeasonType, id: string): DuelSeas
   return seasons.find((season) => season.id === id) ?? seasons[0] ?? null;
 }
 
-function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
+function Duel({ a, b, leagues, era, onEra }: { a: DuelPlayer; b: DuelPlayer; leagues: LeagueTable; era: Era; onEra: (era: Era) => void }) {
   // Con una leyenda de por medio lo justo es carrera contra carrera; entre activos, su última temporada
   const initial = (player: DuelPlayer) => (a.active && b.active ? defaultSeason(seasonsOf(player, "Regular Season")) : CAREER);
   const [phase, setPhase] = useState<SeasonType>("Regular Season");
@@ -283,6 +292,8 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
   const seasonA = pickSeason(a, phase, seasonIdA);
   const seasonB = pickSeason(b, phase, seasonIdB);
   const colors = duelColors(a, b);
+  const referenceId = pickReference(era.reference || LAST_CLOSED_SEASON, phase, leagues);
+  const reference = leagues[phase][referenceId];
 
   const controls = (
     <div className="border-b border-slate-800 px-4 py-3 md:px-8">
@@ -292,6 +303,15 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
           <SeasonSelect player={a} phase={phase} value={seasonA.id} onChange={setSeasonIdA} />
           <SeasonSelect player={b} phase={phase} value={seasonB.id} onChange={setSeasonIdB} />
         </div>
+      )}
+      {seasonA && seasonB && (
+        <EraSwitch
+          on={era.on}
+          onToggle={() => onEra({ ...era, on: !era.on })}
+          reference={referenceId}
+          references={referenceSeasons(phase, leagues)}
+          onReference={(season) => onEra({ ...era, reference: season })}
+        />
       )}
     </div>
   );
@@ -308,10 +328,15 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
     );
   }
 
-  const attributes = radarRows(seasonA.radar, seasonB.radar, RADAR_LABEL);
-  const stats = statRows(seasonA.line, seasonB.line);
+  const radarA = era.on ? seasonA.eraRadar : seasonA.radar;
+  const radarB = era.on ? seasonB.eraRadar : seasonB.radar;
+  const attributes = radarRows(radarA, radarB, RADAR_LABEL);
+  const realStats = statRows(seasonA.line, seasonB.line);
+  const stats = era.on
+    ? withRealValues(statRows(adjustLine(seasonA.line, seasonA.league, reference), adjustLine(seasonB.line, seasonB.league, reference)), realStats)
+    : realStats;
   const trophies = trophyRows(a.trophies, b.trophies);
-  const incomplete = [...Object.values(seasonA.radar), ...Object.values(seasonB.radar)].some((value) => value === null);
+  const incomplete = [...Object.values(radarA), ...Object.values(radarB)].some((value) => value === null);
   const careerView = seasonA.id === CAREER && seasonB.id === CAREER;
 
   return (
@@ -321,7 +346,7 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
       <Section title="Atributos" aside={<ScoreBadge a={a} b={b} rows={attributes} />}>
         <div className="grid items-center gap-6 lg:grid-cols-2">
           <figure>
-            <DuelRadar a={seasonA.radar} b={seasonB.radar} colors={colors} />
+            <DuelRadar a={radarA} b={radarB} colors={colors} />
             <figcaption className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-slate-300">
               <Legend color={colors[0]}>
                 {a.name} · {seasonLabel(seasonA)}
@@ -334,7 +359,10 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
           <div>
             <DuelRows rows={attributes} colors={colors} />
             <p className="mt-3 text-xs leading-relaxed text-slate-400">
-              Escala histórica: percentil de 0 a 99 frente a {careerView ? "todas las carreras" : "todas las temporadas"} de la base de datos, estrellas de hoy y leyendas, sin ajustar por época.
+              Escala histórica: percentil de 0 a 99 frente a {careerView ? "todas las carreras" : "todas las temporadas"} de la base de datos, estrellas de hoy y leyendas,{" "}
+              {era.on
+                ? "cada una medida contra la media de su liga en anotación, creación, rebote y eficiencia (tiro exterior y defensa, sin ajustar)."
+                : "sin ajustar por época."}{" "}
               Por eso no coincide con la ficha del jugador, que lo compara solo con la liga de esta temporada.
               {incomplete && " La NBA no registró robos y tapones hasta 1973-74 ni triples hasta 1979-80."}
             </p>
@@ -344,7 +372,14 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
 
       <Section title="Estadísticas" aside={<ScoreBadge a={a} b={b} rows={stats} />}>
         <DuelRows rows={stats} colors={colors} />
+        {era.on && (
+          <p className="mt-3 text-xs leading-relaxed text-slate-400">
+            Puntos, rebotes, asistencias y tiro real llevados a la liga de {referenceId}. El resto de filas no cambia.
+          </p>
+        )}
       </Section>
+
+      {era.on && <LeagueContext a={a} b={b} seasonA={seasonA} seasonB={seasonB} reference={reference} referenceId={referenceId} colors={colors} />}
 
       {trophies.length > 0 && (
         <Section title="Palmarés" aside={<ScoreBadge a={a} b={b} rows={trophies} />}>
@@ -365,7 +400,17 @@ function Duel({ a, b }: { a: DuelPlayer; b: DuelPlayer }) {
       </Section>
 
       <div className="px-4 py-6 md:px-8">
-        <CompareCardExport a={a} b={b} seasonA={seasonA} seasonB={seasonB} attributes={attributes} stats={stats} colors={colors} />
+        <CompareCardExport
+          a={a}
+          b={b}
+          seasonA={seasonA}
+          seasonB={seasonB}
+          radars={[radarA, radarB]}
+          attributes={attributes}
+          stats={stats}
+          colors={colors}
+          era={era.on ? referenceId : null}
+        />
       </div>
     </>
   );

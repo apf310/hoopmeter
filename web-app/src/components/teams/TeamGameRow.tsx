@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ChevronRight } from "lucide-react";
 import type { GameMatchup } from "@/lib/game-day";
 import { teamLogoUrl } from "@/lib/nba-cdn";
@@ -35,7 +35,7 @@ export function TeamGameRow({
 
   return (
     <li className="border-b border-slate-800/80">
-      <Link href={`/games/${game.id}`} className="group block py-2.5 transition-colors hover:bg-slate-900/70">
+      <SharedLink href={`/games/${game.id}`} teams={{ away: game.away_team_id, home: game.home_team_id }} className="group block py-2.5 transition-colors hover:bg-slate-900/70">
         <span className="flex items-center gap-2">
         <time dateTime={game.game_datetime_utc} className="w-16 shrink-0 font-display uppercase leading-tight">
           <span className="block text-xs font-semibold text-slate-300">{dayFormat.format(date).replace(".", "")}</span>
@@ -47,7 +47,11 @@ export function TeamGameRow({
             {isHome ? "vs" : "@"}
           </span>
           <span className="sr-only">{isHome ? "En casa contra" : "Fuera contra"}</span>
-          {rival && <Image src={teamLogoUrl(rival.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />}
+          {rival && (
+            <Shared part={isHome ? "away" : "home"}>
+              <Image src={teamLogoUrl(rival.id)} alt="" width={28} height={28} unoptimized className="size-7 shrink-0" />
+            </Shared>
+          )}
           {/* Nombre completo solo con la columna a todo el ancho (de sm a lg); en móvil y en la columna lateral, la abreviatura */}
           <span className="truncate">
             <span className="whitespace-nowrap sm:hidden lg:inline">{rival?.abbreviation ?? "—"}</span>
@@ -59,7 +63,7 @@ export function TeamGameRow({
         <ChevronRight className="hidden size-4 shrink-0 text-slate-600 transition-colors group-hover:text-orange-400 sm:block lg:hidden" aria-hidden />
         </span>
         {below && <span className="mt-1 block pl-[4.5rem]">{below}</span>}
-      </Link>
+      </SharedLink>
     </li>
   );
 }

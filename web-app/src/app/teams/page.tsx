@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ChevronRight } from "lucide-react";
 import { pageMetadata } from "@/lib/seo";
 import { teamLogoUrl } from "@/lib/nba-cdn";
@@ -59,15 +59,17 @@ export default async function TeamsPage() {
                       .sort(byName)
                       .map((team) => (
                         <li key={team.id} className="border-b border-slate-800/80 last:border-b-0">
-                          <Link
+                          <SharedLink
                             href={`/teams/${team.id}`}
                             className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-900/70 md:px-8"
                           >
                             <span aria-hidden className="h-8 w-1 shrink-0" style={{ background: teamAccent(team) }} />
-                            <Image src={teamLogoUrl(team.id)} alt="" width={36} height={36} unoptimized className="size-9 shrink-0" />
+                            <Shared>
+                              <Image src={teamLogoUrl(team.id)} alt="" width={36} height={36} unoptimized className="size-9 shrink-0" />
+                            </Shared>
                             <span className="min-w-0 flex-1 truncate font-semibold text-white group-hover:text-orange-400">{team.name}</span>
                             <ChevronRight className="size-4 shrink-0 text-slate-600 transition-colors group-hover:text-orange-400" aria-hidden />
-                          </Link>
+                          </SharedLink>
                         </li>
                       ))}
                   </ul>

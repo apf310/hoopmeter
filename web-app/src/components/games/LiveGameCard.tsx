@@ -1,6 +1,6 @@
 import Image from "next/image";
-import Link from "next/link";
 import { ChevronRight, Star } from "lucide-react";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { PureScoreBadge } from "@/components/games/PureScoreBadge";
 import {
   formatGameTime,
@@ -48,8 +48,9 @@ export function LiveGameCard({ game, day, home, away, view, favorite }: LiveGame
     <li className={cn("relative border-b border-slate-800", mine && "bg-orange-500/[0.05]")}>
       {/* Partido de tus favoritos: franja naranja a la izquierda (igual en los tres niveles) */}
       {mine && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-orange-500" />}
-      <Link
+      <SharedLink
         href={`/games/${game.id}`}
+        teams={{ away: game.away_team_id, home: game.home_team_id }}
         onPointerEnter={prefetchDetail}
         onFocus={prefetchDetail}
         className="group grid grid-cols-[4.25rem_minmax(0,1fr)_auto_1rem] items-center gap-x-3 px-4 py-2 transition-colors md:py-3 hover:bg-slate-900/70 md:gap-x-5 md:px-8"
@@ -67,7 +68,7 @@ export function LiveGameCard({ game, day, home, away, view, favorite }: LiveGame
         </div>
 
         <ChevronRight className="size-4 text-slate-600 transition-colors group-hover:text-orange-400" />
-      </Link>
+      </SharedLink>
     </li>
   );
 }
@@ -118,7 +119,11 @@ function TeamLine({
   return (
     <div className="flex h-7 min-w-0 items-center gap-2.5 md:h-8">
       <span aria-hidden className="h-6 w-1 shrink-0" style={{ backgroundColor: team?.accent ?? "#475569" }} />
-      {team && <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-6 shrink-0 md:size-7" />}
+      {team && (
+        <Shared part={role === "Local" ? "home" : "away"}>
+          <Image src={teamLogoUrl(team.id)} alt="" width={28} height={28} unoptimized className="size-6 shrink-0 md:size-7" />
+        </Shared>
+      )}
       {/* Convención de EE. UU.: "@" discreta delante del local. El hueco existe también en la fila del visitante
           (vacío) para que los dos nombres empiecen a la misma altura. El lector de pantalla oye la palabra */}
       <span className="flex min-w-0 items-baseline">

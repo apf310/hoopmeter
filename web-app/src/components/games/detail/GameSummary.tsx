@@ -1,9 +1,9 @@
-import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeftRight } from "lucide-react";
 import { GameFlowChart } from "@/components/games/detail/GameFlowChart";
-import { Eyebrow, Section, Swatch } from "@/components/games/detail/ui";
+import { Eyebrow, Fact, Section, Swatch, TeamValue } from "@/components/games/detail/ui";
+import { WinProbabilityPanel } from "@/components/games/detail/WinProbabilityChart";
 import type { GameDetail, PlayerLine, ScoringRun, TeamBox, TeamTotals } from "@/lib/game-detail";
 import {
   decimal,
@@ -53,6 +53,8 @@ export function GameSummary({ detail, away, home, onOpenPlayer, compare = false 
         <GameFlowChart detail={detail} away={away} home={home} />
         <FlowFacts detail={detail} away={away} home={home} />
       </Section>
+
+      <WinProbabilityPanel detail={detail} away={away} home={home} />
 
       <div className="grid grid-cols-1 divide-y divide-slate-800 border-b border-slate-800 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
         <TeamComparison detail={detail} away={away} home={home} />
@@ -255,27 +257,6 @@ function FlowFacts({ detail, away, home }: { detail: GameDetail; away: MatchupTe
         ))}
       </Fact>
     </dl>
-  );
-}
-
-function Fact({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="border-b border-r border-slate-800 px-4 py-3">
-      <dt className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-300">{label}</dt>
-      <dd className="mt-1 font-display text-3xl font-extrabold leading-none text-white">{children}</dd>
-    </div>
-  );
-}
-
-function TeamValue({ team, note, children }: { team: MatchupTeam; note?: string; children: ReactNode }) {
-  return (
-    <span className="mt-1 flex items-baseline gap-2 first:mt-0" title={note}>
-      <span className="flex w-12 shrink-0 items-center gap-1.5 font-display text-xs font-bold uppercase text-slate-300">
-        <Swatch color={team.accent} className="size-2" />
-        {team.abbreviation}
-      </span>
-      <span className="text-2xl">{children}</span>
-    </span>
   );
 }
 

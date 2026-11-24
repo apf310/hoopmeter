@@ -5,6 +5,7 @@ La nota tiene que leerse como una nota del colegio (partido normal ~6, suspenso 
 tres reales de 2026-27 en el fixture (solo la evolución del marcador).
 """
 import json
+import re
 import unittest
 from collections import defaultdict
 from pathlib import Path
@@ -117,6 +118,18 @@ class WinProbability(unittest.TestCase):
         self.assertEqual(E.seconds_left(2881, 4), 299)    # 1 s de prórroga
         self.assertEqual(E.seconds_left(3180, 4), 0)      # bocina de la prórroga
         self.assertEqual(E.seconds_left(3181, 4), 299)
+
+    def test_web_uses_the_same_model(self):
+        # El gráfico de la ficha (Tarea 7.2) lleva este modelo en TypeScript: mismas constantes y, en
+        # win-probability.test.ts, mismos valores que estos
+        ts = (Path(__file__).resolve().parents[2] / "web-app" / "src" / "lib" / "win-probability.ts").read_text(encoding="utf-8")
+        for name in ("SIGMA", "HOME_EDGE", "TIME_FLOOR", "ALIVE_CHANCE"):
+            match = re.search(rf"export const {name} = ([\d.]+);", ts)
+            self.assertIsNotNone(match, name)
+            self.assertEqual(float(match[1]), getattr(E, name), name)
+        for margin, left, expected in ((0, 2880, 0.554487), (-7, 1440, 0.328344), (5, 600, 0.744228), (-3, 30, 0.095567),
+                                       (1, 0, 0.776773), (0, 0, 0.5), (20, 300, 0.999619)):
+            self.assertAlmostEqual(E.win_probability(margin, left), expected, places=6)
 
 
 class RealGames(unittest.TestCase):

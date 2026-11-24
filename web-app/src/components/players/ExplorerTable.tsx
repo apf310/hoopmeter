@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ExplorerTeam } from "@/components/players/PlayerExplorer";
 import { useFloatingHead } from "@/lib/floating-head";
@@ -115,7 +115,7 @@ export function ExplorerTable({
                 <tr key={row.id} className="group border-b border-slate-800/80 transition-colors last:border-b-0 hover:bg-slate-900">
                   {/* Fija al desplazar la tabla a lo ancho en móvil; franja con el color de su equipo */}
                   <td className="sticky left-0 z-10 max-w-44 bg-slate-950 py-1 pr-2 transition-colors group-hover:bg-slate-900 sm:max-w-none">
-                    <Link
+                    <SharedLink
                       href={`/players/${row.id}`}
                       className="flex min-w-0 items-center gap-2 border-l-[3px] py-1 pl-[calc(1rem-3px)] md:pl-[calc(2rem-3px)]"
                       style={{ borderColor: team?.accent ?? "#334155" }}
@@ -132,7 +132,9 @@ export function ExplorerTable({
                         className="hidden h-10 w-[54px] shrink-0 items-end overflow-hidden sm:flex"
                         style={{ background: `${team?.accent ?? "#334155"}26` }}
                       >
-                        <Image src={playerHeadshotUrl(row.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+                        <Shared>
+                          <Image src={playerHeadshotUrl(row.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+                        </Shared>
                       </span>
                       <span className="min-w-0 leading-tight">
                         <span className="block truncate font-semibold text-white group-hover:text-orange-400">{row.name}</span>
@@ -141,7 +143,7 @@ export function ExplorerTable({
                           {row.rookie && <span className="ml-1.5 text-orange-400">Rookie</span>}
                         </span>
                       </span>
-                    </Link>
+                    </SharedLink>
                   </td>
                   {columns.map((key, i) => (
                     <Cell

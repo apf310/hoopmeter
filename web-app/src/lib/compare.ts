@@ -154,6 +154,9 @@ export type DuelRow = {
   winner: Side | null;
   /** Lo que ocupa el lado A en la barra, de 0 a 1 (en "menos es mejor", la parte del rival). */
   share: number;
+  /** Cifra real de cada lado cuando la fila va ajustada por épocas (Tarea 7.3). */
+  aReal?: string;
+  bReal?: string;
 };
 
 type Format = "average" | "percent" | "integer";

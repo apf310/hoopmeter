@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import Image from "next/image";
-import Link from "next/link";
+import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { cn } from "@/lib/utils";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { conferenceLabel } from "@/lib/places";
@@ -105,9 +105,11 @@ export function StandingsTable({ teams, league = false }: { teams: StandingsTeam
                 <tr className="group border-b border-slate-800/80 transition-colors hover:bg-slate-900">
                   <td className={cn("py-0 pl-4 pr-2 font-display text-lg font-bold", league ? "text-white" : zone.text)}>{rank}</td>
                   <td className={cn(TD, "py-0")}>
-                    <Link href={`/teams/${team.id}`} className="flex h-11 items-center gap-2.5 md:h-14 md:gap-3">
+                    <SharedLink href={`/teams/${team.id}`} className="flex h-11 items-center gap-2.5 md:h-14 md:gap-3">
                       <span className="h-6 w-1 shrink-0 md:h-8" style={{ background: teamAccent(team) }} aria-hidden />
-                      <Image src={teamLogoUrl(team.id)} alt="" width={32} height={32} unoptimized className="size-6 shrink-0 md:size-8" />
+                      <Shared>
+                        <Image src={teamLogoUrl(team.id)} alt="" width={32} height={32} unoptimized className="size-6 shrink-0 md:size-8" />
+                      </Shared>
                       <span className="truncate font-semibold text-white group-hover:text-orange-400">
                         <span className="hidden sm:inline">{team.name}</span>
                         <span className="font-display text-base uppercase tracking-wide sm:hidden">{team.abbreviation}</span>
@@ -118,7 +120,7 @@ export function StandingsTable({ teams, league = false }: { teams: StandingsTeam
                           {team.conf_rank && ` ${team.conf_rank}º`}
                         </span>
                       )}
-                    </Link>
+                    </SharedLink>
                   </td>
                   <td className={cn(TD, "text-center font-display text-lg font-bold text-white")}>{team.wins}</td>
                   <td className={cn(TD, "text-center font-display text-lg font-semibold text-slate-300")}>{team.losses}</td>

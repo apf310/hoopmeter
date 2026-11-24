@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { CompareLoading, CompareView } from "@/components/compare/CompareView";
-import { getDuelPlayer } from "@/lib/compare-data";
+import { getDuelPlayer, getLeagueTable } from "@/lib/compare-data";
 import { getPlayer } from "@/lib/queries";
 import { compareMeta, pageMetadata, playerIdParam } from "@/lib/seo";
 
@@ -51,8 +51,8 @@ async function CompareContent({ searchParams }: { searchParams: PageProps<"/comp
 }
 
 async function CompareDuel({ a, b }: { a: number | null; b: number | null }) {
-  const [playerA, playerB] = await Promise.all([loadPlayer(a), loadPlayer(b)]);
-  return <CompareView a={playerA} b={playerB} />;
+  const [playerA, playerB, leagues] = await Promise.all([loadPlayer(a), loadPlayer(b), a && b ? getLeagueTable() : null]);
+  return <CompareView a={playerA} b={playerB} leagues={leagues} />;
 }
 
 function CompareSkeleton() {
