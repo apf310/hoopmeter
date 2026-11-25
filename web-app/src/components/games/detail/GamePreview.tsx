@@ -3,8 +3,9 @@ import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { Lock } from "lucide-react";
 import { Section } from "@/components/games/detail/ui";
 import { SpoilerModeSelector } from "@/components/layout/SpoilerModeSelector";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { MatchupTeam } from "@/lib/game-format";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { avg, positionLabel } from "@/lib/player-profile";
 import type { KeyPlayer } from "@/lib/queries";
 
@@ -31,7 +32,7 @@ export function KeyPlayers({ players, away, home }: { players: KeyPlayer[]; away
                     <SharedLink href={`/players/${player.id}`} className="group flex items-center gap-3 py-2 transition-colors hover:bg-slate-900">
                       <span className="flex h-11 w-[60px] shrink-0 items-end overflow-hidden" style={{ background: `${team.accent}26` }}>
                         <Shared>
-                          <Image src={playerHeadshotUrl(player.id)} alt="" width={60} height={44} className="h-11 w-[60px] object-cover object-top" />
+                          <PlayerPhoto id={player.id} width={60} height={44} className="h-11 w-[60px] object-cover object-top" />
                         </Shared>
                       </span>
                       <span className="min-w-0 flex-1">

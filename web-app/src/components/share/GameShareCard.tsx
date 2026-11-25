@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import { useMemo } from "react";
+import { showSilhouette } from "@/components/players/PlayerPhoto";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat, type ShareVideo } from "@/components/share/SocialCardExporter";
 import { formatDayMonth, formatGameTime, formatWeekday, madridDayIfDifferent, periodLabel, type GameMatchup, type GameResult } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
@@ -282,7 +283,7 @@ function CardResult({ result, away, home, vertical }: { result: GameResult; away
 function CardStar({ star, team, vertical }: { star: ShareStar; team: MatchupTeam; vertical: boolean }) {
   return (
     <div className={cn("relative flex items-end gap-10 border-t-4 bg-slate-950/70", vertical ? "px-16" : "px-24")} style={{ borderColor: team.accent }}>
-      <img src={sameOrigin(playerHeadshotUrl(star.id))} alt="" className="-mt-16 w-auto shrink-0" style={{ height: vertical ? 300 : 250 }} />
+      <img src={sameOrigin(playerHeadshotUrl(star.id))} onError={showSilhouette} alt="" className="-mt-16 w-auto shrink-0" style={{ height: vertical ? 300 : 250 }} />
       <div className="min-w-0 pb-10">
         <p className="flex items-center gap-4 font-display text-2xl font-semibold uppercase tracking-[0.3em] text-white/75">
           <img src={sameOrigin(teamLogoUrl(team.id))} alt="" className="size-10" />
@@ -308,7 +309,7 @@ function CardFeatured({ featured, away, home, vertical }: { featured: KeyPlayer[
       {duel.map(({ team, player }, i) => (
         // En vertical, foto encima del nombre: en media tarjeta no cabe al lado
         <div key={team.id} className={cn("flex", vertical ? "flex-col items-center text-center" : "items-end gap-6", !vertical && i === 1 && "flex-row-reverse text-right")}>
-          <img src={sameOrigin(playerHeadshotUrl(player.id))} alt="" className="-mt-10 w-auto shrink-0" style={{ height: vertical ? 200 : 210 }} />
+          <img src={sameOrigin(playerHeadshotUrl(player.id))} onError={showSilhouette} alt="" className="-mt-10 w-auto shrink-0" style={{ height: vertical ? 200 : 210 }} />
           <div className={cn("min-w-0", vertical ? "pb-10 pt-2" : "pb-8")}>
             <p className="font-display text-xl font-semibold uppercase tracking-[0.3em] text-white/70">A seguir · {team.abbreviation}</p>
             <p className={cn("font-display font-extrabold uppercase leading-none text-white", vertical ? "text-4xl" : "text-5xl")}>{player.full_name}</p>

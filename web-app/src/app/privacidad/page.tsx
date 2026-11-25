@@ -76,7 +76,8 @@ export default function PrivacyPage() {
         </p>
         <p>
           <strong>Evaluación del GM con IA.</strong> Al pedirla, enviamos a Google (Gemini API) solo el traspaso: equipos,
-          jugadores, rondas y contratos. Nada tuyo. Para evitar abusos, el servidor cuenta las peticiones de cada IP en
+          jugadores, rondas y contratos. Nada tuyo. La respuesta se guarda tres días en nuestra base de datos (Supabase)
+          para no repetirla, sin nada que diga quién la pidió. Para evitar abusos, el servidor cuenta las peticiones de cada IP en
           memoria durante un minuto; nunca se guarda.
         </p>
         <p>
@@ -144,7 +145,8 @@ export default function PrivacyPage() {
             <strong>Vercel</strong>: alojamiento de la web y estadísticas de visitas (Web Analytics).
           </li>
           <li>
-            <strong>Supabase</strong>: base de datos (suscripciones del aviso de la mañana y registro de errores).
+            <strong>Supabase</strong>: base de datos (suscripciones del aviso de la mañana, registro de errores y
+            evaluaciones del GM, sin datos tuyos).
           </li>
           <li>
             <strong>GitHub</strong>: procesos automáticos que envían el aviso y avisan de los errores.

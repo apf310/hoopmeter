@@ -41,7 +41,7 @@ function ActiveSidebarLinks() {
 
 function SidebarLinks({ pathname }: { pathname: string | null }) {
   return (
-    <nav className="flex shrink-0 flex-col py-3">
+    <nav aria-label="Navegación principal" className="flex shrink-0 flex-col py-3">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = pathname !== null && isActive(pathname, href);
         return (

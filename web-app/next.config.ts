@@ -13,14 +13,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Seguridad básica en todas las rutas. Sin CSP completa: Next.js mete scripts en línea y habría que usar nonces.
+        // Seguridad básica en todas las rutas. La CSP no limita los scripts (Next.js los mete en línea y habría que usar
+        // nonces, que impiden prerenderizar), pero sí lo que un HTML inyectado podría cambiar: de dónde cuelgan las
+        // rutas (base), a dónde van los formularios, los plugins y quién nos incrusta.
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           // Nadie puede incrustar la web en otra página (la app nativa la carga directamente, no en un iframe)
           { key: "X-Frame-Options", value: "DENY" },
-          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
         ],

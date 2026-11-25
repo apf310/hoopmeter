@@ -5,9 +5,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, X } from "lucide-react";
 import { ShotCourt } from "@/components/games/detail/ShotChart";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { GameDetail } from "@/lib/game-detail";
 import { decimal, doubleDouble, findPlayer, minutes, pct, periodChip, shooting, signed, type MatchupTeam } from "@/lib/game-format";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 
 /**
@@ -75,9 +76,8 @@ export function PlayerGameSheet({
             <X className="size-6" />
           </button>
           <div className="relative flex items-end gap-3 px-5 pt-8">
-            <Image
-              src={playerHeadshotUrl(player.id)}
-              alt=""
+            <PlayerPhoto
+              id={player.id}
               width={200}
               height={146}
               className="h-28 w-auto shrink-0 drop-shadow-[0_8px_20px_rgba(0,0,0,0.5)] sm:h-32"

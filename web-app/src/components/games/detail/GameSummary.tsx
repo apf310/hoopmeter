@@ -4,6 +4,7 @@ import { ArrowLeftRight } from "lucide-react";
 import { GameFlowChart } from "@/components/games/detail/GameFlowChart";
 import { Eyebrow, Fact, Section, Swatch, TeamValue } from "@/components/games/detail/ui";
 import { WinProbabilityPanel } from "@/components/games/detail/WinProbabilityChart";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { GameDetail, PlayerLine, ScoringRun, TeamBox, TeamTotals } from "@/lib/game-detail";
 import {
   decimal,
@@ -19,7 +20,7 @@ import {
   teamLeader,
   type MatchupTeam,
 } from "@/lib/game-format";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 
 type SummaryProps = {
@@ -86,9 +87,8 @@ function StarPlayer({ star, detail, away, home, onOpenPlayer }: SummaryProps & {
         className="group flex w-full items-end gap-2 overflow-hidden text-left outline-none focus-visible:ring-2 focus-visible:ring-orange-400"
         style={{ background: `linear-gradient(110deg, ${team.primary}73 0%, ${team.primary}26 45%, transparent 80%)` }}
       >
-        <Image
-          src={playerHeadshotUrl(player.id)}
-          alt=""
+        <PlayerPhoto
+          id={player.id}
           width={260}
           height={190}
           className="h-32 w-auto shrink-0 drop-shadow-[0_8px_20px_rgba(0,0,0,0.5)] sm:h-44"
@@ -209,7 +209,7 @@ function LeaderCell({
       className={cn("group flex min-w-0 items-center gap-2.5 outline-none focus-visible:ring-2 focus-visible:ring-orange-400", right && "flex-row-reverse text-right")}
     >
       <span className="flex h-10 w-14 shrink-0 items-end overflow-hidden" style={{ background: `${accent}26` }}>
-        <Image src={playerHeadshotUrl(player.id)} alt="" width={56} height={40} className="h-10 w-14 object-cover object-top" />
+        <PlayerPhoto id={player.id} width={56} height={40} className="h-10 w-14 object-cover object-top" />
       </span>
       <span className="min-w-0">
         <span className={cn("block font-display text-3xl font-extrabold leading-none", leads ? "text-white" : "text-slate-400")}>{value}</span>

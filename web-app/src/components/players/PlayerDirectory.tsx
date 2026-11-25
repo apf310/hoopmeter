@@ -1,14 +1,16 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Search, X } from "lucide-react";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { LegendStrip } from "@/components/players/LegendStrip";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
+import { loadSearchIndex } from "@/components/search/SearchCommand";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel } from "@/lib/player-profile";
 import type { LegendCard } from "@/lib/queries";
-import { search, type SearchIndex, type SearchPlayer } from "@/lib/search";
+import { search, type SearchIndex, type SearchPlayer, type SearchTeam } from "@/lib/search";
 import { teamAccent } from "@/lib/team-colors";
 
 const RESULT_LIMIT = 40;
@@ -16,13 +18,24 @@ const RESULT_LIMIT = 40;
 /**
  * Directorio de jugadores: buscador instantáneo (activos y leyendas) y, sin búsqueda, el explorador de
  * estadísticas (Tarea 6.22), los equipos y las leyendas. El explorador solo se oculta mientras se busca:
- * al borrar la búsqueda sigue con sus filtros.
+ * al borrar la búsqueda sigue con sus filtros. El índice del buscador (el mismo de Ctrl+K) se descarga al abrir la
+ * página, no va en el HTML (Tarea 7.7).
  */
-export function PlayerDirectory({ index, legends, explorer }: { index: SearchIndex; legends: LegendCard[]; explorer: ReactNode }) {
+export function PlayerDirectory({ teams, legends, explorer }: { teams: SearchTeam[]; legends: LegendCard[]; explorer: ReactNode }) {
   const [query, setQuery] = useState("");
-  const teams = useMemo(() => new Map(index.teams.map((team) => [team.id, team])), [index.teams]);
-  const results = useMemo(() => search(index, query, { teams: 0, players: RESULT_LIMIT }).players, [index, query]);
+  const [index, setIndex] = useState<SearchIndex | null>(null);
+  const [failed, setFailed] = useState(false);
+  const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team])), [teams]);
+  const results = useMemo(() => (index ? search(index, query, { teams: 0, players: RESULT_LIMIT }).players : null), [index, query]);
   const searching = query.trim() !== "";
+
+  const load = () => {
+    setFailed(false);
+    loadSearchIndex().then(setIndex, () => setFailed(true));
+  };
+  useEffect(() => {
+    loadSearchIndex().then(setIndex, () => setFailed(true));
+  }, []);
 
   return (
     <>
@@ -33,6 +46,7 @@ export function PlayerDirectory({ index, legends, explorer }: { index: SearchInd
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
+            onFocus={index ? undefined : load}
             placeholder="Busca un jugador: Jokić, LeBron, Jordan…"
             aria-label="Buscar jugador"
             autoComplete="off"
@@ -48,12 +62,21 @@ export function PlayerDirectory({ index, legends, explorer }: { index: SearchInd
 
       {searching && (
         <section aria-live="polite">
-          {results.length === 0 ? (
+          {results === null ? (
+            <p className="px-4 py-8 text-slate-300 md:px-8">
+              {failed ? "No se pudo cargar el buscador. " : "Cargando jugadores…"}
+              {failed && (
+                <button type="button" onClick={load} className="font-semibold text-orange-400">
+                  Reintentar
+                </button>
+              )}
+            </p>
+          ) : results.length === 0 ? (
             <p className="px-4 py-8 text-slate-300 md:px-8">Ningún jugador coincide con «{query}».</p>
           ) : (
             <ul className="divide-y divide-slate-800/80">
               {results.map((player) => (
-                <ResultRow key={player.id} player={player} team={player.team_id ? teams.get(player.team_id) : undefined} />
+                <ResultRow key={player.id} player={player} team={player.team_id ? teamById.get(player.team_id) : undefined} />
               ))}
             </ul>
           )}
@@ -65,7 +88,7 @@ export function PlayerDirectory({ index, legends, explorer }: { index: SearchInd
 
         <SectionTitle>Por equipo</SectionTitle>
         <ul className="grid grid-cols-3 gap-px bg-slate-800 sm:grid-cols-5 lg:grid-cols-10">
-          {index.teams.map((team) => (
+          {teams.map((team) => (
             <li key={team.id} className="bg-slate-950">
               <SharedLink href={`/teams/${team.id}`} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
                 {/* Halo claro: muchos logos son oscuros y desaparecerían sobre el fondo */}
@@ -95,14 +118,14 @@ function SectionTitle({ children }: { children: ReactNode }) {
   );
 }
 
-function ResultRow({ player, team }: { player: SearchPlayer; team?: SearchIndex["teams"][number] }) {
+function ResultRow({ player, team }: { player: SearchPlayer; team?: SearchTeam }) {
   const detail = player.is_active ? [team?.name ?? "Agente libre", positionLabel(player.position)].filter(Boolean).join(" · ") : "Leyenda";
   return (
     <li>
       <SharedLink href={`/players/${player.id}`} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-slate-900 md:px-8">
         <span className="relative flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: team ? `${teamAccent(team)}26` : "#1e293b" }}>
           <Shared>
-            <Image src={playerHeadshotUrl(player.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+            <PlayerPhoto id={player.id} width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
           </Shared>
         </span>
         <span className="min-w-0 flex-1">

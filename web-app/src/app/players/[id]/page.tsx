@@ -13,14 +13,14 @@ import { PlayerCard3D } from "@/components/players/PlayerCard3D";
 import { PlayerCardSkeleton } from "@/components/players/PlayerCardSkeleton";
 import { PlayerRadarChart } from "@/components/players/PlayerRadarChart";
 import { PlayerCardExport } from "@/components/share/PlayerShareCard";
-import { CareerHighs } from "@/components/players/CareerHighs";
+import { LevelHighs } from "@/components/players/LevelHighs";
 import { trophyCounts } from "@/components/trophies/trophy-catalog";
 import { TrophyShowcase } from "@/components/trophies/TrophyShowcase";
 import type { RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
 import type { GameMatchup } from "@/lib/game-day";
 import { buildContractView } from "@/lib/player-contract";
-import { getPlayer, getPlayerAwards, getPlayerCareer, getPlayerContract, getRecentMatchups, getTeams } from "@/lib/queries";
+import { getPlayer, getPlayerAwards, getPlayerCareer, getPlayerContract, getPlayerHighsBefore, getRecentMatchups, getTeams } from "@/lib/queries";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { cardTier, legendLine, splitName } from "@/lib/player-card";
 import {
@@ -91,12 +91,14 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   const playerId = Number(id);
   if (!Number.isInteger(playerId)) notFound();
 
-  const [player, teams, career, awards, contract] = await Promise.all([
+  const [player, teams, career, awards, contract, highs] = await Promise.all([
     getPlayer(playerId),
     getTeams(),
     getPlayerCareer(playerId),
     getPlayerAwards(playerId),
     getPlayerContract(playerId),
+    // Récords de antes de la última jornada (Tarea 7.6): los de al día, solo en Nivel 3
+    getPlayerHighsBefore(playerId),
   ]);
   if (!player) notFound();
   // Últimos partidos de su equipo: en el HTML solo rival y fecha (Nivel 1); el resto, según el nivel
@@ -110,9 +112,6 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   const careerRow = regular.find((r) => r.season_id === "Career") ?? null;
   // De un retirado interesa su carrera, no su última temporada
   const latest = player.is_active ? (regular.filter((r) => r.season_id !== "Career").at(-1) ?? null) : careerRow;
-  const highs = careerRow?.advanced_stats.career_highs;
-  // Máximos de la temporada (Tarea 6.8): de la temporada en curso, calculados en el job diario como los promedios
-  const seasonHighs = player.is_active ? latest?.advanced_stats.season_highs : undefined;
   const contractView = contract && player.is_active ? buildContractView(contract, SEASON) : null;
   // El GM solo tiene a los jugadores con equipo y contrato
   const tradeHref = contract && player.team_id ? `/gm-simulator?jugador=${player.id}` : null;
@@ -186,16 +185,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
         <div className="pt-4">
           <TrophyShowcase awards={awards} name={player.full_name} />
         </div>
-        <h3 className="pb-3 pt-8 font-display text-lg font-bold uppercase tracking-wide text-slate-300">Récords personales en un partido</h3>
-        <CareerHighs highs={highs} />
-        {seasonHighs && latest && (
-          <>
-            <h3 className="pb-3 pt-8 font-display text-lg font-bold uppercase tracking-wide text-slate-300">
-              Máximos de la temporada {latest.season_id}
-            </h3>
-            <CareerHighs highs={seasonHighs} />
-          </>
-        )}
+        <LevelHighs playerId={player.id} active={player.is_active} before={highs.highs} day={highs.day} />
       </section>
     </>
   );
@@ -282,7 +272,14 @@ function PlayerHero({
           </dl>
 
           <div className="mt-7 flex flex-wrap items-center gap-3">
-            <PlayerCardExport player={player} team={team} radar={radar} season={season} age={age} />
+            <PlayerCardExport
+              player={player}
+              // Nunca el `Team` entero a un componente de cliente: viajaría en el HTML con la clasificación al día
+              team={team && { id: team.id, name: team.name, primary_color: team.primary_color, secondary_color: team.secondary_color }}
+              radar={radar}
+              season={season}
+              age={age}
+            />
             {/* Los favoritos ordenan la portada por los partidos de su equipo: solo jugadores en activo */}
             {player.is_active && (
               <FavoriteButton kind="player" player={{ id: player.id, name: player.full_name, teamId: player.team_id ?? null }} />

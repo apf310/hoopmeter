@@ -57,10 +57,10 @@ export function BeforeDayNote({
   subject = "la",
   className,
 }: {
-  standings: LevelStandings;
+  standings: Pick<LevelStandings, "level" | "current" | "loading"> & { teams: unknown };
   day: string | null;
-  /** "la" (clasificación) o "lo" (balance del equipo). */
-  subject?: "la" | "lo";
+  /** "la" (clasificación), "lo" (balance del equipo) o "los" (récords del jugador). */
+  subject?: "la" | "lo" | "los";
   className?: string;
 }) {
   if (standings.current || day === null) return null;

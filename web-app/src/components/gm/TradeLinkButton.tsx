@@ -39,7 +39,7 @@ export function TradeLinkButton({ search, title }: { search: string; title: stri
         onClick={share}
         aria-label={`Compartir enlace: ${title}`}
         title="Compartir enlace"
-        className="inline-flex size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400"
+        className="inline-flex size-11.5 md:size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400"
       >
         {status === "copied" ? <Check className="size-5 text-emerald-400" /> : <Link2 className="size-5" />}
       </button>

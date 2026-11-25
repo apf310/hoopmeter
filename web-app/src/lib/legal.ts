@@ -18,7 +18,7 @@ export const LEGAL = {
 } as const;
 
 /** Fecha de la última versión de los textos (ISO). */
-export const LEGAL_UPDATED = "2026-11-22";
+export const LEGAL_UPDATED = "2026-11-25";
 
 export const LEGAL_PAGES = [
   { href: "/acerca", label: "Acerca de" },

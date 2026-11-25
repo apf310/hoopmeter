@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import { DuelRadar } from "@/components/compare/DuelRadar";
+import { showSilhouette } from "@/components/players/PlayerPhoto";
 import { fitFont, slugify } from "@/components/share/PlayerShareCard";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { CAREER, score, type DuelRow, type Radar } from "@/lib/compare";
@@ -109,6 +110,7 @@ function PlayerPanel({ player, season, attributes, side, format }: { player: Due
       )}
       <img
         src={sameOrigin(playerHeadshotUrl(player.id))}
+        onError={showSilhouette}
         alt=""
         className={cn("absolute max-w-none drop-shadow-[0_16px_32px_rgba(0,0,0,0.6)]", right ? "right-0" : "left-0")}
         style={vertical ? { width: 470, top: 16 } : { width: 600, top: 120 }}

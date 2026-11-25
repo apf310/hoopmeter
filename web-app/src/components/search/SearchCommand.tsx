@@ -7,8 +7,9 @@ import { notePlainNavigation } from "@/components/layout/SharedLink";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Search, X } from "lucide-react";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { cn } from "@/lib/utils";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { useFavorites } from "@/lib/favorites-store";
 import {
   addRecent,
@@ -133,7 +134,7 @@ export function SearchTrigger({ variant, className }: SearchTriggerProps) {
         onClick={openSearch}
         onPointerEnter={prefetch}
         className={cn(
-          "flex size-10 items-center justify-center rounded-full text-slate-300 outline-none transition-colors hover:bg-slate-900 hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400",
+          "flex size-11.5 items-center justify-center rounded-full text-slate-300 outline-none transition-colors hover:bg-slate-900 hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400",
           className
         )}
       >
@@ -293,7 +294,7 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
         {team && <AccentStripe team={team} />}
         {/* Fondo teñido con el color del equipo detrás de la foto */}
         <span className="flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: `${accent}26` }}>
-          <Image src={playerHeadshotUrl(player.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+          <PlayerPhoto id={player.id} width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{player.full_name}</span>
@@ -342,7 +343,7 @@ function SearchPanel({ index, failed, onRetry, onClose }: SearchPanelProps) {
         />
         <Dialog.Close
           aria-label="Cerrar buscador"
-          className="flex size-9 shrink-0 items-center justify-center text-slate-400 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400"
+          className="flex size-11.5 shrink-0 items-center justify-center text-slate-400 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400 md:size-9"
         >
           <kbd className="hidden border border-slate-700 px-1.5 py-0.5 font-sans text-[11px] md:inline">Esc</kbd>
           <X className="size-5 md:hidden" />

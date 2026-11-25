@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "recharts";
+import { showSilhouette } from "@/components/players/PlayerPhoto";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
 import { archetypeOf, avg, overallRating, pct, positionLabel, RADAR_LABEL, shotPct, tierOf } from "@/lib/player-profile";
@@ -9,9 +10,15 @@ import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
+/**
+ * Lo que la tarjeta pinta del equipo, y nada más: todo lo que recibe un componente de cliente viaja en el HTML, y el
+ * `Team` entero lleva la clasificación al día (Tarea 7.6).
+ */
+export type PlayerCardTeam = Pick<Team, "id" | "name" | "primary_color" | "secondary_color">;
+
 type CardData = {
   player: Player;
-  team: Team | null;
+  team: PlayerCardTeam | null;
   radar: RadarAttributes | null;
   season: PlayerSeasonStats | null;
   age: number | null;
@@ -90,6 +97,7 @@ function PlayerShareCard({ format, player, team, radar, season, age }: CardData 
           <div className="relative min-h-0 flex-1">
             <img
               src={sameOrigin(playerHeadshotUrl(player.id))}
+              onError={showSilhouette}
               alt=""
               className="absolute bottom-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
             />
@@ -112,6 +120,7 @@ function PlayerShareCard({ format, player, team, radar, season, age }: CardData 
           <div className="relative min-w-0 flex-1">
             <img
               src={sameOrigin(playerHeadshotUrl(player.id))}
+              onError={showSilhouette}
               alt=""
               className="absolute bottom-0 left-1/2 h-auto w-[760px] max-w-none -translate-x-1/2 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
             />
@@ -136,7 +145,7 @@ function Identity({
   nameWidth,
   maxSize,
 }: {
-  team: Team | null;
+  team: PlayerCardTeam | null;
   subtitle: string;
   firstName: string;
   lastName: string;

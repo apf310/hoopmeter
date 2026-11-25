@@ -1,11 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import type { ExplorerTeam } from "@/components/players/PlayerExplorer";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { useFloatingHead } from "@/lib/floating-head";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
 import {
   formatStat,
   qualifiesFor,
@@ -133,7 +132,7 @@ export function ExplorerTable({
                         style={{ background: `${team?.accent ?? "#334155"}26` }}
                       >
                         <Shared>
-                          <Image src={playerHeadshotUrl(row.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+                          <PlayerPhoto id={row.id} width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
                         </Shared>
                       </span>
                       <span className="min-w-0 leading-tight">

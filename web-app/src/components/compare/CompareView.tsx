@@ -9,13 +9,14 @@ import { DuelRadar } from "@/components/compare/DuelRadar";
 import { DuelRows } from "@/components/compare/DuelRows";
 import { EraSwitch, LeagueContext } from "@/components/compare/EraAdjust";
 import { PlayerPicker } from "@/components/compare/PlayerPicker";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { loadSearchIndex } from "@/components/search/SearchCommand";
 import { Section, Segmented } from "@/components/games/detail/ui";
 import { CompareCardExport } from "@/components/share/CompareShareCard";
 import { CAREER, defaultSeason, FEATURED_DUELS, radarRows, score, statRows, trophyRows, type Side } from "@/lib/compare";
 import type { DuelPlayer, DuelSeason } from "@/lib/compare-data";
 import { adjustLine, pickReference, referenceSeasons, withRealValues, type LeagueTable } from "@/lib/era-adjust";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel, RADAR_LABEL } from "@/lib/player-profile";
 import type { SearchIndex } from "@/lib/search";
 import type { SeasonType } from "@/lib/supabase";
@@ -153,8 +154,8 @@ function PlayerSide({
       <div className={cn("relative flex h-full flex-col justify-end px-3 pb-4 pt-5 md:px-8", player ? "min-h-[300px] md:min-h-[380px]" : "min-h-40", right && "items-end text-right")}>
         {player && (
           // Hasta md, la foto deja libre el centro: ahí va el botón de intercambiar
-          <Image
-            src={playerHeadshotUrl(player.id)}
+          <PlayerPhoto
+            id={player.id}
             alt={player.name ?? ""}
             width={460}
             height={336}
@@ -239,9 +240,9 @@ function FeaturedDuels() {
           <li key={`${a.id}-${b.id}`} className="bg-slate-950">
             <Link href={`/compare?a=${a.id}&b=${b.id}`} className="block px-3 py-3 transition-colors hover:bg-slate-900">
               <span className="flex items-center justify-between gap-2">
-                <Image src={playerHeadshotUrl(a.id)} alt="" width={96} height={70} className="h-[70px] w-24 object-cover object-top" />
+                <PlayerPhoto id={a.id} width={96} height={70} className="h-[70px] w-24 object-cover object-top" />
                 <span className="font-display text-xl font-extrabold text-orange-400">VS</span>
-                <Image src={playerHeadshotUrl(b.id)} alt="" width={96} height={70} className="h-[70px] w-24 object-cover object-top" />
+                <PlayerPhoto id={b.id} width={96} height={70} className="h-[70px] w-24 object-cover object-top" />
               </span>
               <span className="mt-2 block text-center font-display text-lg font-bold uppercase leading-tight text-white">
                 {lastName(a.name)} – {lastName(b.name)}

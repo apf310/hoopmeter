@@ -6,7 +6,7 @@ import { connection } from "next/server";
 import { parsePosition } from "@/lib/deferred-position";
 import { getDeferredDetail } from "@/lib/game-detail";
 import { isGameId } from "@/lib/game-day";
-import { getSchedule } from "@/lib/queries";
+import { getGameMatchup } from "@/lib/queries";
 
 const CACHE = { "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=300" };
 
@@ -18,8 +18,8 @@ export async function GET(request: Request, ctx: RouteContext<"/api/games/[id]/d
   const { searchParams } = new URL(request.url);
   const position = parsePosition(searchParams.get("p"), searchParams.get("s"));
   if (!position) return Response.json({ error: "Posición no válida" }, { status: 400 });
-  // Solo partidos de nuestro calendario (en caché): un id inventado no debe hacer que preguntemos a la NBA
-  if (!(await getSchedule()).some((game) => game.id === id)) {
+  // Solo partidos de nuestro calendario: un id inventado no debe hacer que preguntemos a la NBA
+  if (!(await getGameMatchup(id))) {
     return Response.json({ error: "Partido no encontrado" }, { status: 404 });
   }
 

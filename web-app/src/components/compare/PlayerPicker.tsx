@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import { Search } from "lucide-react";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { loadSearchIndex } from "@/components/search/SearchCommand";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
 import { search, type SearchIndex, type SearchPlayer } from "@/lib/search";
 
 /** Buscador de jugadores de cualquier época; reutiliza el índice del buscador de la app. */
@@ -41,7 +40,7 @@ export function PlayerPicker({ label, exclude, onPick, autoFocus }: { label: str
           {results.map((player) => (
             <li key={player.id}>
               <button type="button" onClick={() => onPick(player.id)} className="flex w-full items-center gap-3 px-2 py-1.5 text-left transition-colors hover:bg-slate-800">
-                <Image src={playerHeadshotUrl(player.id)} alt="" width={49} height={36} className="h-9 w-[49px] shrink-0 object-cover object-top" />
+                <PlayerPhoto id={player.id} width={49} height={36} className="h-9 w-[49px] shrink-0 object-cover object-top" />
                 <span className="min-w-0">
                   <span className="block truncate font-semibold text-white">{player.full_name}</span>
                   <span className="block truncate text-xs text-slate-300">{subtitle(player)}</span>

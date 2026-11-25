@@ -48,11 +48,11 @@ export function StandingsBoard({ teams, before }: { teams: TeamIdentity[]; befor
           <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400">NBA · Fase regular</p>
           <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Clasificación</h1>
         </div>
-        <div className="flex shrink-0 items-center gap-3 md:gap-4">
+        <div className="flex shrink-0 items-center gap-1 md:gap-2">
           {/* Los 30 equipos por conferencia y división (Tarea 6.7) */}
           <Link
             href="/teams"
-            className="flex items-center gap-1.5 font-display text-sm font-bold uppercase tracking-wider text-slate-300 transition-colors hover:text-orange-400"
+            className="flex h-11.5 items-center gap-1.5 px-2 font-display text-sm font-bold uppercase tracking-wider text-slate-300 transition-colors hover:text-orange-400 md:h-10"
           >
             <LayoutGrid className="size-4" aria-hidden />
             Equipos

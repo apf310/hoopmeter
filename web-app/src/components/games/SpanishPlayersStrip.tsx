@@ -1,10 +1,11 @@
 "use client";
 
-import Image from "next/image";
+import { useEffect, useRef, useState } from "react";
+import { ChevronRight } from "lucide-react";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { formatGameTime, type TeamLite } from "@/lib/game-day";
 import type { Entry } from "@/lib/game-day-store";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
 import { compactLine, shortName, type SpanishLinesPayload, type SpanishPlayerGame } from "@/lib/spanish-players";
 import type { SpoilerLevel } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
@@ -23,12 +24,13 @@ type SpanishPlayersStripProps = {
  * su línea. Sin españoles en la jornada no ocupa sitio.
  */
 export function SpanishPlayersStrip({ entries, teamsById, level, lines }: SpanishPlayersStripProps) {
+  const { ref, more, showMore } = useMoreToTheRight(entries.length);
   if (entries.length === 0) return null;
 
   return (
-    <section aria-label="Los nuestros: jugadores españoles de la jornada" className="border-b border-slate-800">
+    <section aria-label="Los nuestros: jugadores españoles de la jornada" className="relative border-b border-slate-800">
       {/* Se desplaza dentro de la franja: la página nunca se ensancha */}
-      <ul className="flex items-center gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] md:px-8">
+      <ul ref={ref} className="flex items-center gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] md:px-8">
         <li aria-hidden className="flex shrink-0 items-center gap-1.5 pr-1">
           <SpainFlag />
           {/* En móvil, en dos líneas: deja sitio a los jugadores */}
@@ -50,9 +52,8 @@ export function SpanishPlayersStrip({ entries, teamsById, level, lines }: Spanis
                 style={team ? { borderLeftColor: team.accent, borderLeftWidth: 3 } : undefined}
               >
                 <Shared>
-                  <Image
-                    src={playerHeadshotUrl(player.id)}
-                    alt=""
+                  <PlayerPhoto
+                    id={player.id}
                     width={44}
                     height={32}
                     className="h-8 w-11 shrink-0 object-cover object-top"
@@ -77,8 +78,47 @@ export function SpanishPlayersStrip({ entries, teamsById, level, lines }: Spanis
           );
         })}
       </ul>
+      {/* Quedan jugadores a la derecha: la franja se funde y una flecha lleva hasta ellos. Con teclado y lector de
+          pantalla no hace falta: al enfocar un jugador, la franja ya se desplaza */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden
+        onClick={showMore}
+        className={cn(
+          "absolute inset-y-0 right-0 flex w-14 items-center justify-end bg-gradient-to-l from-slate-950 from-45% to-transparent pr-1.5 text-orange-400 transition-opacity md:pr-2",
+          more ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
+      >
+        <ChevronRight className="size-5" />
+      </button>
     </section>
   );
+}
+
+/** Si a la franja le queda contenido sin ver a la derecha, y cómo llegar hasta él. */
+function useMoreToTheRight(count: number) {
+  const ref = useRef<HTMLUListElement>(null);
+  const [more, setMore] = useState(false);
+
+  useEffect(() => {
+    const list = ref.current;
+    if (!list) return;
+    const measure = () => setMore(list.scrollWidth - list.clientWidth - list.scrollLeft > 4);
+    measure();
+    list.addEventListener("scroll", measure, { passive: true });
+    const observer = new ResizeObserver(measure);
+    // También el contenido: la línea del Nivel 3 ensancha las tarjetas
+    observer.observe(list);
+    for (const item of list.children) observer.observe(item);
+    return () => {
+      list.removeEventListener("scroll", measure);
+      observer.disconnect();
+    };
+  }, [count]);
+
+  const showMore = () => ref.current?.scrollBy({ left: ref.current.clientWidth * 0.7, behavior: "smooth" });
+  return { ref, more, showMore };
 }
 
 /** Bandera dibujada (los emojis de bandera no se ven en Windows). */

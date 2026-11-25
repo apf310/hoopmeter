@@ -15,7 +15,7 @@ export function PushBell({ className }: { className?: string }) {
       aria-label={enabled ? "Aviso de la mañana: activado" : "Aviso de la mañana"}
       title="Aviso de la mañana"
       className={cn(
-        "relative inline-flex size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400",
+        "relative inline-flex size-11.5 md:size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400",
         className
       )}
     >

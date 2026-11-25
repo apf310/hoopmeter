@@ -5,4 +5,5 @@ export const BRAND = {
   lead: "Hoop", // Parte en blanco del logotipo
   accent: "meter", // Parte en naranja
   claim: "Qué partido ver, sin spoilers",
+  domain: "hoopmeter.com", // En las imágenes y el vídeo que se comparten: quien las vea sabe qué teclear
 } as const;

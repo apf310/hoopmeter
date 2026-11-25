@@ -2,7 +2,10 @@
 // revalida: nunca se fía de salarios ni veredictos del cliente, y uno ilegal no gasta cuota de IA.
 // Única excepción: la estimación de un contrato aún sin cifra pública, que `buildTrade` solo acepta
 // para esos jugadores y dentro del rango legal del convenio.
+// La evaluación de cada traspaso se guarda y se comparte entre todos, con un tope diario de las nuevas (`gm-store`).
+import { after } from "next/server";
 import { buildTrade, canonicalTrade, MAX_TEAMS, type TradeEvaluation, type TradeRequest } from "@/lib/gm";
+import { saveEvaluation, startEvaluation } from "@/lib/gm-store";
 import { getGmData } from "@/lib/queries";
 import { evaluateTradeWithProgress } from "@/lib/trade-evaluation";
 import { encodeEvent, NDJSON_TYPE, type EvaluationEvent } from "@/lib/trade-evaluation-stream";
@@ -15,7 +18,7 @@ const MAX_TRACKED_CLIENTS = 1000;
 
 const recentRequests = new Map<string, number[]>();
 
-/** Límite por IP para proteger la cuota de Gemini. En serverless, cada instancia lleva su propia cuenta. */
+/** Límite por IP, primera barrera: cada instancia lleva su propia cuenta (la de todas, la regla del cortafuegos de Vercel y el tope diario). */
 function isRateLimited(client: string): boolean {
   const now = Date.now();
   const recent = (recentRequests.get(client) ?? []).filter((time) => now - time < WINDOW_MS);
@@ -64,32 +67,52 @@ export async function POST(request: Request) {
     return Response.json({ error: "Solo se evalúan traspasos que cumplen el convenio." }, { status: 422 });
   }
 
+  const canonical = canonicalTrade(body);
+  const started = await startEvaluation(canonical, trade.teams.map((team) => team.id));
+  if ("allowed" in started && !started.allowed) {
+    return Response.json(
+      { error: "Hoy ya se han pedido muchas evaluaciones con IA: vuelve mañana. El veredicto del convenio sigue funcionando." },
+      { status: 429 }
+    );
+  }
+
   // Por partes (Tarea 6.24): un evento NDJSON por línea con los pasos reales, el texto a medias y la final
-  // Si el usuario se va, la evaluación sigue y queda en la caché para la próxima vez
   const encoder = new TextEncoder();
   let open = true;
+  let finished = Promise.resolve();
   const stream = new ReadableStream<Uint8Array>({
     cancel() {
       open = false;
     },
-    async start(controller) {
+    start(controller) {
       const send = (event: EvaluationEvent<TradeEvaluation>) => {
         if (open) controller.enqueue(encoder.encode(encodeEvent(event)));
       };
-      send({ type: "step", step: "convenio" });
-      try {
-        const evaluation = await evaluateTradeWithProgress(canonicalTrade(body), {
-          step: (step) => send({ type: "step", step }),
-          partial: (partial) => send({ type: "partial", evaluation: partial }),
-        });
-        send({ type: "done", evaluation });
-      } catch (error) {
-        console.error("[api/gm/evaluate]", error);
-        send({ type: "error", error: "La IA no está disponible ahora mismo. Inténtalo en unos minutos." });
-      }
-      if (open) controller.close();
-      open = false;
+      const run = async () => {
+        send({ type: "step", step: "convenio" });
+        let fresh: TradeEvaluation | null = null;
+        try {
+          if ("evaluation" in started) {
+            send({ type: "done", evaluation: started.evaluation });
+          } else {
+            fresh = await evaluateTradeWithProgress(canonical, {
+              step: (step) => send({ type: "step", step }),
+              partial: (partial) => send({ type: "partial", evaluation: partial }),
+            });
+            send({ type: "done", evaluation: fresh });
+          }
+        } catch (error) {
+          console.error("[api/gm/evaluate]", error);
+          send({ type: "error", error: "La IA no está disponible ahora mismo. Inténtalo en unos minutos." });
+        }
+        if (open) controller.close();
+        open = false;
+        if (fresh) await saveEvaluation(canonical, fresh);
+      };
+      finished = run();
     },
   });
+  // Si el usuario se va, la evaluación sigue y se guarda para la próxima vez
+  after(() => finished);
   return new Response(stream, { headers: { "Content-Type": NDJSON_TYPE, "Cache-Control": "no-store", "X-Accel-Buffering": "no" } });
 }

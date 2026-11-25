@@ -3,10 +3,9 @@
 // El Nivel 1 no la pide: el orden por nota ya sería un spoiler.
 // `/api/what-to-watch?level=2`
 import { connection } from "next/server";
-import { getScoredGames } from "@/lib/queries";
+import { cdnHeaders, scoresWindow } from "@/lib/cache-window";
+import { getPendingGames, getScoredGames } from "@/lib/queries";
 import type { GameLevel2 } from "@/lib/spoilers";
-
-const CACHE_HEADERS = { "Cache-Control": "public, max-age=0, s-maxage=60, stale-while-revalidate=60" };
 
 export async function GET(request: Request) {
   await connection();
@@ -15,9 +14,9 @@ export async function GET(request: Request) {
     return Response.json({ error: "Parámetros: level=2" }, { status: 400 });
   }
 
-  let games;
+  let games, pending;
   try {
-    games = await getScoredGames();
+    [games, pending] = await Promise.all([getScoredGames(), getPendingGames()]);
   } catch (error) {
     console.error("[api/what-to-watch]", error);
     return Response.json({ error: "Notas no disponibles" }, { status: 502 });
@@ -32,5 +31,6 @@ export async function GET(request: Request) {
     away_team_id: game.away_team_id,
     excitement_score: game.excitement_score,
   }));
-  return Response.json({ level: 2, games: level2 }, { headers: CACHE_HEADERS });
+  // La CDN lo guarda hasta que pueda haber una nota nueva (Tarea 7.7): con un partido en juego, un minuto
+  return Response.json({ level: 2, games: level2 }, { headers: cdnHeaders(scoresWindow(pending, Date.now())) });
 }

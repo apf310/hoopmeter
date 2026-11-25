@@ -1,5 +1,5 @@
 import { Flame } from "lucide-react";
-import type { CareerHigh } from "@/lib/supabase";
+import type { Highs } from "@/lib/player-highs";
 
 const HIGHS: { stat: string; label: string }[] = [
   { stat: "PTS", label: "Puntos" },
@@ -12,8 +12,8 @@ const HIGHS: { stat: string; label: string }[] = [
 
 const highDate = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-/** Récords personales en un partido (Career Highs de temporada regular). */
-export function CareerHighs({ highs }: { highs: Record<string, CareerHigh> | undefined }) {
+/** Mejor marca en un partido de cada estadística: la de su carrera o la de la temporada. */
+export function CareerHighs({ highs }: { highs: Highs | null }) {
   const items = HIGHS.filter((h) => highs?.[h.stat]?.value != null);
   if (!highs || items.length === 0) return <p className="py-4 text-sm text-slate-400">Sin récords registrados.</p>;
 

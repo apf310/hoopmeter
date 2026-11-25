@@ -34,7 +34,7 @@ export function FavoriteButton(props: FavoriteButtonProps) {
       aria-label={label}
       title={active ? "Quitar de favoritos" : "Añadir a favoritos"}
       className={cn(
-        "inline-flex size-10 items-center justify-center border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-orange-400",
+        "inline-flex size-11.5 md:size-10 items-center justify-center border outline-none transition-colors focus-visible:ring-2 focus-visible:ring-orange-400",
         active
           ? "border-orange-500 bg-slate-950/60 text-orange-400 hover:bg-orange-500/15"
           : "border-white/25 bg-slate-950/60 text-white hover:border-orange-500 hover:text-orange-400",

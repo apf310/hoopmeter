@@ -2,7 +2,6 @@
 // El modelo recibe los datos reales de la app y responde en un JSON con esquema fijo, que se valida.
 // Tarea 6.24: la respuesta llega por partes (streaming) y, si un modelo tarda en empezar, se lanza el
 // siguiente a la vez y se queda el primero que responda.
-import { cacheLife } from "next/cache";
 import { previousSeason } from "@/lib/game-day";
 import { buildTrade, GRADES, pickLabel, type GmData, type GmPlayer, type GmTeam, type GmTrade, type TradeEvaluation, type TradeRequest } from "@/lib/gm";
 import { archetypeOf, RADAR_LABEL } from "@/lib/player-profile";
@@ -256,29 +255,25 @@ function firstToRespond(models: string[], start: (model: string, signal: AbortSi
   });
 }
 
-/** Quien sigue la evaluación mientras se calcula: pasos y texto a medias (nunca en un acierto de caché). */
+/** Quien sigue la evaluación mientras se calcula: pasos y texto a medias. */
 export type EvaluationProgress = { step: (step: EvaluationStep) => void; partial: (evaluation: PartialEvaluation) => void };
 
 const listeners = new Map<string, Set<EvaluationProgress>>();
+/** Evaluaciones en marcha en esta instancia: si llega otra del mismo traspaso, sigue la que ya hay. */
+const running = new Map<string, Promise<TradeEvaluation>>();
 
 function emit(canonical: string, send: (progress: EvaluationProgress) => void) {
   listeners.get(canonical)?.forEach((progress) => {
     try {
       send(progress);
     } catch {
-      // El cliente se fue: la evaluación sigue y queda en la caché
+      // El cliente se fue: la evaluación sigue y se guarda
     }
   });
 }
 
-/**
- * Evalúa un traspaso legal, dado en su forma canónica (`canonicalTrade`). Cada traspaso se evalúa
- * una sola vez: el mismo cambio repetido no gasta cuota. Los errores no se cachean.
- */
-export async function evaluateTrade(canonical: string): Promise<TradeEvaluation> {
-  "use cache";
-  cacheLife("days");
-
+/** Evalúa un traspaso legal, dado en su forma canónica (`canonicalTrade`). Quien llama mira antes si ya está hecha (`gm-store`). */
+async function evaluateTrade(canonical: string): Promise<TradeEvaluation> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("Falta GEMINI_API_KEY en web-app/.env.local");
 
@@ -323,7 +318,12 @@ export async function evaluateTradeWithProgress(canonical: string, progress: Eva
   current.add(progress);
   listeners.set(canonical, current);
   try {
-    return await evaluateTrade(canonical);
+    let evaluation = running.get(canonical);
+    if (!evaluation) {
+      evaluation = evaluateTrade(canonical).finally(() => running.delete(canonical));
+      running.set(canonical, evaluation);
+    }
+    return await evaluation;
   } finally {
     current.delete(progress);
     if (current.size === 0) listeners.delete(canonical);

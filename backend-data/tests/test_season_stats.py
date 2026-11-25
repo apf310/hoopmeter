@@ -251,6 +251,67 @@ class CareerHighs(unittest.TestCase):
         self.assertNotIn("PTS", highs)
 
 
+class HighsBefore(unittest.TestCase):
+    """Tarea 7.6: lo que ven los Niveles 1 y 2 no puede depender de la última jornada."""
+    ABBR = {2: "BBB", 3: "CCC"}
+    DAY = "2026-11-24"
+    EARLIER = [game_row(7, "0022600001", "2026-11-10", 1, 30, ast=9, opponent=2)]
+    CAREER = {"PTS": {"value": 40, "date": "2024-01-01", "vs": "XXX", "game_id": "0022300001"},
+              "AST": {"value": 12, "date": "2025-01-01", "vs": "XXX", "game_id": "0022400001"}}
+
+    def night(self, pts, ast=1):
+        return game_row(7, "0022600050", self.DAY, 1, pts, ast=ast, opponent=3)
+
+    def season(self, games, last_day=DAY):
+        ps = S.aggregate(games)[(7, "2026-27", "Regular Season")]
+        return S.season_row(ps, self.ABBR, {1}, None, last_day=last_day)["advanced_stats"]
+
+    def shown(self, highs, before):
+        """Lo que enseña la web (`pickHighs` en player-highs.ts) con la jornada del 24 ya empezada."""
+        picked = {key: highs[key] if highs[key]["date"] < self.DAY else before.get(key) for key in ("PTS", "AST")}
+        return {key: high for key, high in picked.items() if high}
+
+    def test_season_highs_before_the_last_day(self):
+        adv = self.season([*self.EARLIER, self.night(55)])
+        self.assertEqual(adv["season_highs"]["PTS"]["value"], 55)
+        self.assertEqual((adv["season_highs_before"]["PTS"]["value"], adv["season_highs_before"]["PTS"]["vs"]), (30, "BBB"))
+        self.assertNotIn("AST", adv["season_highs_before"])  # esa noche no cambió: no hace falta guardarlo
+        # En cuanto hay otra jornada, ya no hay nada que tapar
+        self.assertEqual(self.season([*self.EARLIER, self.night(55)], "2026-11-25")["season_highs_before"], {})
+
+    def test_same_records_whatever_happened_last_night(self):
+        seen = []
+        for pts, ast in ((8, 0), (40, 12), (61, 20)):
+            games = [*self.EARLIER, self.night(pts, ast)]
+            season = self.season(games)
+            career = S.update_highs(self.CAREER, games, self.ABBR)
+            before = S.highs_before(career, self.CAREER, None, games, self.ABBR, self.DAY)
+            seen.append((self.shown(season["season_highs"], season["season_highs_before"]), self.shown(career, before)))
+        self.assertEqual(seen[0], seen[1])
+        self.assertEqual(seen[0], seen[2])
+        self.assertEqual((seen[0][0]["PTS"]["value"], seen[0][1]["PTS"]["value"]), (30, 40))
+
+    def test_second_run_of_the_same_day_keeps_it(self):
+        games = [*self.EARLIER, self.night(61)]
+        first = S.update_highs(self.CAREER, games, self.ABBR)
+        before = S.highs_before(first, self.CAREER, None, games, self.ABBR, self.DAY)
+        self.assertEqual(before["PTS"], self.CAREER["PTS"])
+        again = S.update_highs(first, games, self.ABBR)
+        self.assertEqual(S.highs_before(again, first, before, games, self.ABBR, self.DAY), before)
+        self.assertEqual(S.highs_before(again, again, before, games, self.ABBR, "2026-11-25"), {})
+
+    def test_unknown_previous_record_is_left_out(self):
+        # Récord de esa noche cargado a mano, sin el de antes: el máximo de la temporada no vale como récord
+        # anterior de carrera
+        stored = {"PTS": {"value": 61, "date": self.DAY, "vs": "CCC", "game_id": "0022600050"}}
+        games = [*self.EARLIER, self.night(61)]
+        highs = S.update_highs(stored, games, self.ABBR)
+        self.assertNotIn("PTS", S.highs_before(highs, stored, None, games, self.ABBR, self.DAY))
+
+    def test_debut_has_nothing_before(self):
+        self.assertEqual(self.season([self.night(20)])["season_highs_before"], {})
+
+
 class History(unittest.TestCase):
     TOT = {**S.empty_totals(), "gp": 70, "pts": 1400}
 

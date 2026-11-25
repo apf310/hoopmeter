@@ -127,7 +127,7 @@ export function SocialCardExporter({
         aria-label={`Compartir imagen: ${title}`}
         title="Compartir imagen"
         className={cn(
-          "inline-flex size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400",
+          "inline-flex size-11.5 md:size-10 items-center justify-center border border-white/25 bg-slate-950/60 text-white outline-none transition-colors hover:border-orange-500 hover:bg-orange-500 hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-orange-400",
           className
         )}
       >
@@ -285,7 +285,7 @@ function SharePanel({
         </div>
         <Dialog.Close
           aria-label="Cerrar"
-          className="flex size-9 shrink-0 items-center justify-center text-slate-400 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400"
+          className="flex size-10 shrink-0 items-center justify-center text-slate-400 outline-none hover:text-white focus-visible:ring-2 focus-visible:ring-orange-400"
         >
           <X className="size-5" />
         </Dialog.Close>
@@ -458,11 +458,12 @@ function CardFrame({
         className={cn("flex shrink-0 items-center justify-between border-t-4 border-orange-500 bg-slate-950", vertical ? "px-16" : "px-20")}
       >
         <span className="flex items-center gap-4 font-display uppercase">
-          <span className={cn("font-semibold tracking-[0.3em] text-slate-400", vertical ? "text-2xl" : "text-xl")}>Creado en</span>
-          <LogoMark className={vertical ? "size-14" : "size-12"} />
+          <LogoMark className={vertical ? "size-16" : "size-14"} />
+          {/* El dominio entero, que es lo que hay que teclear */}
           <span className={cn("font-extrabold tracking-wide text-white", vertical ? "text-5xl" : "text-4xl")}>
             {BRAND.lead}
             <span className="text-orange-500">{BRAND.accent}</span>
+            <span className="text-slate-400">{BRAND.domain.slice(BRAND.name.length)}</span>
           </span>
         </span>
         {caption && (

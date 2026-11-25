@@ -93,7 +93,7 @@ function HomeSkeleton() {
         <div className="mt-3 h-5 w-56 rounded bg-slate-800/80" />
       </div>
       <div className="h-[4.25rem] animate-pulse border-b border-slate-800 bg-slate-900/40" />
-      <div className="h-[2.0625rem] border-b border-slate-800" />
+      <div className="h-12 border-b border-slate-800 md:h-[2.3125rem]" />
       <GameListSkeleton />
     </div>
   );

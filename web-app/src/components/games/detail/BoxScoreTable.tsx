@@ -1,13 +1,12 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import Image from "next/image";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Eyebrow, Segmented, TeamToggle } from "@/components/games/detail/ui";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { useFloatingHead } from "@/lib/floating-head";
 import type { GameDetail, PlayerLine, TeamBox } from "@/lib/game-detail";
 import { decimal, doubleDouble, minutes, pct, shooting, signed, teamOf, type MatchupTeam } from "@/lib/game-format";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 
 type Mode = "basic" | "advanced";
@@ -277,7 +276,7 @@ function PlayerRow({
       <th scope="row" className="sticky left-0 z-[1] bg-slate-950 py-1.5 pl-4 pr-3 text-left font-normal transition-colors group-hover/row:bg-slate-900 md:pl-8">
         <button type="button" onClick={onOpen} className="flex items-center gap-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-orange-400">
           <span className="flex h-8 w-11 shrink-0 items-end overflow-hidden" style={{ background: `${accent}26` }}>
-            <Image src={playerHeadshotUrl(player.id)} alt="" width={44} height={32} className="h-8 w-11 object-cover object-top" />
+            <PlayerPhoto id={player.id} width={44} height={32} className="h-8 w-11 object-cover object-top" />
           </span>
           <span className="min-w-0">
             <span className="flex items-center gap-1.5 font-semibold text-white group-hover/row:text-orange-400">

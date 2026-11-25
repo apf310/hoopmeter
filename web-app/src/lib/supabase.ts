@@ -90,10 +90,11 @@ export type RadarAttributes = Record<RadarCategory, number> & {
 
 export type SeasonType = "Regular Season" | "Playoffs";
 
-/** Récord personal de `advanced_stats.career_highs` (clave = STAT de nba_api: PTS, REB, AST, FG3M…). */
-export type CareerHigh = { value: number | null; date: string | null; vs: string | null; game_id: string | null };
-
-/** `player_season_stats.advanced_stats`: `season_stats_calc.py` (temporada en curso y carrera) o `fetch_career_awards.py` (temporadas anteriores). */
+/**
+ * `player_season_stats.advanced_stats`: `season_stats_calc.py` (temporada en curso y carrera) o `fetch_career_awards.py`
+ * (temporadas anteriores). Los récords (`career_highs`, `season_highs`) no están aquí a propósito: llevan la fecha del
+ * partido y pasan siempre por `lib/player-highs.ts` (Tarea 7.6).
+ */
 export type SeasonAdvancedStats = {
   gs?: number | null;
   min?: number | null;
@@ -112,8 +113,6 @@ export type SeasonAdvancedStats = {
   team_abbreviation?: string | null; // "TOT" en temporadas con traspaso
   // Desglose por equipo solo en temporadas con traspaso
   teams?: { team_id: number | null; team_abbreviation: string | null; gp: number | null; pts: number | null; reb: number | null; ast: number | null }[];
-  career_highs?: Record<string, CareerHigh>; // Solo en la fila "Career" de Regular Season
-  season_highs?: Record<string, CareerHigh>; // Máximos de la temporada (Tarea 6.8): filas calculadas desde los boxscores
 };
 
 /** Fila de `player_season_stats` (promedios por partido). `season_id` = "2024-25" o "Career". */

@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import Image from "next/image";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { avg, pct } from "@/lib/player-profile";
 import { DEFAULT_ROSTER_SORT, nextSort, sortRoster, type RosterRow, type RosterSort, type RosterSortKey } from "@/lib/team-roster";
 import { formatMoney } from "@/lib/trade-rules";
@@ -103,7 +102,7 @@ export function RosterTable({ rows, accent, salarySeason }: { rows: RosterRow[];
                   {/* Fondo teñido con el color del equipo detrás de la foto */}
                   <span className="hidden h-11 w-[60px] shrink-0 items-end overflow-hidden sm:flex" style={{ background: `${accent}26` }}>
                     <Shared>
-                      <Image src={playerHeadshotUrl(player.id)} alt="" width={60} height={44} className="h-11 w-[60px] object-cover object-top" />
+                      <PlayerPhoto id={player.id} width={60} height={44} className="h-11 w-[60px] object-cover object-top" />
                     </Shared>
                   </span>
                   <span className="min-w-0 leading-tight">

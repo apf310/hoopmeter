@@ -68,7 +68,7 @@ function ArrowButton({ label, onClick, children }: { label: string; onClick: () 
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="flex w-10 shrink-0 items-center justify-center text-slate-400 transition-colors hover:bg-slate-900 hover:text-white md:w-12"
+      className="flex w-11.5 shrink-0 items-center justify-center text-slate-400 transition-colors hover:bg-slate-900 hover:text-white md:w-12"
     >
       {children}
     </button>
@@ -128,7 +128,7 @@ function MonthCalendar({ day, today, gameDays, onSelect }: DayPickerProps) {
           type="button"
           aria-label="Mes anterior"
           onClick={() => setMonth(shiftMonth(month, -1))}
-          className="flex size-9 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
+          className="flex size-11.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
         >
           <ChevronLeft className="size-5" />
         </button>
@@ -139,7 +139,7 @@ function MonthCalendar({ day, today, gameDays, onSelect }: DayPickerProps) {
           type="button"
           aria-label="Mes siguiente"
           onClick={() => setMonth(shiftMonth(month, 1))}
-          className="flex size-9 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
+          className="flex size-11.5 items-center justify-center rounded-md text-slate-400 hover:bg-slate-800 hover:text-white"
         >
           <ChevronRight className="size-5" />
         </button>

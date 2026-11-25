@@ -1,15 +1,17 @@
 // Datos del comparador (solo servidor): cada jugador con sus temporadas, su radar histórico y su palmarés.
 import { cacheLife } from "next/cache";
+import { dailyLife } from "@/lib/cache-window";
 import { trophyCounts } from "@/components/trophies/trophy-catalog";
 import { buildRadarScale, CAREER, isRepresentative, radarOf, scaleKey, type Radar, type RadarScales, type StatLine } from "@/lib/compare";
 import { averagesFromTotals, careerLeague, leagueOf, relativeLine, type LeagueAverages, type LeagueTable, type SeasonTotals } from "@/lib/era-adjust";
 import { LEAGUE_AVERAGES } from "@/lib/league-averages";
 import { ageFrom, formatDraft } from "@/lib/player-profile";
-import { getPlayer, getPlayerAwards, getPlayerCareer, getTeams } from "@/lib/queries";
+import { getPlayer, getPlayerAwards, getPlayerCareer, getTeams, selectPages } from "@/lib/queries";
 import { getSupabase, type PlayerContract, type PlayerSeasonStats, type SeasonType, type Team } from "@/lib/supabase";
 import { SEASON } from "@/lib/trade-rules";
 
-const PAGE_SIZE = 1000;
+/** Páginas de 1.000 temporadas que se piden a la vez (en 2026-27 son casi 8.000 filas). */
+const SEASON_PAGES = 9;
 
 export type DuelSeason = {
   id: string; // "1995-96" o CAREER
@@ -67,15 +69,17 @@ function lineOf({ games_played, pts, reb, ast, fg_pct, fg3_pct, advanced_stats: 
 
 /** Medias de la liga por temporada: las cerradas, de la tabla fija; la de ahora, de los totales del job diario. */
 export async function getLeagueTable(): Promise<LeagueTable> {
-  "use cache";
-  cacheLife("hours");
+  "use cache: remote";
+  cacheLife(dailyLife(Date.now()));
 
   const table: LeagueTable = { "Regular Season": { ...LEAGUE_AVERAGES["Regular Season"] }, Playoffs: { ...LEAGUE_AVERAGES.Playoffs } };
-  const { data, error } = await getSupabase().from("player_season_stats").select("season_type, totals").eq("season_id", SEASON).limit(PAGE_SIZE);
-  if (error) throw new Error(`Error cargando la temporada en curso: ${error.message}`);
+  type Row = { season_type: SeasonType; totals: SeasonTotals | null };
+  const rows = await selectPages<Row>("la temporada en curso", (from, to) =>
+    getSupabase().from("player_season_stats").select("season_type, totals").eq("season_id", SEASON).order("id").range(from, to)
+  );
   for (const phase of ["Regular Season", "Playoffs"] as const) {
     if (table[phase][SEASON]) continue; // Ya cerrada y en la tabla
-    const totals = (data as { season_type: SeasonType; totals: SeasonTotals | null }[]).flatMap((row) => (row.season_type === phase && row.totals ? [row.totals] : []));
+    const totals = rows.flatMap((row) => (row.season_type === phase && row.totals ? [row.totals] : []));
     const averages = averagesFromTotals(totals);
     if (averages) table[phase][SEASON] = averages;
   }
@@ -91,30 +95,35 @@ function leagueFor(row: LeagueSource, playerRows: LeagueSource[], table: LeagueT
   return careerLeague(seasons, row.season_type, table);
 }
 
-/** Escalas del radar, normal y ajustado: se calculan con todas las temporadas guardadas y solo se conservan sus cortes. */
+/** Solo lo que necesitan las escalas: con `advanced_stats` entero eran 4 MB (Tarea 7.7). */
+const SCALE_COLUMNS =
+  "player_id, season_id, season_type, games_played, pts, reb, ast, fg_pct, fg3_pct, min:advanced_stats->min, stl:advanced_stats->stl, blk:advanced_stats->blk, fg3m:advanced_stats->fg3m, fg3a:advanced_stats->fg3a, ts_pct:advanced_stats->ts_pct";
+
+type ScaleRow = Omit<StatRow, "advanced_stats"> & Pick<StatRow["advanced_stats"], "min" | "stl" | "blk" | "fg3m" | "fg3a" | "ts_pct">;
+
+/**
+ * Escalas del radar, normal y ajustado: se calculan con todas las temporadas guardadas y solo se conservan sus cortes.
+ * Cambian una vez al día (job diario) y son las mismas para todos los duelos: caché compartida.
+ */
 async function getRadarScales(): Promise<{ plain: RadarScales; era: RadarScales }> {
-  "use cache";
-  cacheLife("hours");
+  "use cache: remote";
+  cacheLife(dailyLife(Date.now()));
 
-  const supabase = getSupabase();
+  const [stored, table] = await Promise.all([
+    selectPages<ScaleRow>(
+      "temporadas",
+      (from, to) => getSupabase().from("player_season_stats").select(SCALE_COLUMNS).order("id").range(from, to),
+      SEASON_PAGES
+    ),
+    getLeagueTable(),
+  ]);
   const players = new Map<number, LeagueSource[]>();
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("player_season_stats")
-      .select("player_id, season_id, season_type, games_played, pts, reb, ast, fg_pct, fg3_pct, advanced_stats")
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`Error cargando temporadas: ${error.message}`);
-
-    for (const row of data as StatRow[]) {
-      const rows = players.get(row.player_id) ?? [];
-      rows.push({ season_id: row.season_id, season_type: row.season_type, line: lineOf(row) });
-      players.set(row.player_id, rows);
-    }
-    if (data.length < PAGE_SIZE) break;
+  for (const { min, stl, blk, fg3m, fg3a, ts_pct, ...row } of stored) {
+    const rows = players.get(row.player_id) ?? [];
+    rows.push({ season_id: row.season_id, season_type: row.season_type, line: lineOf({ ...row, advanced_stats: { min, stl, blk, fg3m, fg3a, ts_pct } }) });
+    players.set(row.player_id, rows);
   }
 
-  const table = await getLeagueTable();
   const plain = new Map<string, StatLine[]>();
   const era = new Map<string, StatLine[]>();
   for (const rows of players.values()) {

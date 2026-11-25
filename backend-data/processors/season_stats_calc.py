@@ -7,7 +7,8 @@
 - Jugadores nuevos en la base de datos: si el índice de la NBA dice que no jugaron antes de que empezáramos
   a guardar boxscores, su carrera es la que hemos visto; si jugaron antes, su carrera queda sin escribir
   ("pending_history") hasta cargarla desde un PC: `python -m extractors.fetch_career_awards --player-id X`.
-- Récords personales: los guardados, mejorados con los partidos nuevos.
+- Récords personales: los guardados, mejorados con los partidos nuevos. De los conseguidos en la última
+  jornada se guarda también el de antes (`season_highs_before`, `career_highs_before`, Tarea 7.6).
 
 Se ejecuta una vez al día (job diario), como antes: la ficha de un partido enseña promedios en el Nivel 1 y
 no deben cambiar minutos después de que termine.
@@ -118,6 +119,9 @@ def build(client, season: str, today: date) -> dict:
     valid_teams = set(abbreviations)
     players = {p["id"]: p for p in select_all(client, "players", "id, birth_date")}
 
+    # Última jornada con partidos: sus récords, en los Niveles 1 y 2, se enseñan como estaban antes de ella
+    last_day = max((str(r["game_date"]) for r in game_rows), default="")
+
     player_ids = sorted({pid for (pid, _, _) in seasons})
     existing = load_existing(client, player_ids)
     try:
@@ -141,7 +145,8 @@ def build(client, season: str, today: date) -> dict:
         age = S.season_age(players[pid].get("birth_date"), season, today)
         if age is None:
             age = ((existing.get(current_id) or {}).get("advanced_stats") or {}).get("age")
-        rows.append(S.season_row(ps, abbreviations, valid_teams, age, rates=S.usage_rates(ps, team_games)))
+        rows.append(S.season_row(ps, abbreviations, valid_teams, age, rates=S.usage_rates(ps, team_games),
+                                 last_day=last_day))
 
     # Carrera: para cada jugador con partidos esta temporada, regular y playoffs
     for pid in player_ids:
@@ -155,14 +160,17 @@ def build(client, season: str, today: date) -> dict:
                 continue
             if current is None and not history.get("gp"):
                 continue  # sin playoffs nunca: no hay fila de carrera de playoffs (como la NBA)
-            highs = None
+            highs = before = None
             if stype == SEASON_TYPES[REGULAR_SEASON]:
-                stored = ((existing.get(f"{pid}_Career_{stype}") or {}).get("advanced_stats") or {}).get("career_highs")
+                advanced = (existing.get(f"{pid}_Career_{stype}") or {}).get("advanced_stats") or {}
+                stored = advanced.get("career_highs")
                 # Partir de cero solo vale si toda su carrera son partidos que tenemos guardados
                 if stored or reason == "tracked":
-                    highs = S.update_highs(stored, games_by_player.get(pid, []), abbreviations)
+                    games = games_by_player.get(pid, [])
+                    highs = S.update_highs(stored, games, abbreviations)
+                    before = S.highs_before(highs, stored, advanced.get("career_highs_before"), games, abbreviations, last_day)
             rows.append(S.career_row(pid, stype, history, previous_season(season),
-                                     current.total.as_dict() if current else None, highs))
+                                     current.total.as_dict() if current else None, highs, before))
 
     # Filas de esta temporada que ya no corresponden a nadie (p. ej. una corrección quitó su único partido)
     produced = {r["id"] for r in rows}

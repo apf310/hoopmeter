@@ -32,7 +32,7 @@ export default async function Image() {
           ))}
         </div>
         <div style={{ display: "flex", marginTop: 40, fontSize: 26, fontWeight: 800, letterSpacing: 6, textTransform: "uppercase", color: "#64748b" }}>
-          hoopmeter.com
+          {BRAND.domain}
         </div>
       </div>
       <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", paddingRight: 40 }}>

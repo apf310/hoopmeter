@@ -1,8 +1,7 @@
 "use client";
 
-import Image from "next/image";
 import { SharedLanding, useSharedNav } from "@/components/layout/SharedLink";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { sharedTarget } from "@/lib/shared-nav";
 import "./player-card.css";
 
@@ -16,7 +15,7 @@ export function PlayerCardSkeleton({ className }: { className: string }) {
         <div className="hc-card hc-blank">
           {target?.kind === "player" && (
             <div className="hc-photo">
-              <Image src={playerHeadshotUrl(target.id)} alt="" width={400} height={292} draggable={false} />
+              <PlayerPhoto id={target.id} width={400} height={292} draggable={false} />
             </div>
           )}
         </div>

@@ -142,7 +142,7 @@ export function OgFrame({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 22, fontSize: 24, fontWeight: 800, letterSpacing: 5, textTransform: "uppercase" }}>
           <span style={{ color: "#e2e8f0" }}>Sin spoilers</span>
-          <span style={{ color: "#64748b" }}>hoopmeter.com</span>
+          <span style={{ color: "#64748b" }}>{BRAND.domain}</span>
         </div>
       </div>
       )}

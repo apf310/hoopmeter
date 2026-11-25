@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Image from "next/image";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ArrowDown, LoaderCircle, SlidersHorizontal, WifiOff, X } from "lucide-react";
 import { ExplorerTable } from "@/components/players/ExplorerTable";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { ExplorerCardExport } from "@/components/share/ExplorerShareCard";
-import { playerHeadshotUrl } from "@/lib/nba-cdn";
 import {
   AGE_PRESETS,
   CONFERENCE_FILTERS,
   DEFAULT_FILTERS,
   EXPLORER_MODES,
+  EXPLORER_PAGE,
   EXPLORER_VIEWS,
   GAMES_PRESETS,
   INTERNATIONAL,
@@ -36,6 +36,7 @@ import {
   rangeParam,
   salaryLabel,
   sameRange,
+  sameSort,
   seasonMaxGames,
   slugLabel,
   sortRows,
@@ -47,28 +48,27 @@ import {
   type StatKey,
 } from "@/lib/player-explorer";
 import type { SearchTeam } from "@/lib/search";
+import { splitName } from "@/lib/player-card";
+import { shortName } from "@/lib/spanish-players";
 import { SEASON } from "@/lib/trade-rules";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { cn } from "@/lib/utils";
 
-/** Filas por tanda: la temporada entera pasa de 400 jugadores. */
-const PAGE_SIZE = 50;
-
 export type ExplorerTeam = { id: number; name: string; abbreviation: string; conference: string | null; accent: string; backdrop: string };
 
-// Temporadas ya pedidas (la del HTML incluida): volver a una es instantáneo
-const seasonCache = new Map<string, Promise<ExplorerSeason>>();
+// Temporadas ya pedidas: volver a una es instantáneo. Pasada una hora se vuelve a pedir (la app puede llevar días abierta)
+const seasonCache = new Map<string, { at: number; request: Promise<ExplorerSeason> }>();
+const SEASON_CACHE_MS = 3_600_000;
 
 function loadSeason(season: string): Promise<ExplorerSeason> {
-  let request = seasonCache.get(season);
-  if (!request) {
-    request = fetch(`/api/player-stats?temporada=${encodeURIComponent(season)}`).then((res) => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json() as Promise<ExplorerSeason>;
-    });
-    request.catch(() => seasonCache.delete(season));
-    seasonCache.set(season, request);
-  }
+  const cached = seasonCache.get(season);
+  if (cached && Date.now() - cached.at < SEASON_CACHE_MS) return cached.request;
+  const request = fetch(`/api/player-stats?temporada=${encodeURIComponent(season)}`).then((res) => {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json() as Promise<ExplorerSeason>;
+  });
+  request.catch(() => seasonCache.delete(season));
+  seasonCache.set(season, { at: Date.now(), request });
   return request;
 }
 
@@ -76,7 +76,8 @@ function loadSeason(season: string): Promise<ExplorerSeason> {
  * Explorador de jugadores (Tarea 6.22): filtros combinables, cualquier estadística ordenable por partido,
  * en totales o por 36 minutos, líderes, temporadas anteriores y el estado entero en la URL. Todo se
  * filtra y ordena en el dispositivo: al tocar un filtro cambia al instante. Sin spoilers: estadísticas
- * de temporada, que cambian una vez al día.
+ * de temporada, que cambian una vez al día. En el HTML solo viaja la primera tanda (`previewSeason`, Tarea 7.7); la
+ * temporada entera se pide nada más abrir, y si se toca algo antes de que llegue, la tabla espera atenuada.
  */
 export function PlayerExplorer({
   initial,
@@ -95,12 +96,22 @@ export function PlayerExplorer({
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [shown, setShown] = useState(PAGE_SIZE);
+  const [shown, setShown] = useState(EXPLORER_PAGE);
   const requested = useRef(initial.season);
 
+  // El resto de la temporada: al abrir y, si falla, al reintentar o al tocar algo que lo necesite
+  const loadRest = useCallback(() => {
+    loadSeason(initial.season).then(
+      (full) => {
+        setLoadError(false);
+        setData((current) => (current.season === full.season ? full : current));
+      },
+      () => setLoadError(true)
+    );
+  }, [initial.season]);
   useEffect(() => {
-    if (!seasonCache.has(initial.season)) seasonCache.set(initial.season, Promise.resolve(initial));
-  }, [initial]);
+    if (initial.preview) loadRest();
+  }, [initial, loadRest]);
 
   // La URL siempre al día (sin navegación de Next): lista para copiarla y compartirla
   useEffect(() => {
@@ -118,8 +129,9 @@ export function PlayerExplorer({
     [teams]
   );
   const sortedTeams = useMemo(() => [...teamById.values()].sort((a, b) => a.name.localeCompare(b.name, "es")), [teamById]);
-  const countries = useMemo(() => countryOptions(data.rows), [data.rows]);
-  const maxGames = useMemo(() => seasonMaxGames(data.rows), [data.rows]);
+  const { preview } = data;
+  const countries = useMemo(() => preview?.countries ?? countryOptions(data.rows), [preview, data.rows]);
+  const maxGames = useMemo(() => preview?.maxGames ?? seasonMaxGames(data.rows), [preview, data.rows]);
   const filtered = useMemo(
     () => filterRows(data.rows, state.filters, { maxGames, conferenceOf: (id) => teamById.get(id)?.conference ?? null }),
     [data.rows, state.filters, maxGames, teamById]
@@ -128,7 +140,8 @@ export function PlayerExplorer({
 
   const update = (patch: Partial<ExplorerState>) => {
     setState((current) => ({ ...current, ...patch }));
-    setShown(PAGE_SIZE);
+    setShown(EXPLORER_PAGE);
+    if (preview && loadError) loadRest();
   };
   const setFilters = (patch: Partial<ExplorerFilters>) => update({ filters: { ...state.filters, ...patch } });
   const onSort = (key: StatKey) => update({ sort: nextExplorerSort(state.sort, key) });
@@ -164,8 +177,12 @@ export function PlayerExplorer({
   const title = statTitle(state.sort.key, state.mode);
   const view = EXPLORER_VIEWS.find((v) => v.id === state.view)!;
   const sortHidden = !view.columns.includes(state.sort.key);
-  const stale = loading || data.season !== state.season;
-  const count = filtered.length === 1 ? "1 jugador" : `${filtered.length} jugadores`;
+  // Con solo la primera tanda vale lo que se pintó al abrir (y cambiar de columnas); lo demás espera a que llegue el resto
+  const initialView = state.filters === initialState.filters && state.mode === initialState.mode && sameSort(state.sort, initialState.sort);
+  const waiting = preview !== undefined && (!initialView || shown > EXPLORER_PAGE);
+  const stale = loading || data.season !== state.season || waiting;
+  const total = preview && initialView ? preview.count : filtered.length;
+  const count = waiting && !initialView ? "Cargando jugadores…" : total === 1 ? "1 jugador" : `${total} jugadores`;
 
   return (
     <section aria-label="Explorador de estadísticas">
@@ -212,7 +229,7 @@ export function PlayerExplorer({
         </p>
         <ExplorerCardExport
           className="shrink-0"
-          rows={sorted}
+          rows={waiting && !initialView ? [] : sorted}
           sort={state.sort}
           mode={state.mode}
           season={data.season}
@@ -370,7 +387,12 @@ export function PlayerExplorer({
       {loadError && (
         <p className="flex items-center gap-2 border-b border-slate-800 px-4 py-2 text-sm text-amber-300 md:px-8">
           <WifiOff className="size-4 shrink-0" aria-hidden />
-          No se pudo cargar esa temporada. Prueba otra vez en un momento.
+          {preview ? "No se pudieron cargar todos los jugadores." : "No se pudo cargar esa temporada. Prueba otra vez en un momento."}
+          {preview && (
+            <button type="button" onClick={loadRest} className="shrink-0 font-semibold text-orange-400">
+              Reintentar
+            </button>
+          )}
         </p>
       )}
       {!data.current && (
@@ -397,7 +419,9 @@ export function PlayerExplorer({
           </p>
         )}
 
-        {sorted.length === 0 ? (
+        {sorted.length === 0 && waiting ? (
+          <p className="border-b border-slate-800 px-4 py-10 text-center text-sm text-slate-400 md:px-8">Cargando jugadores…</p>
+        ) : sorted.length === 0 ? (
           <div className="border-b border-slate-800 px-4 py-10 text-center md:px-8">
             <p className="font-display text-2xl font-extrabold uppercase text-white">Ningún jugador cumple todos los filtros</p>
             <p className="mt-1 text-sm text-slate-400">{[...labels, minimum].join(" · ")}</p>
@@ -420,13 +444,13 @@ export function PlayerExplorer({
               teamById={teamById}
               onSort={onSort}
             />
-            {sorted.length > shown && (
+            {total > shown && (
               <button
                 type="button"
-                onClick={() => setShown((n) => n + PAGE_SIZE)}
+                onClick={() => setShown((n) => n + EXPLORER_PAGE)}
                 className="block w-full border-b border-slate-800 py-3 font-display text-base font-bold uppercase tracking-wide text-orange-400 transition-colors hover:bg-slate-900/70 hover:text-orange-300"
               >
-                Ver más · {shown} de {sorted.length}
+                Ver más · {shown} de {total}
               </button>
             )}
           </>
@@ -619,22 +643,25 @@ function Leaders({
                 style={{ background: `linear-gradient(160deg, ${team?.backdrop ?? "#334155"}80 0%, #020617 72%)` }}
               >
                 <Shared>
-                  <Image
-                    src={playerHeadshotUrl(first.id)}
-                    alt=""
+                  <PlayerPhoto
+                    id={first.id}
                     width={130}
                     height={95}
                     className="absolute bottom-0 right-0 h-[5.5rem] w-auto object-contain object-bottom transition-transform group-hover:scale-105"
                   />
                 </Shared>
-                <span className="relative block px-3 pt-1">
-                  <span className="block font-display text-4xl font-extrabold leading-none tabular-nums text-white drop-shadow">
+                {/* El nombre va entero, a todo lo ancho, sobre un velo que lo separa de la camiseta */}
+                <span aria-hidden className="absolute inset-0 bg-[radial-gradient(ellipse_115%_70%_at_0%_100%,rgba(2,6,23,0.95)_20%,rgba(2,6,23,0.55)_60%,transparent)]" />
+                <span className="relative flex min-h-[5.75rem] flex-col px-3 pb-2 pt-1">
+                  <span className="font-display text-4xl font-extrabold leading-none tabular-nums text-white drop-shadow">
                     {formatStat(statValue(first, key, mode), key, mode)}
                   </span>
-                  <span className="mt-2 block max-w-[62%] truncate font-display text-base font-extrabold uppercase leading-tight text-white drop-shadow">
-                    {first.name}
+                  <span className="mt-auto font-display text-xs font-semibold uppercase leading-tight text-slate-300">
+                    {[splitName(first.name).first, team?.abbreviation ?? "Sin equipo"].filter(Boolean).join(" · ")}
                   </span>
-                  <span className="block pb-2 text-xs font-semibold text-slate-300">{team?.abbreviation ?? "Sin equipo"}</span>
+                  <span className="font-display text-lg font-extrabold uppercase leading-none text-white [overflow-wrap:anywhere]">
+                    {splitName(first.name).last}
+                  </span>
                 </span>
                 <span className="absolute inset-x-0 bottom-0 h-1" style={{ background: team?.accent ?? "#f97316" }} aria-hidden />
               </SharedLink>
@@ -645,10 +672,14 @@ function Leaders({
             <ol start={2} className="hidden flex-1 border-t border-slate-800 sm:block">
               {rest.map((row, i) => (
                 <li key={row.id}>
-                  <Link href={`/players/${row.id}`} className="flex items-baseline gap-2 px-3 py-1 text-sm transition-colors hover:bg-slate-900">
-                    <span className="w-3 shrink-0 font-display font-bold text-slate-500">{i + 2}</span>
-                    <span className="min-w-0 flex-1 truncate text-slate-200">{row.name}</span>
-                    <span className="font-display font-bold tabular-nums text-white">{formatStat(statValue(row, key, mode), key, mode)}</span>
+                  <Link
+                    href={`/players/${row.id}`}
+                    title={row.name}
+                    className="flex items-baseline gap-2 px-3 py-1 font-display text-sm transition-colors hover:bg-slate-900"
+                  >
+                    <span className="w-2.5 shrink-0 font-bold text-slate-500">{i + 2}</span>
+                    <span className="min-w-0 flex-1 font-semibold leading-tight text-slate-200 [overflow-wrap:anywhere]">{shortName(row.name)}</span>
+                    <span className="font-bold tabular-nums text-white">{formatStat(statValue(row, key, mode), key, mode)}</span>
                   </Link>
                 </li>
               ))}

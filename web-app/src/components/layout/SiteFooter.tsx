@@ -14,6 +14,17 @@ export function SiteFooter() {
         ))}
       </nav>
       <p className="mt-2 max-w-3xl leading-relaxed">{NBA_DISCLAIMER}</p>
+      <p className="mt-1 leading-relaxed">
+        Desarrollado por{" "}
+        <a
+          href="https://alpelabs.dev/"
+          target="_blank"
+          rel="noopener"
+          className="-my-2 inline-block py-2 font-medium text-slate-400 transition-colors hover:text-white"
+        >
+          ALPE Labs
+        </a>
+      </p>
     </footer>
   );
 }

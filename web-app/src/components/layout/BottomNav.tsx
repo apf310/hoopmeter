@@ -8,7 +8,10 @@ import { NAV_ITEMS, isActive } from "./nav-items";
 
 export function BottomNav() {
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+    <nav
+      aria-label="Navegación principal"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-800 bg-slate-950 pb-[env(safe-area-inset-bottom)] md:hidden"
+    >
       {/* usePathname es dato de URL: en rutas dinámicas debe ir dentro de <Suspense> */}
       <Suspense fallback={<BottomNavItems pathname={null} />}>
         <ActiveBottomNavItems />

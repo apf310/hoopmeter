@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Star } from "lucide-react";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { Favorites } from "@/lib/favorites";
 import { useFavorites } from "@/lib/favorites-store";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 
 const surname = (name: string) => name.split(" ").slice(1).join(" ") || name;
@@ -34,7 +35,7 @@ export function FavoritesStrip({ favorites, className }: { favorites: Favorites;
         {favorites.players.map((player) => (
           <li key={`p${player.id}`} className="shrink-0">
             <Link href={`/players/${player.id}`} className={CHIP} title={player.name}>
-              <Image src={playerHeadshotUrl(player.id)} alt="" width={30} height={22} className="h-[22px] w-[30px] object-cover object-top" />
+              <PlayerPhoto id={player.id} width={30} height={22} className="h-[22px] w-[30px] object-cover object-top" />
               {surname(player.name)}
             </Link>
           </li>
@@ -70,9 +71,8 @@ export function SidebarFavorites() {
         {favorites.players.map((player) => (
           <li key={`p${player.id}`}>
             <Link href={`/players/${player.id}`} className={ROW}>
-              <Image
-                src={playerHeadshotUrl(player.id)}
-                alt=""
+              <PlayerPhoto
+                id={player.id}
                 width={33}
                 height={24}
                 className="h-6 w-[33px] shrink-0 object-cover object-top"

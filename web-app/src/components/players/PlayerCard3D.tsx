@@ -1,7 +1,8 @@
 import type { CSSProperties } from "react";
 import Image from "next/image";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { TiltSurface } from "@/components/players/TiltSurface";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { splitName, surnameSize, type CardTier } from "@/lib/player-card";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import type { Team } from "@/lib/supabase";
@@ -89,7 +90,7 @@ export function PlayerCard3D({ id, name, tier, team, overall, line, position, no
           </div>
         </div>
         <div className="hc-photo">
-          <Image src={playerHeadshotUrl(id)} alt="" width={bare ? 400 : 260} height={bare ? 292 : 190} priority={priority} draggable={false} />
+          <PlayerPhoto id={id} width={bare ? 400 : 260} height={bare ? 292 : 190} priority={priority} draggable={false} />
         </div>
         <div className="hc-plate">
           {tier === "base" && <span className="hc-strip" />}

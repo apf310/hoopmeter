@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { TradeMachine } from "@/components/gm/TradeMachine";
 import { pageMetadata } from "@/lib/seo";
 import { buildTrade, type GmData } from "@/lib/gm";
@@ -42,8 +43,13 @@ export default async function GmSimulatorPage({ searchParams }: PageProps<"/gm-s
  * `?equipos=…` (enlace compartido, Tarea 6.9): el traspaso se reconstruye con los contratos de hoy y el cliente
  * recalcula el veredicto con `trade-rules.ts`. `?jugador=ID` (botón "Simular traspaso" de la ficha del jugador,
  * Tarea 6.8): su equipo ya elegido.
+ *
+ * Next incrusta en el HTML una segunda copia de lo que se puede precargar (`experimental.cachedNavigations`, activo con
+ * `cacheComponents`) para que volver a la página sea instantáneo. Con los 140 KB de contratos no compensa: después de
+ * `connection()` no son precargables y viajan una sola vez (Tarea 7.7).
  */
 async function GmContent({ searchParams }: { searchParams: PageProps<"/gm-simulator">["searchParams"] }) {
+  await connection();
   const [params, data] = await Promise.all([searchParams, getGmData()]);
   if (params.equipos !== undefined) return <TradeMachine data={data} initialTrade={restoreLink(data, params)} />;
   const playerId = Number(params.jugador);

@@ -17,7 +17,7 @@ const LEVELS: { level: SpoilerLevel; short: string; label: string; icon: LucideI
 ];
 
 type SpoilerModeSelectorProps = {
-  /** Versión Sidebar: antetítulo + estado en texto y segmentos con nombre. */
+  /** Versión Sidebar: antetítulo + estado en texto y segmentos a todo el ancho. */
   withLabel?: boolean;
   className?: string;
 };
@@ -52,8 +52,7 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
         role="radiogroup"
         aria-label="Nivel de spoilers"
         className={cn(
-          "flex bg-slate-950 p-1 ring-1 ring-inset transition-colors duration-300",
-          withLabel ? "rounded-full" : "rounded-2xl",
+          "flex rounded-2xl bg-slate-950 p-1 ring-1 ring-inset transition-colors duration-300",
           spoilers ? "ring-orange-500/40" : "ring-emerald-500/40"
         )}
       >
@@ -73,11 +72,11 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
               onPointerDownCapture={() => announceLevelIntent(level)}
               {...(needsHold ? hold.handlers : {})}
               className={cn(
-                "relative flex touch-manipulation select-none items-center justify-center gap-1.5 overflow-hidden outline-none transition-colors duration-300 [-webkit-touch-callout:none]",
+                // Texto corto bajo el icono y cada uno a su ancho: en línea no caben ni a 360 px junto al logo ni en la Sidebar
+                "relative flex touch-manipulation select-none flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-2 outline-none transition-colors duration-300 [-webkit-touch-callout:none]",
                 "focus-visible:ring-2 focus-visible:ring-orange-400",
-                // Barra móvil: texto corto bajo el icono (en línea no cabe a 360 px junto al logo), cada uno a su ancho
                 // Móvil: 40 px de alto (2,875 rem con la letra base al 87,5 %), que se acierta con el pulgar al mantener pulsado (Tarea 6.20)
-                withLabel ? "h-8 flex-1 rounded-full px-2" : "h-11.5 min-w-11.5 flex-col gap-0.5 rounded-xl px-2",
+                withLabel ? "h-11 flex-auto" : "h-11.5 min-w-11.5",
                 active
                   ? level === 3
                     ? "bg-orange-500 text-slate-950 shadow-[0_0_14px] shadow-orange-500/50"
@@ -95,15 +94,11 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
                       hold.holding ? "opacity-100 duration-1000" : "opacity-0 duration-150"
                     )}
                   />
-                  <HoldRing holding={hold.holding} pill={withLabel} />
+                  <HoldRing holding={hold.holding} />
                 </>
               )}
-              <Icon className={cn("relative", withLabel ? "size-4" : "size-4 shrink-0")} />
-              {withLabel ? (
-                <span className="relative font-display text-xs font-bold uppercase tracking-wide">{short}</span>
-              ) : (
-                <span className="relative font-display text-[10px] font-bold uppercase leading-none">{short}</span>
-              )}
+              <Icon className="relative size-4 shrink-0" />
+              <span className={cn("relative font-display font-bold uppercase leading-none", withLabel ? "text-xs" : "text-[10px]")}>{short}</span>
             </button>
           );
         })}
@@ -127,21 +122,20 @@ export function SpoilerModeSelector({ withLabel = false, className }: SpoilerMod
  * Anillo que se llena alrededor del botón en HOLD_MS (al soltar, se vacía rápido). Sus esquinas = las del
  * botón (en rem, que en móvil escala) menos medio trazo. Sin animaciones (reduce motion), sale entero al pulsar.
  */
-function HoldRing({ holding, pill }: { holding: boolean; pill: boolean }) {
+function HoldRing({ holding }: { holding: boolean }) {
   return (
     <svg aria-hidden className="pointer-events-none absolute inset-[1.5px] h-[calc(100%-3px)] w-[calc(100%-3px)] overflow-visible">
       <rect
         width="100%"
         height="100%"
-        rx={pill ? 14.5 : 9}
+        rx={9}
         pathLength={100}
         fill="none"
         strokeWidth={3}
         strokeDasharray="100 100"
         className={cn(
           // En reposo, además, transparente: con el trazo "vacío" algunos navegadores dejan ver una raya en el inicio
-          "stroke-orange-400 ease-linear [transition-property:stroke-dashoffset,opacity] motion-reduce:transition-none",
-          pill ? "[rx:calc(1rem-1.5px)]" : "[rx:calc(0.75rem-1.5px)]",
+          "stroke-orange-400 ease-linear [rx:calc(0.75rem-1.5px)] [transition-property:stroke-dashoffset,opacity] motion-reduce:transition-none",
           holding ? "opacity-100 [stroke-dashoffset:0] duration-1000" : "opacity-0 [stroke-dashoffset:100] duration-150"
         )}
       />

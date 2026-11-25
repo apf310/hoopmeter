@@ -4,8 +4,9 @@ import { useState } from "react";
 import Image from "next/image";
 import { Check, Clock, X } from "lucide-react";
 import { SalaryCapBar } from "@/components/gm/SalaryCapBar";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { pickKey, type GmPlayer, type GmTeam } from "@/lib/gm";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { tierOf } from "@/lib/player-profile";
 import {
   APRON_LABEL,
@@ -203,7 +204,7 @@ function PlayerRow({
         className="flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors hover:bg-slate-900"
       >
         <span className="relative flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: `${team.accent}26` }}>
-          <Image src={playerHeadshotUrl(player.id)} alt="" width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
+          <PlayerPhoto id={player.id} width={54} height={40} className="h-10 w-[54px] object-cover object-top" />
           {selected && (
             <span className="absolute inset-0 flex items-center justify-center bg-orange-500/70">
               <Check className="size-6 text-white" strokeWidth={3} />

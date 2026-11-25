@@ -6,6 +6,7 @@ import { DEFERRED_POSITION_PREFIX, isDeferredPosition, positionQuery, type Defer
 import type { GameDetail } from "@/lib/game-detail";
 import type { ScheduleTuple } from "@/lib/game-day";
 import type { LiveScoreboard } from "@/lib/live";
+import type { PlayerHighs } from "@/lib/player-highs";
 import type { SpanishLinesPayload } from "@/lib/spanish-players";
 import type { GameLevel2, GameLevel3, SpoilerLevel } from "@/lib/spoilers";
 import type { StandingsRow } from "@/lib/standings";
@@ -37,6 +38,7 @@ export type PlayerGameLine = {
   plusMinus: number;
 };
 export type PlayerGamesPayload = { level: 3; lines: Record<string, PlayerGameLine | null> };
+export type PlayerHighsPayload = { level: 3; highs: PlayerHighs };
 
 /** Antigüedad máxima de una jornada en juego (igual que la caché de 30 s del servidor). */
 export const LIVE_MAX_AGE_MS = 30_000;
@@ -237,6 +239,17 @@ export function loadPlayerGames(playerId: number, maxAgeMs = LIVE_MAX_AGE_MS): P
 
 export function usePlayerGames(level: SpoilerLevel, playerId: number | undefined): Entry<PlayerGamesPayload> | undefined {
   return useEntry<PlayerGamesPayload>(level === 3 && playerId !== undefined ? playerGamesKey(playerId) : null);
+}
+
+const playerHighsKey = (playerId: number) => `highs:3:${playerId}`;
+
+/** Récords del jugador con los de la última jornada (`/api/players/[id]/highs`, Tarea 7.6). Solo para Nivel 3. */
+export function loadPlayerHighs(playerId: number): Promise<void> {
+  return load(playerHighsKey(playerId), `/api/players/${playerId}/highs?level=3`, IDLE_MAX_AGE_MS);
+}
+
+export function usePlayerHighs(level: SpoilerLevel, playerId: number): Entry<PlayerHighsPayload> | undefined {
+  return useEntry<PlayerHighsPayload>(level === 3 ? playerHighsKey(playerId) : null);
 }
 
 const spanishKey = (day: string) => `spain:3:${day}`;

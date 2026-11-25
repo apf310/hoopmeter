@@ -283,18 +283,20 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
 }
 
 const HINTS: Record<SpoilerLevel, { icon: LucideIcon; title: string; tip: string; className: string }> = {
-  1: { icon: EyeOff, title: "Sin spoilers", tip: "Partidos y horarios · Toca Nota para ver la nota", className: "text-emerald-400" },
-  2: { icon: Star, title: "Solo nota", tip: "8+ partidazo · menos de 5, flojo · Mantén pulsado Resultados para los marcadores", className: "text-amber-400" },
+  // Qué es la nota, en la línea que ya existe (Tarea 7.6)
+  1: { icon: EyeOff, title: "Sin spoilers", tip: "Toca Nota: del 1 al 10, lo emocionante que fue cada partido, sin decir quién ganó", className: "text-emerald-400" },
+  2: { icon: Star, title: "Solo nota", tip: "Emoción del 1 al 10: 8+ partidazo, menos de 5 flojo · Mantén pulsado Resultados para el marcador", className: "text-amber-400" },
   3: { icon: Eye, title: "Resultados visibles", tip: "Marcadores, cuartos y nota del partido", className: "text-orange-400" },
 };
 
 function LevelHint({ level, live, offline }: { level: SpoilerLevel; live: boolean; offline: boolean }) {
   const { icon: Icon, title, tip, className } = HINTS[level];
   return (
-    <div aria-live="polite" className="flex items-center gap-2 border-b border-slate-800 px-4 py-2 text-xs md:px-8">
+    // En móvil, dos líneas en todos los niveles: el texto no se corta y la lista no se mueve al cambiar de nivel
+    <div aria-live="polite" className="flex min-h-12 items-center gap-2 border-b border-slate-800 px-4 py-1.5 text-xs md:min-h-0 md:px-8 md:py-2">
       <Icon className={cn("size-3.5 shrink-0", className)} />
       <span className={cn("shrink-0 whitespace-nowrap font-display text-sm font-bold uppercase tracking-wide", className)}>{title}</span>
-      <span className="truncate text-slate-400">{tip}</span>
+      <span className={cn("leading-snug text-slate-400", (live || offline) && "max-md:hidden")}>{tip}</span>
       {live && (
         <span className="ml-auto flex shrink-0 items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wider text-red-400">
           <span className="size-1.5 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />

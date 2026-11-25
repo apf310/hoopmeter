@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import type { ExplorerTeam } from "@/components/players/PlayerExplorer";
+import { showSilhouette } from "@/components/players/PlayerPhoto";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
 import { EXPLORER_MODES, formatStat, scalesWithMode, slugify, statValue, type ExplorerMode, type ExplorerRow, type ExplorerSort } from "@/lib/player-explorer";
@@ -123,7 +124,7 @@ function ExplorerShareCard({
                     </span>
                     <span className="w-2 shrink-0 self-stretch" style={{ background: row.team?.accent ?? "#334155", margin: `${rowHeight * 0.18}px 0` }} />
                     <span className="flex shrink-0 items-end overflow-hidden" style={{ width: rowHeight * 1.2, height: rowHeight * 0.88, background: `${row.team?.accent ?? "#334155"}33` }}>
-                      <img src={sameOrigin(playerHeadshotUrl(row.id))} alt="" className="h-full w-full object-cover object-top" />
+                      <img src={sameOrigin(playerHeadshotUrl(row.id))} onError={showSilhouette} alt="" className="h-full w-full object-cover object-top" />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-display font-extrabold uppercase leading-tight text-white" style={{ fontSize: rowHeight * 0.36 }}>

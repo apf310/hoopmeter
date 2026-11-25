@@ -7,7 +7,9 @@ Funciones puras (sin red ni base de datos).
   + la temporada en curso. Sin historial fiable no se escribe carrera: mejor sin dato que con uno falso.
 - Récords personales (temporada regular y playoffs, como la NBA): el guardado o un partido nuevo que lo
   iguale o supere (ante empates gana el más reciente, igual que la NBA). Los máximos de la temporada
-  (`season_highs`, Tarea 6.8) siguen la misma regla con los partidos de esa temporada y ese tipo.
+  (`season_highs`, Tarea 6.8) siguen la misma regla con los partidos de esa temporada y ese tipo. De los
+  conseguidos en la última jornada se guarda además el de antes (`*_highs_before`, Tarea 7.6): es el que
+  enseña la web en los Niveles 1 y 2.
 - Radar: las mismas métricas que pedíamos a stats.nba.com. Las de volumen y acierto son exactas; USG%,
   AST%, REB% y PIE usan la fórmula oficial con los totales del partido repartidos por minutos en pista
   (correlación con las oficiales de 2025-26: 0,999 / 0,997 / 0,999 / 0,996). DEF_RATING usa los puntos
@@ -133,15 +135,19 @@ def line_from_totals(t: dict) -> dict:
 
 
 def season_row(ps: PlayerSeason, abbreviations: dict[int, str], valid_teams: set[int], age: int | None,
-               rates: dict | None = None) -> dict:
+               rates: dict | None = None, last_day: str | None = None) -> dict:
     """Fila de `player_season_stats` de la temporada en curso (mismo formato que fetch_career_awards).
-    `rates`: USG%, AST% y REB% de `usage_rates` (explorador de jugadores, Tarea 6.22)."""
+    `rates`: USG%, AST% y REB% de `usage_rates` (explorador de jugadores, Tarea 6.22). `last_day`: última
+    jornada con partidos guardados (para `season_highs_before`)."""
     totals = ps.total.as_dict()
     line = line_from_totals(totals)
     traded = len(ps.team_order) > 1
+    highs = update_highs(None, ps.games, abbreviations)
     extra = {"team_abbreviation": "TOT" if traded else abbreviations.get(ps.last_team), "age": age,
              # Máximos de la temporada (Tarea 6.8): solo el job diario, como los promedios
-             "season_highs": update_highs(None, ps.games, abbreviations), **(rates or {})}
+             "season_highs": highs, **(rates or {})}
+    if last_day is not None:
+        extra["season_highs_before"] = highs_before(highs, None, None, ps.games, abbreviations, last_day)
     if traded:
         extra["teams"] = [{
             "team_id": tid,
@@ -177,13 +183,15 @@ def add_totals(a: dict | None, b: dict | None) -> dict | None:
 
 
 def career_row(player_id: int, season_type: str, history: dict, history_through: str,
-               current: dict | None, highs: dict | None) -> dict:
-    """Fila "Career": historial exacto + temporada en curso (`current`, totales; None si no ha jugado)."""
+               current: dict | None, highs: dict | None, before: dict | None = None) -> dict:
+    """Fila "Career": historial exacto + temporada en curso (`current`, totales; None si no ha jugado).
+    `before`: los récords de `highs_before`."""
     totals = add_totals(history, current) if current else dict(history)
     line = line_from_totals(totals)
     advanced = dict(line["advanced"])
     if season_type == SEASON_TYPES[REGULAR_SEASON] and highs is not None:
         advanced["career_highs"] = highs
+        advanced["career_highs_before"] = before or {}
     return {
         "id": f"{player_id}_Career_{season_type}",
         "player_id": player_id,
@@ -221,6 +229,25 @@ def update_highs(stored: dict | None, games: list[dict], opponent_abbr: dict[int
                 highs[key] = {"value": value, "date": str(row["game_date"]), "vs": opponent_abbr.get(int(row["opponent_id"])),
                               "game_id": row["game_id"]}
     return highs
+
+
+def highs_before(highs: dict, stored: dict | None, stored_before: dict | None, games: list[dict],
+                 opponent_abbr: dict[int, str], last_day: str) -> dict:
+    """Cómo estaban, antes de la jornada `last_day`, los récords de `highs` conseguidos en ella (Tarea 7.6).
+    Solo esas claves: las demás no han cambiado. `stored` y `stored_before`: lo guardado por la pasada
+    anterior; si es de esa misma jornada, el de antes ya no está en `stored` y se toma de `stored_before`.
+    Un récord cuyo valor anterior no se puede saber se queda fuera: mejor sin dato que con uno falso."""
+    base, unknown = {}, set()
+    for key, high in (stored or {}).items():
+        if (high.get("date") or "") < last_day:
+            base[key] = high
+        elif key in (stored_before or {}):
+            base[key] = stored_before[key]
+        else:
+            unknown.add(key)
+    before = update_highs(base, [row for row in games if str(row["game_date"]) < last_day], opponent_abbr)
+    return {key: before[key] for key, high in highs.items()
+            if (high.get("date") or "") >= last_day and key in before and key not in unknown}
 
 
 # ---------- Edad ----------

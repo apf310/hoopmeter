@@ -1,11 +1,18 @@
 // Consultas de lectura a Supabase para Server Components, cacheadas con "use cache".
+//
+// Ojo (Tarea 7.7): en Vercel `"use cache"` solo evita repetir una consulta dentro de la misma visita y al prerenderizar;
+// entre visitas no se conserva. Lo pesado que cambia una vez al día va con `"use cache: remote"` (compartida, con cupo en
+// el plan Hobby: pocas y pequeñas). Y todo tiene que ir rápido también sin caché: páginas en paralelo y solo las columnas
+// que hacen falta.
 import { cacheLife } from "next/cache";
+import { dailyLife, PENDING_LOOKBACK_HOURS, type PendingGame } from "@/lib/cache-window";
 import { gameDayOf, gameDayUtcRange, previousSeason, seasonOf, type GameMatchup } from "@/lib/game-day";
 import type { GmData, GmPlayer, GmTeam } from "@/lib/gm";
 import { ageFrom, getRadar, overallRating } from "@/lib/player-profile";
+import { highsBeforeDay, withoutHighs, type Highs, type PlayerHighs, type StoredHighs } from "@/lib/player-highs";
 import { LEGEND_AWARDS, legendLine, legendWeight, type LegendCounts } from "@/lib/player-card";
 import type { ExplorerRow, ExplorerSeason, ExplorerTotals } from "@/lib/player-explorer";
-import type { SearchIndex } from "@/lib/search";
+import type { SearchIndex, SearchTeam } from "@/lib/search";
 import type { Game } from "@/lib/spoilers";
 import { lastStartedDay, pickStandingsBefore, type StandingsBefore } from "@/lib/standings";
 import { getSupabase, type DeadMoney, type Player, type PlayerAward, type PlayerContract, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
@@ -19,6 +26,24 @@ export type UpcomingGame = GameMatchup;
 const MATCHUP_COLUMNS = "id, game_datetime_utc, home_team_id, away_team_id";
 // Supabase devuelve como mucho 1.000 filas por consulta
 const PAGE_SIZE = 1000;
+
+type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+
+/**
+ * Lee todas las páginas de una consulta con un orden fijo. Las `expected` primeras se piden a la vez (Tarea 7.7: una
+ * detrás de otra, cada página sumaba una ida y vuelta a la base de datos); si la última llega llena, sigue.
+ */
+export async function selectPages<T>(label: string, page: (from: number, to: number) => Page, expected = 1): Promise<T[]> {
+  const out: T[] = [];
+  for (let first = 0, count = expected; ; first += count, count = 1) {
+    const pages = await Promise.all(Array.from({ length: count }, (_, i) => page((first + i) * PAGE_SIZE, (first + i + 1) * PAGE_SIZE - 1)));
+    for (const { data, error } of pages) {
+      if (error) throw new Error(`Error cargando ${label}: ${error.message}`);
+      out.push(...((data ?? []) as T[]));
+    }
+    if ((pages.at(-1)!.data ?? []).length < PAGE_SIZE) return out;
+  }
+}
 
 export async function getTeams(): Promise<Team[]> {
   "use cache";
@@ -39,8 +64,21 @@ export async function getStandingsBefore(): Promise<StandingsBefore> {
   "use cache";
   cacheLife("minutes");
 
-  const [teams, schedule] = await Promise.all([getTeams(), getSchedule()]);
-  return pickStandingsBefore(teams, lastStartedDay(schedule, Date.now(), gameDayOf));
+  const [teams, day] = await Promise.all([getTeams(), getLastStartedDay()]);
+  return pickStandingsBefore(teams, day);
+}
+
+/** Última jornada con algún partido ya empezado: basta una fila del calendario. */
+async function getLastStartedDay(): Promise<string | null> {
+  const now = Date.now();
+  const { data, error } = await getSupabase()
+    .from("games")
+    .select("game_datetime_utc")
+    .lte("game_datetime_utc", new Date(now).toISOString())
+    .order("game_datetime_utc", { ascending: false })
+    .limit(1);
+  if (error) throw new Error(`Error cargando calendario: ${error.message}`);
+  return lastStartedDay(data as { game_datetime_utc: string }[], now, gameDayOf);
 }
 
 export async function getTeamRoster(teamId: number): Promise<Player[]> {
@@ -174,18 +212,11 @@ export async function getSchedule(): Promise<GameMatchup[]> {
   cacheLife("hours");
 
   const supabase = getSupabase();
-  const games: GameMatchup[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from("games")
-      .select(MATCHUP_COLUMNS)
-      .order("game_datetime_utc")
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`Error cargando calendario: ${error.message}`);
-    games.push(...(data as GameMatchup[]));
-    if (data.length < PAGE_SIZE) return games;
-  }
+  return selectPages<GameMatchup>(
+    "calendario",
+    (from, to) => supabase.from("games").select(MATCHUP_COLUMNS).order("game_datetime_utc").order("id").range(from, to),
+    2
+  );
 }
 
 /**
@@ -199,9 +230,8 @@ export async function getScoredGames(): Promise<ScoredGame[]> {
 
   const season = seasonOf(new Date().toISOString());
   const supabase = getSupabase();
-  const games: ScoredGame[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
+  return selectPages<ScoredGame>("notas", (from, to) =>
+    supabase
       .from("games")
       .select(`${MATCHUP_COLUMNS}, excitement_score`)
       .eq("status", "Final")
@@ -209,11 +239,21 @@ export async function getScoredGames(): Promise<ScoredGame[]> {
       .gte("game_datetime_utc", `${season.slice(0, 4)}-08-01T00:00:00Z`)
       .order("game_datetime_utc")
       .order("id")
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`Error cargando notas: ${error.message}`);
-    games.push(...(data as ScoredGame[]));
-    if (data.length < PAGE_SIZE) return games;
-  }
+      .range(from, to)
+  );
+}
+
+/** Partidos sin nota de las últimas horas y los próximos: hasta cuándo valen las notas guardadas (`scoresWindow`). */
+export async function getPendingGames(): Promise<PendingGame[]> {
+  const { data, error } = await getSupabase()
+    .from("games")
+    .select("game_datetime_utc")
+    .is("excitement_score", null)
+    .gte("game_datetime_utc", new Date(Date.now() - PENDING_LOOKBACK_HOURS * 3_600_000).toISOString())
+    .order("game_datetime_utc")
+    .limit(40);
+  if (error) throw new Error(`Error cargando calendario: ${error.message}`);
+  return (data as { game_datetime_utc: string }[]).map((game) => ({ ...game, scored: false }));
 }
 
 /** Un partido sin spoilers: solo emparejamiento y fecha (lo único que viaja en el HTML de `/games/[id]`). */
@@ -303,7 +343,10 @@ export async function getPlayer(playerId: number): Promise<Player | null> {
   return data as Player | null;
 }
 
-/** Trayectoria completa (Regular Season y Playoffs), incluidas las filas "Career". */
+/**
+ * Trayectoria completa (Regular Season y Playoffs), incluidas las filas "Career". Sin los récords: viaja entera en el
+ * HTML de la ficha y llevan la fecha del partido (Tarea 7.6; van por `getPlayerHighsBefore`).
+ */
 export async function getPlayerCareer(playerId: number): Promise<PlayerSeasonStats[]> {
   "use cache";
   cacheLife("hours");
@@ -314,7 +357,50 @@ export async function getPlayerCareer(playerId: number): Promise<PlayerSeasonSta
     .eq("player_id", playerId)
     .order("season_id");
   if (error) throw new Error(`Error cargando trayectoria: ${error.message}`);
-  return data as PlayerSeasonStats[];
+  return (data as PlayerSeasonStats[]).map((row) => ({ ...row, advanced_stats: withoutHighs(row.advanced_stats) }));
+}
+
+/**
+ * Récords personales y máximos de la temporada al día (Tarea 7.6). Con los de la última jornada: solo para
+ * `/api/players/[id]/highs` (Nivel 3). La ficha usa `getPlayerHighsBefore`.
+ */
+export async function getPlayerHighs(playerId: number): Promise<StoredHighs> {
+  "use cache";
+  // Cambian una vez al día (job diario)
+  cacheLife("hours");
+
+  const { data, error } = await getSupabase()
+    .from("player_season_stats")
+    .select(
+      "season_id, career:advanced_stats->career_highs, careerBefore:advanced_stats->career_highs_before, season:advanced_stats->season_highs, seasonBefore:advanced_stats->season_highs_before"
+    )
+    .eq("player_id", playerId)
+    .eq("season_type", "Regular Season")
+    .order("season_id");
+  if (error) throw new Error(`Error cargando récords: ${error.message}`);
+
+  type Row = { season_id: string; career: Highs | null; careerBefore: Highs | null; season: Highs | null; seasonBefore: Highs | null };
+  const rows = data as unknown as Row[];
+  const career = rows.find((row) => row.season_id === "Career");
+  // Los máximos son de su última temporada, y solo si es de las calculadas con los boxscores
+  const latest = rows.filter((row) => row.season_id !== "Career").at(-1);
+  return {
+    career: career?.career ?? null,
+    careerBefore: career?.careerBefore ?? null,
+    season: latest?.season ? { id: latest.season_id, highs: latest.season, before: latest.seasonBefore } : null,
+  };
+}
+
+/**
+ * Los mismos récords sin los de la última jornada empezada: lo único que viaja en el HTML de `/players/[id]`
+ * (Niveles 1 y 2). `day` = esa jornada, para avisarlo.
+ */
+export async function getPlayerHighsBefore(playerId: number): Promise<{ day: string | null; highs: PlayerHighs }> {
+  "use cache";
+  cacheLife("minutes");
+
+  const [stored, day] = await Promise.all([getPlayerHighs(playerId), getLastStartedDay()]);
+  return { day, highs: highsBeforeDay(stored, day) };
 }
 
 /** Contrato del jugador (Tarea 6.8); null si no tiene contrato registrado. Se actualiza varias veces al día. */
@@ -479,17 +565,20 @@ export async function getScoutingReports(playerIds: number[], season: string, pr
   );
 }
 
-/** Lo que necesita /players además del explorador: el buscador completo y las leyendas. */
-export async function getPlayersDirectory(): Promise<{ index: SearchIndex; legends: LegendCard[] }> {
-  "use cache";
-  cacheLife("hours");
+/**
+ * Lo que necesita /players además del explorador: equipos, leyendas y cuántos hay en activo. El buscador completo se
+ * descarga aparte (`/api/search-index`, el mismo de Ctrl+K): en el HTML iban 72 KB que casi nadie usa (Tarea 7.7).
+ */
+export async function getPlayersDirectory(): Promise<{ teams: SearchTeam[]; active: number; legends: LegendCard[] }> {
+  "use cache: remote";
+  cacheLife(dailyLife(Date.now()));
 
   const [index, counts] = await Promise.all([getSearchIndex(), getLegendCounts()]);
   const legends = index.players
     .filter((p) => !p.is_active)
     .sort((a, b) => legendWeight(counts.get(b.id) ?? {}) - legendWeight(counts.get(a.id) ?? {}))
     .map((p) => ({ id: p.id, name: p.full_name, line: legendLine(counts.get(p.id) ?? {}) }));
-  return { index, legends };
+  return { teams: index.teams, active: index.players.filter((p) => p.is_active && p.team_id !== null).length, legends };
 }
 
 /** Ficha dorada de una leyenda en `/players` (Tarea 7.4): sus mayores logros en lugar de la media. */
@@ -497,25 +586,27 @@ export type LegendCard = { id: number; name: string; line: string };
 
 /** Anillos, MVP, MVP de las Finales y All-Star de cada retirado. */
 async function getLegendCounts(): Promise<Map<number, LegendCounts>> {
-  const counts = new Map<number, LegendCounts>();
   const keyOf = new Map(Object.entries(LEGEND_AWARDS).map(([key, award]) => [award as string, key as keyof LegendCounts]));
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await getSupabase()
-      .from("player_awards")
-      .select("id, player_id, award_name, players!inner(is_active)")
-      .eq("players.is_active", false)
-      .in("award_name", Object.values(LEGEND_AWARDS))
-      .order("id")
-      .range(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`Error cargando el palmarés de las leyendas: ${error.message}`);
-    for (const { player_id, award_name } of data) {
-      const own = counts.get(player_id) ?? {};
-      const key = keyOf.get(award_name)!;
-      own[key] = (own[key] ?? 0) + 1;
-      counts.set(player_id, own);
-    }
-    if (data.length < PAGE_SIZE) return counts;
+  const awards = await selectPages<{ player_id: number; award_name: string }>(
+    "el palmarés de las leyendas",
+    (from, to) =>
+      getSupabase()
+        .from("player_awards")
+        .select("id, player_id, award_name, players!inner(is_active)")
+        .eq("players.is_active", false)
+        .in("award_name", Object.values(LEGEND_AWARDS))
+        .order("id")
+        .range(from, to),
+    2
+  );
+  const counts = new Map<number, LegendCounts>();
+  for (const { player_id, award_name } of awards) {
+    const own = counts.get(player_id) ?? {};
+    const key = keyOf.get(award_name)!;
+    own[key] = (own[key] ?? 0) + 1;
+    counts.set(player_id, own);
   }
+  return counts;
 }
 
 /** Temporadas anteriores que ofrece el explorador (Tarea 6.22), además de la en curso. */
@@ -542,20 +633,9 @@ export async function getExplorerSeasons(): Promise<string[]> {
   return seasons;
 }
 
-type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
-
-/** Lee todas las páginas de una consulta (Supabase devuelve como mucho 1.000 filas). Necesita un orden fijo. */
-async function selectPages<T>(label: string, page: (from: number, to: number) => Page): Promise<T[]> {
-  const out: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await page(from, from + PAGE_SIZE - 1);
-    if (error) throw new Error(`Error cargando ${label}: ${error.message}`);
-    out.push(...((data ?? []) as T[]));
-    if ((data ?? []).length < PAGE_SIZE) return out;
-  }
-}
-
 const EXPLORER_TOTALS = ["gs", "min", "pts", "reb", "oreb", "dreb", "ast", "stl", "blk", "tov", "pf", "fgm", "fga", "fg3m", "fg3a", "ftm", "fta"] as const;
+/** Páginas de temporadas anteriores que se piden a la vez (hoy caben todas). */
+const EARLIER_PAGES = 5;
 const numberOrNull = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
 /**
@@ -565,8 +645,8 @@ const numberOrNull = (value: unknown) => (typeof value === "number" && Number.is
  * los jugadores con historial guardado (los que siguen en la NBA).
  */
 export async function getPlayerExplorer(season: string): Promise<ExplorerSeason> {
-  "use cache";
-  cacheLife("hours");
+  "use cache: remote";
+  cacheLife(dailyLife(Date.now()));
 
   const seasons = await getExplorerSeasons();
   const current = season === seasons[0];
@@ -610,8 +690,10 @@ export async function getPlayerExplorer(season: string): Promise<ExplorerSeason>
       supabase.from("player_contracts").select("player_id, salary_current, status, precision:source->>precision").order("player_id").range(from, to)
     ),
     // Rookie = ninguna temporada regular anterior a esta ("Career" queda fuera: va después de los números)
-    selectPages<{ player_id: number }>("temporadas anteriores", (from, to) =>
-      supabase.from("player_season_stats").select("player_id").eq("season_type", "Regular Season").lt("season_id", season).order("id").range(from, to)
+    selectPages<{ player_id: number }>(
+      "temporadas anteriores",
+      (from, to) => supabase.from("player_season_stats").select("player_id").eq("season_type", "Regular Season").lt("season_id", season).order("id").range(from, to),
+      EARLIER_PAGES
     ),
     // En la temporada en curso, además, con la carrera resuelta: un veterano sin historial oficial aún no es rookie
     current

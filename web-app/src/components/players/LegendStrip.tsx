@@ -1,23 +1,37 @@
 "use client";
 
-import { useRef } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { PlayerCard3D } from "@/components/players/PlayerCard3D";
 import type { LegendCard } from "@/lib/queries";
 
+/** Las que caben de sobra en la pantalla más ancha: las únicas del HTML (las 113 eran 150 KB, Tarea 7.7). */
+const FIRST_CARDS = 16;
+
 /**
- * Leyendas en fichas doradas (Tarea 7.4), de la más laureada a la que menos. Solo se pintan las que están a la vista
- * (`content-visibility`) y solo se inclina la que se toca; el dedo desliza la tira como siempre.
+ * Leyendas en fichas doradas (Tarea 7.4), de la más laureada a la que menos. Las demás se añaden al acercarse a la tira.
+ * Solo se pintan las que están a la vista (`content-visibility`) y solo se inclina la que se toca; el dedo desliza la
+ * tira como siempre.
  */
 export function LegendStrip({ legends }: { legends: LegendCard[] }) {
   const ref = useRef<HTMLUListElement>(null);
+  const [all, setAll] = useState(false);
+
+  useEffect(() => {
+    const strip = ref.current;
+    if (!strip || all) return;
+    const observer = new IntersectionObserver(([entry]) => entry.isIntersecting && startTransition(() => setAll(true)), { rootMargin: "1200px 0px" });
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [all]);
+
   const scroll = (direction: 1 | -1) => ref.current?.scrollBy({ left: direction * ref.current.clientWidth * 0.8, behavior: "smooth" });
 
   return (
     <div className="relative">
       <ul ref={ref} aria-label="Leyendas" className="flex overflow-x-auto px-2 pb-1 pt-2 [scrollbar-width:none] md:px-6">
-        {legends.map((legend) => (
+        {(all ? legends : legends.slice(0, FIRST_CARDS)).map((legend) => (
           <li key={legend.id} className="hc-cell shrink-0 px-2 py-3">
             <SharedLink
               href={`/players/${legend.id}`}

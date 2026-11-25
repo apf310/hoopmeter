@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   DEFAULT_FILTERS,
+  EXPLORER_MODES,
+  EXPLORER_PAGE,
+  LEADER_STATS,
+  STATS,
   activeFilterCount,
   autoMinGames,
   countryOptions,
@@ -17,6 +21,7 @@ import {
   parseExplorerState,
   parseRange,
   positionGroups,
+  previewSeason,
   seasonMaxGames,
   sortRows,
   statTitle,
@@ -25,6 +30,7 @@ import {
   type ExplorerRow,
   type ExplorerState,
   type ExplorerTotals,
+  type StatKey,
 } from "./player-explorer.ts";
 
 const EAST = 1610612738;
@@ -272,5 +278,52 @@ describe("textos", () => {
   it("mínimos", () => {
     assert.equal(minimumLabel(DEFAULT_FILTERS, 17), "Mín. 7 partidos y 15 min por partido");
     assert.equal(minimumLabel({ ...DEFAULT_FILTERS, minGames: 0, minMinutes: 0 }, 17), "Sin mínimo de partidos ni de minutos");
+  });
+});
+
+describe("primera tanda en el HTML (Tarea 7.7)", () => {
+  // Una temporada entera variada: 300 jugadores con cifras distintas (y empates)
+  const rows = Array.from({ length: 300 }, (_, i) =>
+    row(
+      i + 1,
+      { position: ["G", "F", "C"][i % 3], country: i % 4 === 0 ? "Spain" : "USA", rookie: i % 7 === 0, overall: i % 5 === 0 ? null : (i * 37) % 100, teamId: i % 2 ? EAST : WEST, teamIds: [i % 2 ? EAST : WEST] },
+      { gp: 5 + ((i * 11) % 16), min: 200 + ((i * 53) % 500), pts: (i * 97) % 450, reb: (i * 31) % 200, ast: (i * 17) % 160, stl: (i * 7) % 40, blk: (i * 13) % 35, fg3m: (i * 19) % 70, fgm: (i * 41) % 180 }
+    )
+  );
+  const season = { season: "2026-27", current: true, rows };
+  const conferenceOf = (id: number) => (id === WEST ? "West" : "East");
+  const ids = (list: ExplorerRow[]) => list.map((r) => r.id);
+
+  it("pinta lo mismo que la temporada entera, con cualquier orden, modo y filtro", () => {
+    const filterSets: ExplorerFilters[] = [
+      DEFAULT_FILTERS,
+      { ...DEFAULT_FILTERS, position: "C" },
+      { ...DEFAULT_FILTERS, rookies: true, minGames: 0, minMinutes: 0 },
+      { ...DEFAULT_FILTERS, conference: "West", country: "espana" },
+    ];
+    for (const filters of filterSets) {
+      for (const { id: mode } of EXPLORER_MODES) {
+        for (const key of Object.keys(STATS) as StatKey[]) {
+          for (const dir of ["asc", "desc"] as const) {
+            const state = { filters, mode, sort: { key, dir } };
+            const maxGames = seasonMaxGames(rows);
+            const filtered = filterRows(rows, filters, { maxGames, conferenceOf });
+            const first = previewSeason(season, state, conferenceOf);
+            assert.equal(first.preview!.maxGames, maxGames);
+            assert.equal(first.preview!.count, filtered.length);
+            const shown = filterRows(first.rows, filters, { maxGames, conferenceOf });
+            assert.deepEqual(ids(sortRows(shown, state.sort, mode, maxGames).slice(0, EXPLORER_PAGE)), ids(sortRows(filtered, state.sort, mode, maxGames).slice(0, EXPLORER_PAGE)));
+            for (const stat of LEADER_STATS) assert.deepEqual(ids(leaders(shown, stat, mode, maxGames)), ids(leaders(filtered, stat, mode, maxGames)));
+          }
+        }
+      }
+    }
+  });
+
+  it("manda solo lo que se ve, pero con todos los países para el filtro", () => {
+    const first = previewSeason(season, { filters: DEFAULT_FILTERS, mode: "game", sort: { key: "pts", dir: "desc" } }, conferenceOf);
+    assert.ok(first.rows.length <= EXPLORER_PAGE + LEADER_STATS.length * 3);
+    assert.ok(first.rows.length < rows.length);
+    assert.deepEqual(first.preview!.countries, countryOptions(rows));
   });
 });

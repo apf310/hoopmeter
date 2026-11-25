@@ -2,6 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
 import { gradeClass } from "@/components/gm/TradeEvaluationCard";
+import { showSilhouette } from "@/components/players/PlayerPhoto";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { pickLabel, type GmTeam, type TradeEvaluation } from "@/lib/gm";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
@@ -123,6 +124,7 @@ function TeamColumn({ team, teams, trade, evaluation, format }: { team: GmTeam; 
             <li key={player.id} className="flex items-center gap-6 border-t-2 border-white/15 pt-2">
               <img
                 src={sameOrigin(playerHeadshotUrl(player.id))}
+                onError={showSilhouette}
                 alt=""
                 className="shrink-0 object-cover object-top"
                 style={{ height: photo, width: Math.round(photo * PHOTO_RATIO) }}

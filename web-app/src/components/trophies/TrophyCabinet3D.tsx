@@ -311,7 +311,7 @@ export default function TrophyCabinet3D({ groups, name }: { groups: TrophyGroup[
           {fontReady && (
             <Canvas
               frameloop="demand"
-              shadows
+              shadows="percentage"
               dpr={[1, 2]}
               camera={TROPHY_CAMERA}
               gl={{ antialias: true, alpha: true }}
@@ -374,8 +374,10 @@ export default function TrophyCabinet3D({ groups, name }: { groups: TrophyGroup[
                 >
                   <span className="flex aspect-[4/5] w-full max-w-28 items-center justify-center">
                     {shots[g.key] ? (
+                      // La miniatura lleva el fondo de la vitrina (el cristal lo necesita en la escena): con `lighten` se
+                      // funde con el de la casilla, también elegida o con el ratón encima
                       // eslint-disable-next-line @next/next/no-img-element -- miniatura generada en el navegador (data URL)
-                      <img src={shots[g.key]} alt="" className="size-full object-contain" />
+                      <img src={shots[g.key]} alt="" className="size-full object-contain mix-blend-lighten" />
                     ) : (
                       <TrophyIcon group={g} className="size-10 opacity-60" />
                     )}
@@ -398,7 +400,7 @@ export default function TrophyCabinet3D({ groups, name }: { groups: TrophyGroup[
 
       {shooting && (
         <div aria-hidden className="pointer-events-none fixed left-[-10000px] top-0 h-[300px] w-[240px]">
-          <Canvas frameloop="never" shadows dpr={2} camera={TROPHY_CAMERA} gl={{ antialias: true, alpha: true }} onCreated={aimCamera}>
+          <Canvas frameloop="never" shadows="percentage" dpr={2} camera={TROPHY_CAMERA} gl={{ antialias: true, alpha: true }} onCreated={aimCamera}>
             <Studio />
             <Shooter groups={groups} name={name} onShot={onShot} />
           </Canvas>

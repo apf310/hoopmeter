@@ -61,7 +61,11 @@ export type ExplorerSeason = {
   /** La temporada en curso (las anteriores solo tienen a los jugadores que siguen en la base de datos). */
   current: boolean;
   rows: ExplorerRow[];
+  /** Solo en la del HTML (`previewSeason`): faltan filas, y esto es lo que hay que saber de las que faltan. */
+  preview?: { count: number; maxGames: number; countries: CountryOption[] };
 };
+
+export type CountryOption = { slug: string; label: string; count: number };
 
 // ---------- Modos, vistas y estadísticas ----------
 
@@ -367,8 +371,8 @@ export function countrySlug(country: string | null): string | null {
 }
 
 /** Países de la temporada con cuántos jugadores tiene cada uno, de más a menos. */
-export function countryOptions(rows: ExplorerRow[]): { slug: string; label: string; count: number }[] {
-  const bySlug = new Map<string, { slug: string; label: string; count: number }>();
+export function countryOptions(rows: ExplorerRow[]): CountryOption[] {
+  const bySlug = new Map<string, CountryOption>();
   for (const row of rows) {
     const label = countryLabel(row.country);
     if (!label) continue;
@@ -419,6 +423,8 @@ export function filterRows(rows: ExplorerRow[], filters: ExplorerFilters, { maxG
 export type ExplorerSort = { key: StatKey; dir: "asc" | "desc" };
 export const DEFAULT_SORT: ExplorerSort = { key: "pts", dir: "desc" };
 
+export const sameSort = (a: ExplorerSort, b: ExplorerSort) => a.key === b.key && a.dir === b.dir;
+
 /** Clic en una cabecera: la misma columna invierte el orden; otra empieza de mayor a menor. */
 export function nextExplorerSort(current: ExplorerSort, key: StatKey): ExplorerSort {
   if (current.key === key) return { key, dir: current.dir === "asc" ? "desc" : "asc" };
@@ -454,6 +460,29 @@ export function leaders(rows: ExplorerRow[], key: StatKey, mode: ExplorerMode, m
   return sortRows(rows, { key, dir: "desc" }, mode, maxGames)
     .filter((row) => (statValue(row, key, mode) ?? 0) > 0 && qualifiesFor(key, row.totals, maxGames))
     .slice(0, n);
+}
+
+/** Filas por tanda de la tabla: la temporada entera pasa de 400 jugadores. */
+export const EXPLORER_PAGE = 50;
+
+/**
+ * Lo que se ve al abrir (Tarea 7.7): las filas de la primera tanda y los líderes, con el total, los países y los partidos
+ * de la temporada entera. El resto llega después de `/api/player-stats`: en el HTML iban 200 KB de filas sin pintar, y dos
+ * veces. Con estas filas se pinta exactamente lo mismo que con todas.
+ */
+export function previewSeason(data: ExplorerSeason, state: Pick<ExplorerState, "filters" | "sort" | "mode">, conferenceOf: FilterContext["conferenceOf"]): ExplorerSeason {
+  const maxGames = seasonMaxGames(data.rows);
+  const filtered = filterRows(data.rows, state.filters, { maxGames, conferenceOf });
+  const shown = [
+    ...sortRows(filtered, state.sort, state.mode, maxGames).slice(0, EXPLORER_PAGE),
+    ...LEADER_STATS.flatMap((key) => leaders(filtered, key, state.mode, maxGames)),
+  ];
+  const ids = new Set(shown.map((row) => row.id));
+  return {
+    ...data,
+    rows: data.rows.filter((row) => ids.has(row.id)),
+    preview: { count: filtered.length, maxGames, countries: countryOptions(data.rows) },
+  };
 }
 
 // ---------- Estado en la URL ----------

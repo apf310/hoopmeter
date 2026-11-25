@@ -4,9 +4,10 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { CHART_H as H, CHART_MID as MID, CHART_W as W, ChartMarker, indexAt, PeriodAxis, PeriodLines, useTimeCursor } from "@/components/games/detail/TimeChart";
 import { Eyebrow, Fact, Section, Segmented, Swatch } from "@/components/games/detail/ui";
+import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { GameDetail } from "@/lib/game-detail";
 import { clockAt, minutes, periodName, type MatchupTeam } from "@/lib/game-format";
-import { playerHeadshotUrl, teamLogoUrl } from "@/lib/nba-cdn";
+import { teamLogoUrl } from "@/lib/nba-cdn";
 import { cn } from "@/lib/utils";
 import { chancePair, chanceText, drawableCurve, gameWinProbability, type KeyPlay, type Moment, type WinProbability } from "@/lib/win-probability";
 
@@ -243,7 +244,7 @@ function KeyPlayRow({
       >
         <span className="flex h-10 w-14 items-end justify-center overflow-hidden pl-[3px]" style={{ background: `${team.accent}26` }}>
           {play.playerId !== null ? (
-            <Image src={playerHeadshotUrl(play.playerId)} alt="" width={56} height={40} className="h-10 w-14 object-cover object-top" />
+            <PlayerPhoto id={play.playerId} width={56} height={40} className="h-10 w-14 object-cover object-top" />
           ) : (
             <Image src={teamLogoUrl(team.id)} alt="" width={32} height={32} unoptimized className="size-8 self-center" />
           )}

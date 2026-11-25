@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { PlayerDirectory } from "@/components/players/PlayerDirectory";
 import { PlayerExplorer } from "@/components/players/PlayerExplorer";
 import { pageMetadata } from "@/lib/seo";
-import { parseExplorerState } from "@/lib/player-explorer";
+import { parseExplorerState, previewSeason } from "@/lib/player-explorer";
 import { getExplorerSeasons, getPlayerExplorer, getPlayersDirectory } from "@/lib/queries";
 
 export const metadata: Metadata = pageMetadata({
@@ -28,18 +28,19 @@ export default function PlayersPage({ searchParams }: PageProps<"/players">) {
 }
 
 async function PlayersContent({ searchParams }: { searchParams: PageProps<"/players">["searchParams"] }) {
-  const [params, seasons, { index, legends }] = await Promise.all([searchParams, getExplorerSeasons(), getPlayersDirectory()]);
-  const state = parseExplorerState(params, { seasons, teamIds: new Set(index.teams.map((t) => t.id)) });
-  const explorer = await getPlayerExplorer(state.season);
-  const active = index.players.filter((player) => player.is_active && player.team_id !== null).length;
+  const [params, seasons, { teams, active, legends }] = await Promise.all([searchParams, getExplorerSeasons(), getPlayersDirectory()]);
+  const state = parseExplorerState(params, { seasons, teamIds: new Set(teams.map((t) => t.id)) });
+  // En el HTML, solo lo que se pinta: la temporada entera llega después de `/api/player-stats` (Tarea 7.7)
+  const conferences = new Map(teams.map((t) => [t.id, t.conference]));
+  const initial = previewSeason(await getPlayerExplorer(state.season), state, (id) => conferences.get(id) ?? null);
 
   return (
     <>
       <Header kicker={`Temporada ${seasons[0]} · ${active} en activo · ${legends.length} leyendas`} />
       <PlayerDirectory
-        index={index}
+        teams={teams}
         legends={legends}
-        explorer={<PlayerExplorer initial={explorer} seasons={seasons} initialState={state} teams={index.teams} />}
+        explorer={<PlayerExplorer initial={initial} seasons={seasons} initialState={state} teams={teams} />}
       />
     </>
   );
@@ -48,7 +49,7 @@ async function PlayersContent({ searchParams }: { searchParams: PageProps<"/play
 function Header({ kicker }: { kicker: string }) {
   return (
     <header className="border-b border-slate-800 px-4 pb-3 pt-4 md:px-8 md:pb-5 md:pt-10">
-      <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400">{kicker}</p>
+      <p className="truncate font-display text-xs font-semibold uppercase tracking-[0.2em] text-orange-400 sm:tracking-[0.3em]">{kicker}</p>
       <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Jugadores</h1>
     </header>
   );

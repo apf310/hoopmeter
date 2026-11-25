@@ -2,11 +2,10 @@
 // el cliente nunca recibe más de lo que su nivel permite. El Nivel 1 no usa esta ruta (va en la página).
 // `?date=2026-11-04&level=2`
 import { connection } from "next/server";
+import { cdnHeaders, dayWindow } from "@/lib/cache-window";
 import { isGameDay } from "@/lib/game-day";
 import { getGamesByDay } from "@/lib/queries";
 import { isSpoilerLevel, redactGame } from "@/lib/spoilers";
-
-const CACHE_HEADERS = { "Cache-Control": "public, max-age=0, s-maxage=30, stale-while-revalidate=30" };
 
 export async function GET(request: Request) {
   await connection();
@@ -26,5 +25,6 @@ export async function GET(request: Request) {
     return Response.json({ error: "Jornada no disponible" }, { status: 502 });
   }
 
-  return Response.json({ day, level, games: games.map((game) => redactGame(game, level)) }, { headers: CACHE_HEADERS });
+  // Una jornada terminada y con todas sus notas ya no cambia: la CDN la guarda horas (Tarea 7.7)
+  return Response.json({ day, level, games: games.map((game) => redactGame(game, level)) }, { headers: cdnHeaders(dayWindow(games, Date.now())) });
 }
