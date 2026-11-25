@@ -10,6 +10,7 @@
     "test": "node --test src/lib/*.test.ts",
     "logos": "node scripts/download-logos.mjs",
     "cards": "node scripts/generate-card-patterns.mjs",
+    "arenas": "node scripts/generate-arenas.mjs",
     "icons": "node scripts/generate-icons.mjs && capacitor-assets generate --android --ios --iconBackgroundColor \"#020617\" --iconBackgroundColorDark \"#020617\" --splashBackgroundColor \"#020617\" --splashBackgroundColorDark \"#020617\"",
     "cap:sync": "node scripts/prepare-native-shell.mjs && cap sync"
   },

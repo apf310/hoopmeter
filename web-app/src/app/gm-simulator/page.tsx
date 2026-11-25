@@ -9,8 +9,8 @@ import { getGmData } from "@/lib/queries";
 import { isValidEstimate, PICK_YEARS, SEASON } from "@/lib/trade-rules";
 
 export const metadata: Metadata = pageMetadata({
-  title: "GM Virtual",
-  description: "Simulador de traspasos de la NBA con los contratos reales y las reglas del convenio.",
+  title: "Simulador de traspasos NBA en español",
+  description: "GM Virtual: monta traspasos de la NBA con los contratos reales, comprueba al momento si cumplen el convenio y pide la opinión de la IA.",
   path: "/gm-simulator",
 });
 

@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "@base-ui/react/dialog";
 import { Search, X } from "lucide-react";
 import { PlayerPhoto } from "@/components/players/PlayerPhoto";
+import { playerPath, teamPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { useFavorites } from "@/lib/favorites-store";
@@ -169,8 +170,8 @@ type Option = { key: string; href: string; pick: RecentPick };
 
 const entryOption = (entry: SearchEntry): Option =>
   entry.kind === "team"
-    ? { key: `team-${entry.team.id}`, href: `/teams/${entry.team.id}`, pick: { kind: "team", id: entry.team.id } }
-    : { key: `player-${entry.player.id}`, href: `/players/${entry.player.id}`, pick: { kind: "player", id: entry.player.id } };
+    ? { key: `team-${entry.team.id}`, href: teamPath(entry.team.id, entry.team.name), pick: { kind: "team", id: entry.team.id } }
+    : { key: `player-${entry.player.id}`, href: playerPath(entry.player.id, entry.player.full_name), pick: { kind: "player", id: entry.player.id } };
 
 // Búsquedas recientes (Tarea 6.21): solo ids en localStorage; sin almacenamiento, solo durante la sesión
 let memoryRecent: RecentPick[] | null = null;
@@ -407,7 +408,7 @@ function TeamGrid({ teams, onPick }: { teams: SearchTeam[]; onPick: (teamId: num
         {teams.map((team) => (
           <li key={team.id}>
             <Link
-              href={`/teams/${team.id}`}
+              href={teamPath(team.id, team.name)}
               onClick={() => onPick(team.id)}
               title={team.name}
               className="group flex flex-col items-center gap-1 py-2 outline-none transition-colors hover:bg-slate-900 focus-visible:bg-slate-900"

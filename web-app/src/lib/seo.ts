@@ -5,11 +5,12 @@
 import type { Metadata } from "next";
 import { BRAND } from "./brand.ts";
 import { formatDayMonth, formatGameTime, formatWeekday, gameDayOf, madridDayIfDifferent } from "./game-day.ts";
+import { playerPath, teamPath } from "./routes.ts";
 
 export const SITE_URL = "https://hoopmeter.com";
 export const SITE_NAME = "Hoopmeter";
 export const SITE_DESCRIPTION =
-  "La NBA en español sin spoilers: qué partido ver por su nota del 1 al 10, resultados solo si los pides, fichas de jugadores, clasificación y GM Virtual.";
+  "Los partidos de la NBA en hora de España y sin spoilers: cuál ver por su nota del 1 al 10, resultados solo si los pides, jugadores, clasificación y GM Virtual.";
 
 /** Imagen de la marca (`app/opengraph-image.tsx`). */
 export const BRAND_IMAGE = "/opengraph-image";
@@ -58,7 +59,15 @@ export function pageMetadata({ title, description = SITE_DESCRIPTION, path, imag
   };
 }
 
-type TeamName = { name: string; abbreviation: string };
+type TeamName = { name: string };
+
+/** "Los Angeles Lakers" → ciudad y apodo, que es como la gente llama a los equipos. Solo los Trail Blazers son dos palabras. */
+export function splitTeamName(name: string): { city: string; nickname: string } {
+  const words = name.split(" ");
+  const size = name.endsWith("Trail Blazers") ? 2 : 1;
+  return { city: words.slice(0, -size).join(" "), nickname: words.slice(-size).join(" ") };
+}
+
 /** Lo único de un partido que puede ir en un enlace: ni marcador, ni nota, ni estado. */
 type MatchupDate = { game_datetime_utc: string };
 
@@ -70,10 +79,13 @@ export function gameDateLine(game: MatchupDate): string {
   return `Jornada del ${formatWeekday(day, "long")} ${formatDayMonth(day)} · ${time}`;
 }
 
+/** Con la fecha en el título: dos equipos se cruzan hasta cuatro veces por temporada. */
 export function gameMeta(game: MatchupDate, away: TeamName, home: TeamName): { title: string; description: string } {
+  const day = gameDayOf(game.game_datetime_utc);
+  const date = `${formatDayMonth(day, "short")} ${day.slice(0, 4)}`;
   return {
-    title: `${away.abbreviation} @ ${home.abbreviation}`,
-    description: `${away.name} en casa de ${home.name}. ${gameDateLine(game)}. Mira su nota antes de verlo, sin spoilers.`,
+    title: `${splitTeamName(away.name).nickname} - ${splitTeamName(home.name).nickname}, ${date}: hora y nota sin spoilers`,
+    description: `${away.name} en casa de ${home.name} (NBA). ${gameDateLine(game)}. Mira su nota sin spoilers.`,
   };
 }
 
@@ -96,9 +108,10 @@ export function playerMeta(
     ? [position, team ? `de ${team.name}` : "sin equipo"].filter(Boolean).join(" ")
     : "Leyenda de la NBA";
   const stats = playerLineText(line);
+  const what = player.is_active ? "Contrato, trayectoria y palmarés" : "Trayectoria y palmarés";
   return {
-    title: player.full_name,
-    description: `${player.full_name}: ${who}.${stats ? ` ${stats}.` : ""} Radar, trayectoria y palmarés en ${SITE_NAME}.`,
+    title: player.is_active ? `${player.full_name}: estadísticas, contrato y palmarés` : `${player.full_name}: estadísticas y palmarés`,
+    description: `${player.full_name}: ${who}.${stats ? ` ${stats}.` : ""} ${what} en ${SITE_NAME}.`,
   };
 }
 
@@ -106,21 +119,21 @@ export function playerMeta(
 export function teamMeta(team: { name: string }, conference: string | null, division: string | null): { title: string; description: string } {
   const where = [conference && `Conferencia ${conference}`, division && `División ${division}`].filter(Boolean).join(" · ");
   return {
-    title: team.name,
-    description: `${team.name}${where ? ` (${where})` : ""}: plantilla, próximos partidos y situación salarial, sin spoilers.`,
+    title: `${team.name}: plantilla, salarios y calendario`,
+    description: `${team.name}${where ? ` (${where})` : ""}: plantilla, estadísticas, salarios y próximos partidos en hora de España, sin spoilers.`,
   };
 }
 
 export function compareMeta(a: { full_name: string } | null, b: { full_name: string } | null): { title: string; description: string } {
   if (a && b) {
     return {
-      title: `${a.full_name} vs. ${b.full_name}`,
+      title: `${a.full_name} vs. ${b.full_name}: estadísticas cara a cara`,
       description: `${a.full_name} contra ${b.full_name}: radares superpuestos, estadísticas y palmarés cara a cara.`,
     };
   }
   return {
-    title: "Comparador",
-    description: "Enfrenta a dos jugadores de cualquier época: radares superpuestos, estadísticas y palmarés.",
+    title: "Comparador de jugadores NBA de cualquier época",
+    description: "Enfrenta a dos jugadores de la NBA de cualquier época: radares superpuestos, estadísticas y palmarés.",
   };
 }
 
@@ -132,31 +145,65 @@ export function playerIdParam(value: string | string[] | undefined): number | nu
 
 type SitemapEntry = { url: string; lastModified?: string; changeFrequency: "hourly" | "daily" | "weekly"; priority: number };
 
-/** Páginas fijas del sitemap (sin `/avisos`: no tiene nada que buscar). */
-export const STATIC_PAGES: readonly SitemapEntry[] = [
-  { url: "/", changeFrequency: "hourly", priority: 1 },
+/** Páginas fijas del sitemap (sin `/avisos`: no tiene nada que buscar). `updates`: cuándo cambia lo que se ve en Nivel 1. */
+export const STATIC_PAGES: readonly (Omit<SitemapEntry, "lastModified"> & { updates?: "daily" | "legal" })[] = [
+  { url: "/", changeFrequency: "hourly", priority: 1, updates: "daily" },
   { url: "/que-ver", changeFrequency: "daily", priority: 0.9 },
-  { url: "/standings", changeFrequency: "daily", priority: 0.8 },
+  { url: "/standings", changeFrequency: "daily", priority: 0.8, updates: "daily" },
   { url: "/teams", changeFrequency: "weekly", priority: 0.7 },
-  { url: "/players", changeFrequency: "daily", priority: 0.7 },
-  { url: "/gm-simulator", changeFrequency: "daily", priority: 0.7 },
+  { url: "/players", changeFrequency: "daily", priority: 0.7, updates: "daily" },
+  { url: "/gm-simulator", changeFrequency: "daily", priority: 0.7, updates: "daily" },
   { url: "/compare", changeFrequency: "weekly", priority: 0.6 },
   { url: "/acerca", changeFrequency: "weekly", priority: 0.3 },
-  { url: "/privacidad", changeFrequency: "weekly", priority: 0.2 },
-  { url: "/aviso-legal", changeFrequency: "weekly", priority: 0.2 },
+  { url: "/privacidad", changeFrequency: "weekly", priority: 0.2, updates: "legal" },
+  { url: "/aviso-legal", changeFrequency: "weekly", priority: 0.2, updates: "legal" },
 ];
 
-/** Sitemap completo: páginas fijas, equipos, jugadores y partidos de la temporada (URLs absolutas). */
-export function buildSitemap(
-  teamIds: readonly number[],
-  playerIds: readonly number[],
-  games: readonly { id: string }[]
-): { url: string; changeFrequency: SitemapEntry["changeFrequency"]; priority: number }[] {
+type SitemapData = {
+  teams: readonly { id: number; name: string }[];
+  players: readonly { id: number; full_name: string; is_active: boolean }[];
+  games: readonly { id: string; game_datetime_utc: string }[];
+};
+
+type SitemapDates = {
+  now: number;
+  /** Día del último job diario ("2026-11-25"), o null si no se sabe. */
+  daily: string | null;
+  /** Última versión de los textos legales. */
+  legal: string;
+};
+
+/**
+ * Sitemap completo: páginas fijas, equipos, jugadores y partidos de la temporada (URLs absolutas).
+ *
+ * `lastmod` (Tarea 7.8) no delata nada: todos los jugadores en activo y todos los equipos llevan el mismo día, el del job
+ * diario (nunca cuándo jugó cada uno), y un partido, la hora a la que estaba previsto que empezara, solo cuando ya ha
+ * pasado (la ficha deja de ser la previa). Nunca cuándo acabó ni cuándo se le puso la nota.
+ */
+export function buildSitemap({ teams, players, games }: SitemapData, { now, daily, legal }: SitemapDates): SitemapEntry[] {
   const abs = (path: string) => `${SITE_URL}${path === "/" ? "" : path}`;
+  const lastModified = (date: string | null) => (date ? { lastModified: date } : {});
   return [
-    ...STATIC_PAGES.map((p) => ({ ...p, url: abs(p.url) })),
-    ...teamIds.map((id) => ({ url: abs(`/teams/${id}`), changeFrequency: "daily" as const, priority: 0.6 })),
-    ...playerIds.map((id) => ({ url: abs(`/players/${id}`), changeFrequency: "weekly" as const, priority: 0.5 })),
-    ...games.map((g) => ({ url: abs(`/games/${g.id}`), changeFrequency: "weekly" as const, priority: 0.4 })),
+    ...STATIC_PAGES.map(({ updates, ...page }) => ({
+      ...page,
+      url: abs(page.url),
+      ...lastModified(updates === "daily" ? daily : updates === "legal" ? legal : null),
+    })),
+    ...teams.map((t) => ({ url: abs(teamPath(t.id, t.name)), ...lastModified(daily), changeFrequency: "daily" as const, priority: 0.6 })),
+    ...players.map((p) => ({
+      url: abs(playerPath(p.id, p.full_name)),
+      ...lastModified(p.is_active ? daily : null),
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+    })),
+    ...games.map((g) => {
+      const tipoff = Date.parse(g.game_datetime_utc);
+      return {
+        url: abs(`/games/${g.id}`),
+        ...lastModified(tipoff <= now ? new Date(tipoff).toISOString() : null),
+        changeFrequency: "weekly" as const,
+        priority: 0.4,
+      };
+    }),
   ];
 }

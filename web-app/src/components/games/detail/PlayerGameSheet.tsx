@@ -9,6 +9,7 @@ import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { GameDetail } from "@/lib/game-detail";
 import { decimal, doubleDouble, findPlayer, minutes, pct, periodChip, shooting, signed, type MatchupTeam } from "@/lib/game-format";
 import { teamLogoUrl } from "@/lib/nba-cdn";
+import { playerPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /**
@@ -91,7 +92,7 @@ export function PlayerGameSheet({
                 {player.name}
               </h2>
               <Link
-                href={`/players/${player.id}`}
+                href={playerPath(player.id, player.name)}
                 className="mt-2 inline-flex items-center gap-1 font-display text-xs font-bold uppercase tracking-wider text-orange-300 hover:text-orange-200"
               >
                 Ficha del jugador <ArrowRight className="size-3.5" />

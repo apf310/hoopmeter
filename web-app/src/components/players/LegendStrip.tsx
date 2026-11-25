@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { PlayerCard3D } from "@/components/players/PlayerCard3D";
 import type { LegendCard } from "@/lib/queries";
+import { playerPath } from "@/lib/routes";
 
 /** Las que caben de sobra en la pantalla más ancha: las únicas del HTML (las 113 eran 150 KB, Tarea 7.7). */
 const FIRST_CARDS = 16;
@@ -34,7 +35,7 @@ export function LegendStrip({ legends }: { legends: LegendCard[] }) {
         {(all ? legends : legends.slice(0, FIRST_CARDS)).map((legend) => (
           <li key={legend.id} className="hc-cell shrink-0 px-2 py-3">
             <SharedLink
-              href={`/players/${legend.id}`}
+              href={playerPath(legend.id, legend.name)}
               aria-label={[legend.name, legend.line].filter(Boolean).join(", ")}
               draggable={false}
               className="block outline-none focus-visible:ring-2 focus-visible:ring-orange-400"

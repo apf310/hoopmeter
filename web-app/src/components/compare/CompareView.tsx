@@ -18,6 +18,7 @@ import type { DuelPlayer, DuelSeason } from "@/lib/compare-data";
 import { adjustLine, pickReference, referenceSeasons, withRealValues, type LeagueTable } from "@/lib/era-adjust";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel, RADAR_LABEL } from "@/lib/player-profile";
+import { playerPath } from "@/lib/routes";
 import type { SearchIndex } from "@/lib/search";
 import type { SeasonType } from "@/lib/supabase";
 import { countryLabel } from "@/lib/places";
@@ -180,7 +181,7 @@ function PlayerSide({
         ) : player ? (
           <>
             <p className="font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 md:text-xs">{status}</p>
-            <Link href={`/players/${player.id}`} className="font-display text-3xl font-extrabold uppercase leading-[0.9] text-white hover:text-orange-300 md:text-5xl">
+            <Link href={playerPath(player.id, player.name ?? "")} className="font-display text-3xl font-extrabold uppercase leading-[0.9] text-white hover:text-orange-300 md:text-5xl">
               {player.name}
             </Link>
             <button type="button" onClick={onChange} className="mt-2 w-fit font-display text-sm font-bold uppercase tracking-wider text-orange-300 hover:text-orange-200">

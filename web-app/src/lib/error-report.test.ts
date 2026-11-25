@@ -16,6 +16,8 @@ describe("error-report · ruta", () => {
   it("sin parámetros ni ancla, y los ids agrupados", () => {
     assert.equal(normalizePath("/games/0022600245?nivel=3#boxscore"), "/games/:id");
     assert.equal(normalizePath("https://hoopmeter.com/players/1629029?temporada=2025-26"), "/players/:id");
+    assert.equal(normalizePath("/players/203999-nikola-jokic"), "/players/:id");
+    assert.equal(normalizePath("/teams/1610612755-philadelphia-76ers/opengraph-image"), "/teams/:id/opengraph-image");
     assert.equal(normalizePath("/gm-simulator?equipos=1610612747,1610612738&jugadores=2544-1610612738"), "/gm-simulator");
     assert.equal(normalizePath("/"), "/");
     assert.equal(normalizePath(""), null);

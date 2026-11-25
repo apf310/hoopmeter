@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import Image from "next/image";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
+import { teamPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { conferenceLabel } from "@/lib/places";
@@ -105,7 +106,7 @@ export function StandingsTable({ teams, league = false }: { teams: StandingsTeam
                 <tr className="group border-b border-slate-800/80 transition-colors hover:bg-slate-900">
                   <td className={cn("py-0 pl-4 pr-2 font-display text-lg font-bold", league ? "text-white" : zone.text)}>{rank}</td>
                   <td className={cn(TD, "py-0")}>
-                    <SharedLink href={`/teams/${team.id}`} className="flex h-11 items-center gap-2.5 md:h-14 md:gap-3">
+                    <SharedLink href={teamPath(team.id, team.name)} className="flex h-11 items-center gap-2.5 md:h-14 md:gap-3">
                       <span className="h-6 w-1 shrink-0 md:h-8" style={{ background: teamAccent(team) }} aria-hidden />
                       <Shared>
                         <Image src={teamLogoUrl(team.id)} alt="" width={32} height={32} unoptimized className="size-6 shrink-0 md:size-8" />

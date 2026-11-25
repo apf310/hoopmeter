@@ -47,6 +47,7 @@ import {
   type ExplorerState,
   type StatKey,
 } from "@/lib/player-explorer";
+import { playerPath } from "@/lib/routes";
 import type { SearchTeam } from "@/lib/search";
 import { splitName } from "@/lib/player-card";
 import { shortName } from "@/lib/spanish-players";
@@ -638,7 +639,7 @@ function Leaders({
             </button>
             {first ? (
               <SharedLink
-                href={`/players/${first.id}`}
+                href={playerPath(first.id, first.name)}
                 className="group relative block min-h-[5.75rem] overflow-hidden"
                 style={{ background: `linear-gradient(160deg, ${team?.backdrop ?? "#334155"}80 0%, #020617 72%)` }}
               >
@@ -673,7 +674,7 @@ function Leaders({
               {rest.map((row, i) => (
                 <li key={row.id}>
                   <Link
-                    href={`/players/${row.id}`}
+                    href={playerPath(row.id, row.name)}
                     title={row.name}
                     className="flex items-baseline gap-2 px-3 py-1 font-display text-sm transition-colors hover:bg-slate-900"
                   >

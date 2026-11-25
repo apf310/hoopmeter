@@ -1,7 +1,7 @@
 // Tests de los metadatos y enlaces compartidos (Tarea 6.25). Se lanzan con `npm test`.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildSitemap, compareMeta, gameDateLine, gameMeta, pageMetadata, playerIdParam, playerMeta, SITE_URL, teamMeta } from "./seo.ts";
+import { buildSitemap, compareMeta, gameDateLine, gameMeta, pageMetadata, playerIdParam, playerMeta, SITE_URL, splitTeamName, teamMeta } from "./seo.ts";
 
 const LAL = { name: "Los Angeles Lakers", abbreviation: "LAL" };
 const BOS = { name: "Boston Celtics", abbreviation: "BOS" };
@@ -12,8 +12,14 @@ describe("seo · partido", () => {
   it("solo emparejamiento, jornada y hora de España", () => {
     assert.equal(gameDateLine(MATCHUP), "Jornada del sábado 21 de noviembre · 01:30 en España (dom 22)");
     const meta = gameMeta(MATCHUP, LAL, BOS);
-    assert.equal(meta.title, "LAL @ BOS");
-    assert.match(meta.description, /^Los Angeles Lakers en casa de Boston Celtics\. Jornada del sábado/);
+    assert.equal(meta.title, "Lakers - Celtics, 21 nov 2026: hora y nota sin spoilers");
+    assert.match(meta.description, /^Los Angeles Lakers en casa de Boston Celtics \(NBA\)\. Jornada del sábado/);
+  });
+
+  it("los equipos, como los llama la gente", () => {
+    assert.deepEqual(splitTeamName("Portland Trail Blazers"), { city: "Portland", nickname: "Trail Blazers" });
+    assert.deepEqual(splitTeamName("Golden State Warriors"), { city: "Golden State", nickname: "Warriors" });
+    assert.equal(splitTeamName("Philadelphia 76ers").nickname, "76ers");
   });
 
   it("sin madrugada no añade otro día", () => {
@@ -46,27 +52,30 @@ describe("seo · fichas", () => {
       reb: 7.3,
       ast: 8.2,
     });
-    assert.equal(meta.title, "LeBron James");
+    assert.equal(meta.title, "LeBron James: estadísticas, contrato y palmarés");
     assert.equal(
       meta.description,
-      "LeBron James: Alero de Los Angeles Lakers. Temporada 2026-27: 25.0 PTS · 7.3 REB · 8.2 AST. Radar, trayectoria y palmarés en Hoopmeter."
+      "LeBron James: Alero de Los Angeles Lakers. Temporada 2026-27: 25.0 PTS · 7.3 REB · 8.2 AST. Contrato, trayectoria y palmarés en Hoopmeter."
     );
   });
 
   it("leyenda o jugador sin estadísticas", () => {
-    assert.match(playerMeta({ full_name: "Bill Russell", is_active: false }, "Pívot", null, null).description, /^Bill Russell: Leyenda de la NBA\. Radar/);
+    const legend = playerMeta({ full_name: "Bill Russell", is_active: false }, "Pívot", null, null);
+    assert.equal(legend.title, "Bill Russell: estadísticas y palmarés");
+    assert.match(legend.description, /^Bill Russell: Leyenda de la NBA\. Trayectoria/);
     assert.match(playerMeta({ full_name: "Nadie", is_active: true }, null, null, null).description, /^Nadie: sin equipo\./);
   });
 
   it("equipo sin balance ni puesto", () => {
     const meta = teamMeta(BOS, "Este", "Atlántico");
-    assert.equal(meta.description, "Boston Celtics (Conferencia Este · División Atlántico): plantilla, próximos partidos y situación salarial, sin spoilers.");
-    assert.ok(!/\d/.test(meta.description));
+    assert.equal(meta.title, "Boston Celtics: plantilla, salarios y calendario");
+    assert.match(meta.description, /^Boston Celtics \(Conferencia Este · División Atlántico\): plantilla, estadísticas, salarios/);
+    assert.ok(!/\d/.test(meta.title + meta.description));
   });
 
   it("comparador con y sin los dos jugadores", () => {
-    assert.equal(compareMeta({ full_name: "A" }, { full_name: "B" }).title, "A vs. B");
-    assert.equal(compareMeta({ full_name: "A" }, null).title, "Comparador");
+    assert.equal(compareMeta({ full_name: "A" }, { full_name: "B" }).title, "A vs. B: estadísticas cara a cara");
+    assert.equal(compareMeta({ full_name: "A" }, null).title, "Comparador de jugadores NBA de cualquier época");
     assert.equal(playerIdParam("2544"), 2544);
     assert.equal(playerIdParam(["2544", "1"]), 2544);
     assert.equal(playerIdParam("-3"), null);
@@ -91,14 +100,49 @@ describe("seo · metadatos y sitemap", () => {
     assert.deepEqual(withImage.openGraph?.images, [{ url: "/og/compare?a=1&b=2", width: 1200, height: 630, alt: withImage.title }]);
   });
 
-  it("sitemap con URLs absolutas y sin duplicados", () => {
-    const entries = buildSitemap([1, 2], [2544], [{ id: "0022600250" }]);
+  it("sitemap con URLs absolutas, con nombre y sin duplicados", () => {
+    const entries = buildSitemap(SITEMAP, DATES);
     const urls = entries.map((e) => e.url);
     assert.equal(urls[0], SITE_URL);
-    assert.ok(urls.includes(`${SITE_URL}/teams/2`));
-    assert.ok(urls.includes(`${SITE_URL}/players/2544`));
+    assert.ok(urls.includes(`${SITE_URL}/teams/1610612743-denver-nuggets`));
+    assert.ok(urls.includes(`${SITE_URL}/players/203999-nikola-jokic`));
     assert.ok(urls.includes(`${SITE_URL}/games/0022600250`));
     assert.ok(!urls.some((u) => u.includes("/avisos") || u.includes("/api/")));
     assert.equal(new Set(urls).size, urls.length);
   });
+
+  it("lastmod: el mismo día para todos los jugadores en activo y equipos, y nada en las leyendas", () => {
+    const at = (path: string) => buildSitemap(SITEMAP, DATES).find((e) => e.url === `${SITE_URL}${path}`)!.lastModified;
+    assert.equal(at("/players/203999-nikola-jokic"), "2026-11-25");
+    assert.equal(at("/players/2544-lebron-james"), "2026-11-25");
+    assert.equal(at("/teams/1610612743-denver-nuggets"), "2026-11-25");
+    assert.equal(at("/standings"), "2026-11-25");
+    assert.equal(at("/players/893-michael-jordan"), undefined);
+    assert.equal(at("/que-ver"), undefined);
+    assert.equal(at("/privacidad"), "2026-11-22");
+    assert.ok(!buildSitemap(SITEMAP, { ...DATES, daily: null }).some((e) => e.lastModified === null));
+  });
+
+  it("lastmod de un partido: la hora prevista del salto inicial, y solo si ya ha pasado", () => {
+    const games = [
+      { id: "0022600250", game_datetime_utc: "2026-11-22T00:30:00+00:00" },
+      { id: "0022600300", game_datetime_utc: "2026-11-29T00:30:00+00:00" },
+    ];
+    const dates = buildSitemap({ ...SITEMAP, games }, DATES).filter((e) => e.url.includes("/games/")).map((e) => e.lastModified);
+    assert.deepEqual(dates, ["2026-11-22T00:30:00.000Z", undefined]);
+    // Uno terminado, con prórroga y con nota da lo mismo que uno que sigue en juego
+    const played = games.map((g) => ({ ...g, status: "Final", home_score: 131, away_score: 128, excitement_score: 9.6, live_period_text: "Final/OT", is_processed: true }));
+    assert.deepEqual(buildSitemap({ ...SITEMAP, games: played }, DATES), buildSitemap({ ...SITEMAP, games }, DATES));
+  });
 });
+
+const SITEMAP = {
+  teams: [{ id: 1610612743, name: "Denver Nuggets" }],
+  players: [
+    { id: 203999, full_name: "Nikola Jokić", is_active: true },
+    { id: 2544, full_name: "LeBron James", is_active: true },
+    { id: 893, full_name: "Michael Jordan", is_active: false },
+  ],
+  games: [{ id: "0022600250", game_datetime_utc: "2026-11-22T00:30:00+00:00" }],
+};
+const DATES = { now: Date.parse("2026-11-25T12:00:00Z"), daily: "2026-11-25", legal: "2026-11-22" };

@@ -5,6 +5,7 @@ import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { avg, pct } from "@/lib/player-profile";
+import { playerPath } from "@/lib/routes";
 import { DEFAULT_ROSTER_SORT, nextSort, sortRoster, type RosterRow, type RosterSort, type RosterSortKey } from "@/lib/team-roster";
 import { formatMoney } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
@@ -98,7 +99,7 @@ export function RosterTable({ rows, accent, salarySeason }: { rows: RosterRow[];
             <tr key={player.id} className="group border-b border-slate-800/80 transition-colors hover:bg-slate-900">
               {/* Fija al desplazar la tabla a lo ancho en móvil */}
               <td className="sticky left-0 z-10 max-w-36 bg-slate-950 py-1.5 pr-2 transition-colors group-hover:bg-slate-900 sm:max-w-none">
-                <SharedLink href={`/players/${player.id}`} className="flex min-w-0 items-center gap-3 py-1 sm:py-0">
+                <SharedLink href={playerPath(player.id, player.name)} className="flex min-w-0 items-center gap-3 py-1 sm:py-0">
                   {/* Fondo teñido con el color del equipo detrás de la foto */}
                   <span className="hidden h-11 w-[60px] shrink-0 items-end overflow-hidden sm:flex" style={{ background: `${accent}26` }}>
                     <Shared>

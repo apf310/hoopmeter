@@ -7,6 +7,7 @@ import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import type { Favorites } from "@/lib/favorites";
 import { useFavorites } from "@/lib/favorites-store";
 import { teamLogoUrl } from "@/lib/nba-cdn";
+import { playerPath, teamPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 const surname = (name: string) => name.split(" ").slice(1).join(" ") || name;
@@ -26,7 +27,7 @@ export function FavoritesStrip({ favorites, className }: { favorites: Favorites;
         </li>
         {favorites.teams.map((team) => (
           <li key={`t${team.id}`} className="shrink-0">
-            <Link href={`/teams/${team.id}`} className={CHIP} title={team.name}>
+            <Link href={teamPath(team.id, team.name)} className={CHIP} title={team.name}>
               <Image src={teamLogoUrl(team.id)} alt="" width={20} height={20} unoptimized className="size-5" />
               {team.abbreviation}
             </Link>
@@ -34,7 +35,7 @@ export function FavoritesStrip({ favorites, className }: { favorites: Favorites;
         ))}
         {favorites.players.map((player) => (
           <li key={`p${player.id}`} className="shrink-0">
-            <Link href={`/players/${player.id}`} className={CHIP} title={player.name}>
+            <Link href={playerPath(player.id, player.name)} className={CHIP} title={player.name}>
               <PlayerPhoto id={player.id} width={30} height={22} className="h-[22px] w-[30px] object-cover object-top" />
               {surname(player.name)}
             </Link>
@@ -62,7 +63,7 @@ export function SidebarFavorites() {
       <ul>
         {favorites.teams.map((team) => (
           <li key={`t${team.id}`}>
-            <Link href={`/teams/${team.id}`} className={ROW}>
+            <Link href={teamPath(team.id, team.name)} className={ROW}>
               <Image src={teamLogoUrl(team.id)} alt="" width={24} height={24} unoptimized className="size-6 shrink-0" />
               <span className="truncate">{team.name}</span>
             </Link>
@@ -70,7 +71,7 @@ export function SidebarFavorites() {
         ))}
         {favorites.players.map((player) => (
           <li key={`p${player.id}`}>
-            <Link href={`/players/${player.id}`} className={ROW}>
+            <Link href={playerPath(player.id, player.name)} className={ROW}>
               <PlayerPhoto
                 id={player.id}
                 width={33}

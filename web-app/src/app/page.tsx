@@ -3,13 +3,15 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { GameDay, GameListSkeleton } from "@/components/games/GameDay";
+import { JsonLd } from "@/components/layout/JsonLd";
 import { addDays, gameDayOf, isGameDay, toScheduleTuple, todayGameDay, type TeamLite } from "@/lib/game-day";
 import { decodeFavoritesCookie, FAVORITES_COOKIE, type Favorites } from "@/lib/favorites";
 import { pageMetadata } from "@/lib/seo";
 import { getSchedule, getSearchIndex, getSpanishPlayers, getTeams } from "@/lib/queries";
+import { siteJsonLd } from "@/lib/structured-data";
 import { teamAccent } from "@/lib/team-colors";
 
-export const metadata: Metadata = pageMetadata({ path: "/" });
+export const metadata: Metadata = pageMetadata({ title: "Partidos NBA hoy sin spoilers: horarios y qué ver", path: "/" });
 
 /** Jornadas a cada lado de la inicial que ya van en el HTML (el resto llega en segundo plano). */
 const INITIAL_WINDOW_DAYS = 3;
@@ -18,6 +20,7 @@ export default function Home({ searchParams }: PageProps<"/">) {
   return (
     // Márgenes negativos: la jornada ocupa todo el ancho del área de contenido
     <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
+      <JsonLd data={siteJsonLd()} />
       <Suspense fallback={<HomeSkeleton />}>
         <HomeContent searchParams={searchParams} />
       </Suspense>

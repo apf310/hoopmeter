@@ -6,6 +6,7 @@ import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { formatGameTime, type TeamLite } from "@/lib/game-day";
 import type { Entry } from "@/lib/game-day-store";
+import { playerPath } from "@/lib/routes";
 import { compactLine, shortName, type SpanishLinesPayload, type SpanishPlayerGame } from "@/lib/spanish-players";
 import type { SpoilerLevel } from "@/lib/spoilers";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,7 @@ export function SpanishPlayersStrip({ entries, teamsById, level, lines }: Spanis
           return (
             <li key={player.id} className="shrink-0">
               <SharedLink
-                href={`/players/${player.id}`}
+                href={playerPath(player.id, player.name)}
                 title={`${player.name} · ${team?.name ?? ""} ${home ? "vs" : "@"} ${opponent?.name ?? ""}`}
                 className="flex h-11 items-center gap-2 border border-slate-800 pl-1.5 pr-3 transition-colors hover:border-orange-500"
                 style={team ? { borderLeftColor: team.accent, borderLeftWidth: 3 } : undefined}

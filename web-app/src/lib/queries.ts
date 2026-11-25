@@ -763,6 +763,16 @@ export async function getSpanishPlayers(): Promise<SpanishPlayer[]> {
 }
 
 /** Índice compacto del buscador: los 30 equipos y todos los jugadores, leyendas incluidas (solo campos necesarios). */
+/** Día (UTC) del último job diario de estadísticas, el que cambia las fichas: "2026-11-25". Para el `lastmod` del sitemap. */
+export async function getDailyUpdate(): Promise<string | null> {
+  "use cache";
+  cacheLife("hours");
+
+  const { data, error } = await getSupabase().from("sync_status").select("last_success_at").eq("id", "season_stats").maybeSingle();
+  if (error) throw new Error(`Error cargando la última actualización: ${error.message}`);
+  return (data as { last_success_at: string | null } | null)?.last_success_at?.slice(0, 10) ?? null;
+}
+
 export async function getSearchIndex(): Promise<SearchIndex> {
   "use cache";
   // Las plantillas cambian con traspasos y fichajes: refresco horario.

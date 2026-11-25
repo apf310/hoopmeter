@@ -18,6 +18,7 @@ import {
   type StatKey,
 } from "@/lib/player-explorer";
 import { tierOf } from "@/lib/player-profile";
+import { playerPath } from "@/lib/routes";
 import { SEASON } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
 
@@ -115,7 +116,7 @@ export function ExplorerTable({
                   {/* Fija al desplazar la tabla a lo ancho en móvil; franja con el color de su equipo */}
                   <td className="sticky left-0 z-10 max-w-44 bg-slate-950 py-1 pr-2 transition-colors group-hover:bg-slate-900 sm:max-w-none">
                     <SharedLink
-                      href={`/players/${row.id}`}
+                      href={playerPath(row.id, row.name)}
                       className="flex min-w-0 items-center gap-2 border-l-[3px] py-1 pl-[calc(1rem-3px)] md:pl-[calc(2rem-3px)]"
                       style={{ borderColor: team?.accent ?? "#334155" }}
                     >

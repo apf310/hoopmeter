@@ -8,8 +8,8 @@ import { teamAccent } from "@/lib/team-colors";
 import { DEFAULT_WATCH_PERIOD, isWatchPeriod, parseTeamFilter } from "@/lib/what-to-watch";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Qué ver",
-  description: "Los mejores partidos de la NBA de la semana, del mes y de la temporada según su nota. Sin resultados.",
+  title: "Qué partido NBA ver hoy sin spoilers",
+  description: "Los mejores partidos de la NBA de anoche, de la semana, del mes y de la temporada según su nota del 1 al 10. Sin resultados ni spoilers.",
   path: "/que-ver",
 });
 

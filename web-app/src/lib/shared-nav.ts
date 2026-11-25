@@ -7,7 +7,8 @@ export type SharedTarget = { kind: "player" | "team"; id: number } | { kind: "ga
 /** Qué viaja: la foto o el escudo, o los dos escudos de un partido. */
 export type SharedPart = "main" | "away" | "home";
 
-const ROUTE = /^\/(players|teams|games)\/(\d+)\/?(?:[?#].*)?$/;
+// El nombre que sigue al id (Tarea 7.8) no cuenta: manda el id
+const ROUTE = /^\/(players|teams|games)\/(\d+)(?:-[^/?#]*)?\/?(?:[?#].*)?$/;
 
 /** Ficha a la que lleva un enlace interno, o null si es otra pantalla. */
 export function sharedTarget(href: string): SharedTarget | null {

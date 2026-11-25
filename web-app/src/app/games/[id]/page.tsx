@@ -4,10 +4,12 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { GameSkeleton } from "@/components/games/detail/GameSkeleton";
 import { GameCenter } from "@/components/games/detail/GameCenter";
+import { JsonLd } from "@/components/layout/JsonLd";
 import { gameDayOf, isGameId, previousSeason, seasonOf } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
 import { getGameMatchup, getKeyPlayers, getTeams } from "@/lib/queries";
 import { gameMeta, pageMetadata } from "@/lib/seo";
+import { gameJsonLd } from "@/lib/structured-data";
 import type { Team } from "@/lib/supabase";
 import { matchupAccents, teamBackdrop } from "@/lib/team-colors";
 
@@ -72,6 +74,7 @@ async function GameContent({ params }: { params: PageProps<"/games/[id]">["param
   // Ni balances, ni nota, ni marcador: eso lo pide el cliente según su nivel.
   return (
     <>
+      <JsonLd data={gameJsonLd(game, awayTeam, homeTeam)} />
       <GameCenter
         game={game}
         day={gameDayOf(game.game_datetime_utc)}

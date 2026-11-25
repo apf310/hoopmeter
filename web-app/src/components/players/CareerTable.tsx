@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { avg, pct } from "@/lib/player-profile";
 import { teamLogoUrl } from "@/lib/nba-cdn";
+import { teamPath } from "@/lib/routes";
 import type { PlayerSeasonStats, SeasonType } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +38,7 @@ const shortSeason = (season: string) => season.slice(2);
  * Trayectoria temporada a temporada: gráfica de evolución + tabla con su mejor
  * temporada resaltada en cada estadística y el desglose de las temporadas con traspaso.
  */
-export function CareerTable({ rows, teamIds, accent }: { rows: PlayerSeasonStats[]; teamIds: number[]; accent: string }) {
+export function CareerTable({ rows, teams, accent }: { rows: PlayerSeasonStats[]; teams: { id: number; name: string }[]; accent: string }) {
   const availableTypes = SEASON_TYPES.filter((t) => rows.some((r) => r.season_type === t.value && r.season_id !== "Career"));
   const [seasonType, setSeasonType] = useState<SeasonType>(availableTypes[0]?.value ?? "Regular Season");
   const [chartStat, setChartStat] = useState<ChartStat>("pts");
@@ -46,7 +47,7 @@ export function CareerTable({ rows, teamIds, accent }: { rows: PlayerSeasonStats
     return <p className="py-4 text-sm text-slate-400">Sin estadísticas de trayectoria todavía.</p>;
   }
 
-  const knownTeams = new Set(teamIds);
+  const knownTeams = new Map(teams.map((t) => [t.id, t.name]));
   const seasons = rows
     .filter((r) => r.season_type === seasonType && r.season_id !== "Career")
     .sort((a, b) => a.season_id.localeCompare(b.season_id));
@@ -297,11 +298,13 @@ function TeamMark({
 }: {
   teamId: number | null;
   abbreviation: string | null;
-  known: Set<number>;
+  /** Equipos actuales y su nombre: los de otra época no tienen ficha. */
+  known: Map<number, string>;
   showLabel?: boolean;
   small?: boolean;
 }) {
-  const hasLogo = teamId != null && known.has(teamId);
+  const name = teamId != null ? known.get(teamId) : undefined;
+  const hasLogo = teamId != null && name !== undefined;
   const content = (
     <>
       {hasLogo && (
@@ -312,7 +315,7 @@ function TeamMark({
   );
 
   return hasLogo ? (
-    <Link href={`/teams/${teamId}`} title={abbreviation ?? undefined} className="flex items-center gap-1.5 text-slate-200 hover:text-orange-400">
+    <Link href={teamPath(teamId, name)} title={abbreviation ?? undefined} className="flex items-center gap-1.5 text-slate-200 hover:text-orange-400">
       {content}
     </Link>
   ) : (

@@ -3,7 +3,8 @@
 import { brandLogo, Kicker, OG_CONTENT_TYPE, OgFrame, renderOgImage, teamGradient, teamLogo } from "@/lib/og-image";
 import { conferenceLabel, divisionLabel } from "@/lib/places";
 import { getTeams } from "@/lib/queries";
-import { OG_SIZE } from "@/lib/seo";
+import { idFromSegment } from "@/lib/routes";
+import { OG_SIZE, splitTeamName } from "@/lib/seo";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 
 export const alt = "Ficha de equipo en Hoopmeter";
@@ -13,18 +14,16 @@ export const contentType = OG_CONTENT_TYPE;
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const logo = await brandLogo();
-  const team = (await getTeams()).find((t) => t.id === Number(id));
+  const teamId = idFromSegment(id);
+  const team = (await getTeams()).find((t) => t.id === teamId);
   if (!team) return renderOgImage(<OgFrame logo={logo}>{null}</OgFrame>);
 
   const crest = await teamLogo(team.id);
   const accent = teamAccent(team);
   const conference = conferenceLabel(team.conference);
   const division = divisionLabel(team.division);
-  const words = team.name.split(" ");
-  // "Los Angeles" arriba, "Lakers" en grande (los Trail Blazers son la excepción de dos palabras)
-  const nicknameWords = team.name.endsWith("Trail Blazers") ? 2 : 1;
-  const city = words.slice(0, -nicknameWords).join(" ");
-  const nickname = words.slice(-nicknameWords).join(" ");
+  // "Los Angeles" arriba, "Lakers" en grande
+  const { city, nickname } = splitTeamName(team.name);
 
   return renderOgImage(
     <OgFrame logo={logo} background={teamGradient(teamBackdrop(team.primary_color))}>

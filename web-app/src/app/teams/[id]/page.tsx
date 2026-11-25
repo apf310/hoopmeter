@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { JsonLd } from "@/components/layout/JsonLd";
 import { SharedLanding } from "@/components/layout/SharedLink";
 import type { TeamCardData } from "@/components/share/TeamShareCard";
 import { TeamRecordStats } from "@/components/standings/TeamRecordStats";
@@ -17,8 +18,10 @@ import { tradeSearch } from "@/lib/gm-link";
 import { getGmData, getRecentMatchups, getStandingsBefore, getTeamRosterStats, getTeams, getUpcomingGames } from "@/lib/queries";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { conferenceLabel, divisionLabel } from "@/lib/places";
+import { idFromSegment, teamPath } from "@/lib/routes";
 import { pageMetadata, teamMeta } from "@/lib/seo";
 import type { StandingsBefore } from "@/lib/standings";
+import { teamJsonLd } from "@/lib/structured-data";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import type { Team } from "@/lib/supabase";
 import { formatMoney, salaryZone, SEASON, ZONE_LABEL } from "@/lib/trade-rules";
@@ -26,9 +29,10 @@ import { formatMoney, salaryZone, SEASON, ZONE_LABEL } from "@/lib/trade-rules";
 /** Sin balance ni puesto (siguen el nivel, Tarea 6.6). La imagen sale de `opengraph-image.tsx`. */
 export async function generateMetadata({ params }: PageProps<"/teams/[id]">): Promise<Metadata> {
   const { id } = await params;
-  const team = (await getTeams()).find((t) => t.id === Number(id));
+  const teamId = idFromSegment(id);
+  const team = (await getTeams()).find((t) => t.id === teamId);
   if (!team) return pageMetadata({ title: "Equipo", path: `/teams/${id}`, image: null });
-  return pageMetadata({ ...teamMeta(team, conferenceLabel(team.conference), divisionLabel(team.division)), path: `/teams/${team.id}`, image: null });
+  return pageMetadata({ ...teamMeta(team, conferenceLabel(team.conference), divisionLabel(team.division)), path: teamPath(team.id, team.name), image: null });
 }
 
 export default function TeamPage({ params }: PageProps<"/teams/[id]">) {
@@ -41,8 +45,8 @@ export default function TeamPage({ params }: PageProps<"/teams/[id]">) {
 
 async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["params"] }) {
   const { id } = await params;
-  const teamId = Number(id);
-  if (!Number.isInteger(teamId)) notFound();
+  const teamId = idFromSegment(id);
+  if (!teamId) notFound();
 
   const teams = await getTeams();
   const team = teams.find((t) => t.id === teamId);
@@ -84,6 +88,7 @@ async function TeamContent({ params }: { params: PageProps<"/teams/[id]">["param
 
   return (
     <>
+      <JsonLd data={teamJsonLd(team)} />
       <TeamHero team={team} card={card} before={before} payroll={payroll} />
       {/* minmax(0, 1fr): ninguna tabla ni fila ensancha la página en móvil (la plantilla se desplaza dentro) */}
       <div className="mt-8 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-3">

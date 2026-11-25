@@ -5,6 +5,8 @@ import { createSharedNav, pendingTeams, returnTrip, sharedName, sharedTarget } f
 const ORIGIN = { instance: "a", href: "/games/0022600123", teams: { away: 1, home: 2 }, from: "/?fecha=2026-11-24", scrollY: 640 };
 
 test("solo las fichas de jugador, equipo y partido tienen algo que transportar", () => {
+  assert.deepEqual(sharedTarget("/players/203999-nikola-jokic"), { kind: "player", id: 203999 });
+  assert.deepEqual(sharedTarget("/teams/1610612743-denver-nuggets?x=1#plantilla"), { kind: "team", id: 1610612743 });
   assert.deepEqual(sharedTarget("/players/203999"), { kind: "player", id: 203999 });
   assert.deepEqual(sharedTarget("/players/203999?x=1#atributos"), { kind: "player", id: 203999 });
   assert.deepEqual(sharedTarget("/teams/1610612743"), { kind: "team", id: 1610612743 });

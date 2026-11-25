@@ -10,6 +10,7 @@ import { loadSearchIndex } from "@/components/search/SearchCommand";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { positionLabel } from "@/lib/player-profile";
 import type { LegendCard } from "@/lib/queries";
+import { playerPath, teamPath } from "@/lib/routes";
 import { search, type SearchIndex, type SearchPlayer, type SearchTeam } from "@/lib/search";
 import { teamAccent } from "@/lib/team-colors";
 
@@ -90,7 +91,7 @@ export function PlayerDirectory({ teams, legends, explorer }: { teams: SearchTea
         <ul className="grid grid-cols-3 gap-px bg-slate-800 sm:grid-cols-5 lg:grid-cols-10">
           {teams.map((team) => (
             <li key={team.id} className="bg-slate-950">
-              <SharedLink href={`/teams/${team.id}`} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
+              <SharedLink href={teamPath(team.id, team.name)} className="flex flex-col items-center gap-1 border-b-[3px] border-transparent py-3 transition-colors hover:bg-slate-900" style={{ borderColor: teamAccent(team) }}>
                 {/* Halo claro: muchos logos son oscuros y desaparecerían sobre el fondo */}
                 <Shared>
                   <Image src={teamLogoUrl(team.id)} alt="" width={44} height={44} unoptimized className="size-11 drop-shadow-[0_0_2px_rgba(255,255,255,0.75)]" />
@@ -122,7 +123,7 @@ function ResultRow({ player, team }: { player: SearchPlayer; team?: SearchTeam }
   const detail = player.is_active ? [team?.name ?? "Agente libre", positionLabel(player.position)].filter(Boolean).join(" · ") : "Leyenda";
   return (
     <li>
-      <SharedLink href={`/players/${player.id}`} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-slate-900 md:px-8">
+      <SharedLink href={playerPath(player.id, player.full_name)} className="flex items-center gap-3 px-4 py-2 transition-colors hover:bg-slate-900 md:px-8">
         <span className="relative flex h-10 w-[54px] shrink-0 items-end overflow-hidden" style={{ background: team ? `${teamAccent(team)}26` : "#1e293b" }}>
           <Shared>
             <PlayerPhoto id={player.id} width={54} height={40} className="h-10 w-[54px] object-cover object-top" />

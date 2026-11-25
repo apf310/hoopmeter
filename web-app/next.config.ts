@@ -1,7 +1,14 @@
 import type { NextConfig } from "next";
 
+// Robots que reciben la página de una pieza, con el título y la canónica en el <head> (Tarea 7.8). A los demás les llegan
+// en el <body>, y Google solo acepta la canónica en el <head>. Sustituye a la lista de Next: van la suya y, además,
+// Googlebot, los buscadores con IA y las previsualizaciones de enlaces que faltaban.
+const HTML_BOTS =
+  /[\w-]+-Google|Google-[\w-]+|Googlebot|Chrome-Lighthouse|Slurp|DuckDuckBot|baiduspider|yandex|sogou|bitlybot|tumblr|vkShare|quora link preview|redditbot|ia_archiver|Bingbot|BingPreview|applebot|facebookexternalhit|facebookcatalog|meta-externalagent|Twitterbot|LinkedInBot|Slackbot|Discordbot|WhatsApp|TelegramBot|SkypeUriPreview|Yeti|googleweblight|GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-User|Claude-SearchBot|PerplexityBot|Perplexity-User|Amazonbot/i;
+
 const nextConfig: NextConfig = {
   /* config options here */
+  htmlLimitedBots: HTML_BOTS,
   cacheComponents: true,
   partialPrefetching: true,
   images: {

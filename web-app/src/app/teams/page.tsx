@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
 import { ChevronRight } from "lucide-react";
+import { teamPath } from "@/lib/routes";
 import { pageMetadata } from "@/lib/seo";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { divisionLabel } from "@/lib/places";
@@ -10,7 +11,7 @@ import type { Team } from "@/lib/supabase";
 import { teamAccent } from "@/lib/team-colors";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Equipos",
+  title: "Equipos NBA: plantillas, salarios y calendario",
   description: "Los 30 equipos de la NBA por conferencia y división: plantillas, calendario y situación salarial.",
   path: "/teams",
 });
@@ -60,7 +61,7 @@ export default async function TeamsPage() {
                       .map((team) => (
                         <li key={team.id} className="border-b border-slate-800/80 last:border-b-0">
                           <SharedLink
-                            href={`/teams/${team.id}`}
+                            href={teamPath(team.id, team.name)}
                             className="group flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-900/70 md:px-8"
                           >
                             <span aria-hidden className="h-8 w-1 shrink-0" style={{ background: teamAccent(team) }} />

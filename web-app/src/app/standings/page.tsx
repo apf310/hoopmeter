@@ -3,9 +3,10 @@ import { StandingsBoard } from "@/components/standings/StandingsBoard";
 import type { TeamIdentity } from "@/components/standings/StandingsTable";
 import { pageMetadata } from "@/lib/seo";
 import { getStandingsBefore, getTeams } from "@/lib/queries";
+import { SEASON } from "@/lib/trade-rules";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Clasificación",
+  title: `Clasificación NBA ${SEASON}: Este y Oeste`,
   description: "Clasificación de la NBA por conferencias, con playoffs, play-in y lotería. Sin spoilers: al día solo si lo pides.",
   path: "/standings",
 });

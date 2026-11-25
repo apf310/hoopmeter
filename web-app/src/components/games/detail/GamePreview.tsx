@@ -8,6 +8,7 @@ import type { MatchupTeam } from "@/lib/game-format";
 import { teamLogoUrl } from "@/lib/nba-cdn";
 import { avg, positionLabel } from "@/lib/player-profile";
 import type { KeyPlayer } from "@/lib/queries";
+import { playerPath } from "@/lib/routes";
 
 /** Previa sin spoilers: los máximos anotadores de la temporada de cada equipo (promedios, no este partido). */
 export function KeyPlayers({ players, away, home }: { players: KeyPlayer[]; away: MatchupTeam; home: MatchupTeam }) {
@@ -29,7 +30,7 @@ export function KeyPlayers({ players, away, home }: { players: KeyPlayer[]; away
               <ul>
                 {own.map((player) => (
                   <li key={player.id} className="border-b border-slate-800/80">
-                    <SharedLink href={`/players/${player.id}`} className="group flex items-center gap-3 py-2 transition-colors hover:bg-slate-900">
+                    <SharedLink href={playerPath(player.id, player.full_name)} className="group flex items-center gap-3 py-2 transition-colors hover:bg-slate-900">
                       <span className="flex h-11 w-[60px] shrink-0 items-end overflow-hidden" style={{ background: `${team.accent}26` }}>
                         <Shared>
                           <PlayerPhoto id={player.id} width={60} height={44} className="h-11 w-[60px] object-cover object-top" />

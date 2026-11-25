@@ -5,9 +5,10 @@ import { PlayerExplorer } from "@/components/players/PlayerExplorer";
 import { pageMetadata } from "@/lib/seo";
 import { parseExplorerState, previewSeason } from "@/lib/player-explorer";
 import { getExplorerSeasons, getPlayerExplorer, getPlayersDirectory } from "@/lib/queries";
+import { SEASON } from "@/lib/trade-rules";
 
 export const metadata: Metadata = pageMetadata({
-  title: "Jugadores",
+  title: `Jugadores NBA: estadísticas y salarios ${SEASON}`,
   description: "Explora las estadísticas de todos los jugadores de la NBA: filtra por posición, equipo, país, edad o salario y ordena por cualquier estadística.",
   path: "/players",
 });

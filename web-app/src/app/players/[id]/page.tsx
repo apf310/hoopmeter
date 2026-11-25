@@ -6,6 +6,7 @@ import { cacheLife } from "next/cache";
 import { notFound } from "next/navigation";
 import { Swords } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
+import { JsonLd } from "@/components/layout/JsonLd";
 import { SharedLanding } from "@/components/layout/SharedLink";
 import { CareerTable } from "@/components/players/CareerTable";
 import { ContractTable } from "@/components/players/ContractTable";
@@ -39,7 +40,9 @@ import {
   tierOf,
 } from "@/lib/player-profile";
 import { countryLabel } from "@/lib/places";
+import { idFromSegment, playerPath, teamPath } from "@/lib/routes";
 import { pageMetadata, playerMeta } from "@/lib/seo";
+import { playerJsonLd } from "@/lib/structured-data";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { SEASON } from "@/lib/trade-rules";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
@@ -65,9 +68,8 @@ async function currentAge(birthDate: string | null): Promise<number | null> {
 /** Ficha y promedios (los del job diario, Nivel 1). La imagen sale de `opengraph-image.tsx`. */
 export async function generateMetadata({ params }: PageProps<"/players/[id]">): Promise<Metadata> {
   const { id } = await params;
-  const playerId = Number(id);
-  const valid = Number.isInteger(playerId) && playerId > 0;
-  const [player, teams, career] = await Promise.all([valid ? getPlayer(playerId) : null, getTeams(), valid ? getPlayerCareer(playerId) : []]);
+  const playerId = idFromSegment(id);
+  const [player, teams, career] = await Promise.all([playerId ? getPlayer(playerId) : null, getTeams(), playerId ? getPlayerCareer(playerId) : []]);
   if (!player) return pageMetadata({ title: "Jugador", path: `/players/${id}`, image: null });
   const regular = career.filter((r) => r.season_type === "Regular Season");
   const row = player.is_active
@@ -75,7 +77,7 @@ export async function generateMetadata({ params }: PageProps<"/players/[id]">): 
     : regular.find((r) => r.season_id === "Career");
   const line = row ? { label: row.season_id === "Career" ? "Carrera" : `Temporada ${row.season_id}`, pts: row.pts, reb: row.reb, ast: row.ast } : null;
   const team = teams.find((t) => t.id === player.team_id) ?? null;
-  return pageMetadata({ ...playerMeta(player, positionLabel(player.position), team, line), path: `/players/${player.id}`, image: null });
+  return pageMetadata({ ...playerMeta(player, positionLabel(player.position), team, line), path: playerPath(player.id, player.full_name), image: null });
 }
 
 export default function PlayerPage({ params }: PageProps<"/players/[id]">) {
@@ -88,8 +90,8 @@ export default function PlayerPage({ params }: PageProps<"/players/[id]">) {
 
 async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["params"] }) {
   const { id } = await params;
-  const playerId = Number(id);
-  if (!Number.isInteger(playerId)) notFound();
+  const playerId = idFromSegment(id);
+  if (!playerId) notFound();
 
   const [player, teams, career, awards, contract, highs] = await Promise.all([
     getPlayer(playerId),
@@ -125,6 +127,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
 
   return (
     <>
+      <JsonLd data={playerJsonLd(player, team)} />
       <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} honours={player.is_active ? "" : legendLine(trophyCounts(awards))} />
       {latest && <SeasonBand season={latest} />}
       <SectionNav active={player.is_active} />
@@ -174,7 +177,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
       <section id="trayectoria" className="scroll-mt-[calc(7rem+env(safe-area-inset-top))] pt-10 md:scroll-mt-16">
         <SectionTitle accent={accent}>Trayectoria</SectionTitle>
         <div className="pt-4">
-          <CareerTable rows={career} teamIds={teams.map((t) => t.id)} accent={accent} />
+          <CareerTable rows={career} teams={teams.map((t) => ({ id: t.id, name: t.name }))} accent={accent} />
         </div>
       </section>
 
@@ -245,7 +248,7 @@ function PlayerHero({
         <div className="min-w-0 pb-7 pt-2 md:pb-9">
           <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-display text-xs font-semibold uppercase tracking-[0.3em] text-white/75">
             {team ? (
-              <Link href={`/teams/${team.id}`} className="flex items-center gap-2 hover:text-orange-300">
+              <Link href={teamPath(team.id, team.name)} className="flex items-center gap-2 hover:text-orange-300">
                 <Image src={teamLogoUrl(team.id)} alt="" width={20} height={20} unoptimized className="size-5" />
                 {team.name}
               </Link>
@@ -256,7 +259,8 @@ function PlayerHero({
             {position && <span>{position}</span>}
           </p>
           <h1 className="mt-2 font-display font-extrabold uppercase leading-[0.85] text-white">
-            <span className="block text-2xl text-white/85 md:text-4xl">{firstName}</span>
+            {/* El espacio no se ve: sin él, buscadores y lectores de pantalla leen "NikolaJokić" */}
+            <span className="block text-2xl text-white/85 md:text-4xl">{firstName}</span>{" "}
             <span className="block text-5xl md:text-8xl">{lastName}</span>
           </h1>
 

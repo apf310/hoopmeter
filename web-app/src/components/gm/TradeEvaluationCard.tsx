@@ -24,6 +24,7 @@ const STEP_LABEL: Record<EvaluationStep, string> = {
 };
 
 const GENERIC_ERROR = "No se pudo evaluar el traspaso. Inténtalo de nuevo.";
+const TOO_MANY = "Demasiadas evaluaciones seguidas: espera un minuto.";
 
 /** Lee la respuesta por partes de `/api/gm/evaluate` (NDJSON) y avisa de cada evento. */
 async function readEvents(response: Response, onEvent: (event: EvaluationEvent<TradeEvaluation>) => void) {
@@ -115,7 +116,8 @@ export function TradeEvaluationCard({
       });
       if (!response.ok) {
         const body = await response.json().catch(() => null);
-        throw new Error(body?.error);
+        // Cuando corta el cortafuegos de Vercel (Tarea 7.7), `error` es un objeto suyo en inglés
+        throw new Error(typeof body?.error === "string" ? body.error : response.status === 429 ? TOO_MANY : undefined);
       }
       let finished = false;
       await readEvents(response, (event) => {

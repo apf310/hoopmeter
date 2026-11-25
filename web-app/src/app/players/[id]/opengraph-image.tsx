@@ -3,6 +3,7 @@
 import { brandLogo, headshot, Kicker, OG_CONTENT_TYPE, OgFrame, renderOgImage, teamGradient, teamLogo } from "@/lib/og-image";
 import { positionLabel } from "@/lib/player-profile";
 import { getPlayer, getPlayerCareer, getTeams } from "@/lib/queries";
+import { idFromSegment } from "@/lib/routes";
 import { OG_SIZE } from "@/lib/seo";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 
@@ -12,13 +13,12 @@ export const contentType = OG_CONTENT_TYPE;
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const playerId = Number(id);
+  const playerId = idFromSegment(id);
   const logo = await brandLogo();
-  const valid = Number.isInteger(playerId) && playerId > 0;
   const [player, teams, career] = await Promise.all([
-    valid ? getPlayer(playerId) : null,
+    playerId ? getPlayer(playerId) : null,
     getTeams(),
-    valid ? getPlayerCareer(playerId) : [],
+    playerId ? getPlayerCareer(playerId) : [],
   ]);
   if (!player) return renderOgImage(<OgFrame logo={logo}>{null}</OgFrame>);
 

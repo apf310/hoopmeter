@@ -17,6 +17,7 @@ import {
 } from "@/lib/game-day";
 import type { MatchupTeam } from "@/lib/game-format";
 import { teamLogoUrl } from "@/lib/nba-cdn";
+import { teamPath } from "@/lib/routes";
 import { cn } from "@/lib/utils";
 
 /**
@@ -151,7 +152,7 @@ function TeamSide({
   const right = align === "right";
   return (
     <div className={cn("flex min-w-0 flex-col items-center gap-2 md:flex-row md:gap-5", right && "md:flex-row-reverse")}>
-      <Link href={`/teams/${team.id}`} className="shrink-0" aria-label={team.name}>
+      <Link href={teamPath(team.id, team.name)} className="shrink-0" aria-label={team.name}>
         <SharedLanding target={{ kind: "game", id: gameId }} part={right ? "home" : "away"}>
           <Image
             src={teamLogoUrl(team.id)}
@@ -167,7 +168,7 @@ function TeamSide({
       <div className={cn("min-w-0 text-center", right ? "md:text-right" : "md:text-left")}>
         <p className="font-display text-[11px] font-semibold uppercase tracking-[0.25em] text-white/70">{role}</p>
         <Link
-          href={`/teams/${team.id}`}
+          href={teamPath(team.id, team.name)}
           className={cn(
             "block text-balance font-display text-2xl font-extrabold uppercase leading-none transition-colors hover:text-orange-300 md:text-3xl xl:text-4xl",
             dimmed ? "text-white/55" : "text-white"

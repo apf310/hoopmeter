@@ -21,7 +21,7 @@ export const MAX_STACK = 4000;
 const MAX_STACK_LINES = 20;
 const MAX_PATH = 200;
 
-/** "/games/0022600245?nivel=3#x" -> "/games/:id". Así los mismos fallos de fichas distintas se agrupan. */
+/** "/games/0022600245?nivel=3#x" y "/players/203999-nikola-jokic" -> "/games/:id", "/players/:id": los mismos fallos de fichas distintas se agrupan. */
 export function normalizePath(path: string | null | undefined): string | null {
   if (!path) return null;
   let clean = path.trim();
@@ -33,7 +33,7 @@ export function normalizePath(path: string | null | undefined): string | null {
   }
   clean = clean
     .split("/")
-    .map((segment) => (/^\d{3,}$/.test(segment) ? ":id" : segment))
+    .map((segment) => (/^\d{3,}(-.*)?$/.test(segment) ? ":id" : segment))
     .join("/");
   return clean.slice(0, MAX_PATH) || "/";
 }
