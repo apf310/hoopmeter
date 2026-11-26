@@ -42,7 +42,7 @@ export function LegendStrip({ legends }: { legends: LegendCard[] }) {
             >
               <Shared>
                 <div>
-                  <PlayerCard3D id={legend.id} name={legend.name} tier="legend" line={legend.line} className="hc-mini" />
+                  <PlayerCard3D id={legend.id} name={legend.name} tier="legend" line={legend.line} huella={legend.huella} mini />
                 </div>
               </Shared>
             </SharedLink>

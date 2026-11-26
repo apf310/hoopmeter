@@ -8,6 +8,7 @@ import { Swords } from "lucide-react";
 import { FavoriteButton } from "@/components/favorites/FavoriteButton";
 import { JsonLd } from "@/components/layout/JsonLd";
 import { SharedLanding } from "@/components/layout/SharedLink";
+import { CardInspector } from "@/components/cards/CardInspector";
 import { CareerTable } from "@/components/players/CareerTable";
 import { ContractTable } from "@/components/players/ContractTable";
 import { PlayerCard3D } from "@/components/players/PlayerCard3D";
@@ -15,15 +16,26 @@ import { PlayerCardSkeleton } from "@/components/players/PlayerCardSkeleton";
 import { PlayerRadarChart } from "@/components/players/PlayerRadarChart";
 import { PlayerCardExport } from "@/components/share/PlayerShareCard";
 import { LevelHighs } from "@/components/players/LevelHighs";
-import { trophyCounts } from "@/components/trophies/trophy-catalog";
+import { groupAwards, trophyCounts } from "@/components/trophies/trophy-catalog";
 import { TrophyShowcase } from "@/components/trophies/TrophyShowcase";
 import type { RivalLite } from "@/components/teams/TeamGameRow";
 import { TeamRecentGames } from "@/components/teams/TeamRecentGames";
 import type { GameMatchup } from "@/lib/game-day";
 import { buildContractView } from "@/lib/player-contract";
-import { getPlayer, getPlayerAwards, getPlayerCareer, getPlayerContract, getPlayerHighsBefore, getRecentMatchups, getTeams } from "@/lib/queries";
+import { huellaFromAttributes, huellaFromHonours, LEGEND_HONOURS } from "@/lib/card-huella";
+import {
+  getLatestMvpSeason,
+  getPlayer,
+  getPlayerAwards,
+  getPlayerCareer,
+  getPlayerContract,
+  getPlayerHighsBefore,
+  getRecentMatchups,
+  getTeams,
+} from "@/lib/queries";
 import { teamLogoUrl } from "@/lib/nba-cdn";
-import { cardTier, legendLine, splitName } from "@/lib/player-card";
+import { backHonours, backRows, cardSeals, cardTier, HONOUR_LABELS, legendLine, rookieYear, splitName, type CardSpec } from "@/lib/player-card";
+import { SPAIN } from "@/lib/spanish-players";
 import {
   ageFrom,
   archetypeOf,
@@ -47,7 +59,7 @@ import { pageMetadata, playerMeta } from "@/lib/seo";
 import { playerJsonLd } from "@/lib/structured-data";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { SEASON } from "@/lib/trade-rules";
-import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
+import { RADAR_CATEGORIES, type Player, type PlayerAward, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 const SECTIONS = [
@@ -95,7 +107,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   const playerId = idFromSegment(id);
   if (!playerId) notFound();
 
-  const [player, teams, career, awards, contract, highs] = await Promise.all([
+  const [player, teams, career, awards, contract, highs, latestMvp] = await Promise.all([
     getPlayer(playerId),
     getTeams(),
     getPlayerCareer(playerId),
@@ -103,6 +115,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
     getPlayerContract(playerId),
     // Récords de antes de la última jornada (Tarea 7.6): los de al día, solo en Nivel 3
     getPlayerHighsBefore(playerId),
+    getLatestMvpSeason(),
   ]);
   if (!player) notFound();
   // Últimos partidos de su equipo: en el HTML solo rival y fecha (Nivel 1); el resto, según el nivel
@@ -130,7 +143,15 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   return (
     <>
       <JsonLd data={playerJsonLd(player, team)} />
-      <PlayerHero player={player} age={age} team={team} radar={radar} season={latest} honours={player.is_active ? "" : legendLine(trophyCounts(awards))} />
+      <PlayerHero
+        player={player}
+        age={age}
+        team={team}
+        radar={radar}
+        season={latest}
+        honours={player.is_active ? "" : legendLine(trophyCounts(awards))}
+        card={cardSpecOf({ player, team, teams, radar, career, awards, age, latestMvp })}
+      />
       {latest && <SeasonBand season={latest} />}
       <SectionNav active={player.is_active} />
 
@@ -196,6 +217,63 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
   );
 }
 
+/**
+ * Carta 2.0 (Tarea 7.11): huella, sellos y reverso. Solo datos del job diario o cargados a mano (atributos, promedios,
+ * premios, draft, país): la carta es la misma en los tres niveles y nada cambia al acabar un partido.
+ */
+function cardSpecOf({
+  player,
+  team,
+  teams,
+  radar,
+  career,
+  awards,
+  age,
+  latestMvp,
+}: {
+  player: Player;
+  team: Team | null;
+  teams: Team[];
+  radar: RadarAttributes | null;
+  career: PlayerSeasonStats[];
+  awards: PlayerAward[];
+  age: number | null;
+  latestMvp: string | null;
+}): CardSpec {
+  const overall = radar ? overallRating(radar) : null;
+  const position = positionLabel(player.position);
+  const counts = trophyCounts(awards);
+  const abbreviations = new Map(teams.map((t) => [t.id, t.abbreviation]));
+  const draft = player.draft_year ? `Draft ${player.draft_year}${player.draft_number ? ` · n.º ${player.draft_number}` : ""}` : "No elegido";
+  return {
+    id: player.id,
+    tier: cardTier(player.is_active, overall),
+    name: player.full_name,
+    line: (radar ? archetypeOf(radar) : player.is_active ? "" : legendLine(counts)) || position || "",
+    position,
+    ...(player.is_active ? { overall } : {}),
+    team: team ? { id: team.id, c1: teamBackdrop(team.primary_color), c2: teamAccent(team) } : null,
+    huella: player.is_active ? (radar ? huellaFromAttributes(RADAR_CATEGORIES.map((c) => radar[c])) : null) : huellaFromHonours(counts),
+    seals: cardSeals({
+      active: player.is_active,
+      rookieYear: rookieYear(player, career, SEASON),
+      spanish: player.country === SPAIN,
+      awards,
+      latestMvpSeason: latestMvp,
+    }),
+    back: {
+      bio: [player.height, player.is_active && age ? `${age} años` : null, draft].filter(Boolean).join(" · "),
+      labels: player.is_active ? RADAR_CATEGORIES.map((c) => RADAR_LABEL[c]) : HONOUR_LABELS,
+      values: player.is_active ? RADAR_CATEGORIES.map((c) => radar?.[c] ?? 0) : LEGEND_HONOURS.map((key) => counts[key] ?? 0),
+      rows: backRows(career, player.is_active, (row) => {
+        const stats = career.find((r) => r.season_id === row.season_id && r.season_type === row.season_type);
+        return stats?.advanced_stats.team_abbreviation ?? abbreviations.get(row.team_id ?? 0) ?? "";
+      }),
+      honours: backHonours(groupAwards(awards)),
+    },
+  };
+}
+
 // La misma caja en la ficha y en su hueco de carga, para que nada salte
 const CARD_SLOT = "mx-auto mb-3 w-[214px] shrink-0 sm:w-[250px] md:mx-0 md:mb-8 md:mr-4 lg:mr-10 lg:w-[290px]";
 
@@ -206,6 +284,7 @@ function PlayerHero({
   radar,
   season,
   honours,
+  card,
 }: {
   player: Player;
   age: number | null;
@@ -214,6 +293,7 @@ function PlayerHero({
   season: PlayerSeasonStats | null;
   /** Retirados: sus mayores logros, en lugar de la media. */
   honours: string;
+  card: CardSpec;
 }) {
   const primary = teamBackdrop(team?.primary_color);
   const { first: firstName, last: lastName } = splitName(player.full_name);
@@ -285,6 +365,7 @@ function PlayerHero({
               radar={radar}
               season={season}
               age={age}
+              card={card}
             />
             {/* Los favoritos ordenan la portada por los partidos de su equipo: solo jugadores en activo */}
             {player.is_active && (
@@ -300,22 +381,26 @@ function PlayerHero({
           </div>
         </div>
 
-        {/* Ficha 3D (Tarea 7.4): en lugar de la foto suelta y la insignia de la media */}
+        {/* Ficha 3D (Tareas 7.4 y 7.11): en lugar de la foto suelta y la insignia de la media; al tocarla, el inspector */}
         <SharedLanding target={{ kind: "player", id: player.id }}>
           <div className={CARD_SLOT}>
-            <PlayerCard3D
-              id={player.id}
-              name={player.full_name}
-              tier={cardTier(player.is_active, overall)}
-              team={team}
-              overall={overall}
-              line={line || position || undefined}
-              note={overall !== null ? OVERALL_EXPLAINED : player.is_active ? NO_GAMES_NOTE : undefined}
-              bare
-              priority
-              greet
-              className="w-full"
-            />
+            <CardInspector spec={card}>
+              <PlayerCard3D
+                id={player.id}
+                name={player.full_name}
+                tier={card.tier}
+                team={team}
+                overall={overall}
+                line={line || position || undefined}
+                note={overall !== null ? OVERALL_EXPLAINED : player.is_active ? NO_GAMES_NOTE : undefined}
+                huella={card.huella}
+                seals={card.seals}
+                bare
+                priority
+                greet
+                className="w-full"
+              />
+            </CardInspector>
           </div>
         </SharedLanding>
       </div>

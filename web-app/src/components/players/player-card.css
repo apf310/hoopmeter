@@ -92,8 +92,23 @@
 .hc-fx-a {
   background-position: calc(var(--mx)*1%) calc(var(--my)*1%);
 }
-.hc-elite .hc-fx.hc-net {
+/* Huella (Tarea 7.11): la máscara se dibuja en el navegador (`CardHuella`); hasta tenerla no se ve, luego aparece */
+.hc-art .hc-huella:not([data-ready]) {
+  visibility: hidden;
+}
+.hc-art .hc-huella[data-ready] {
+  animation: hc-huella-in .6s ease-out;
+}
+@keyframes hc-huella-in {
+  from {
+    opacity: 0;
+  }
+}
+.hc-elite .hc-fx.hc-huella-main {
   opacity: calc(.75 + var(--on)*.25);
+}
+.hc-elite .hc-fx.hc-huella-accent {
+  opacity: calc(.55 + var(--on)*.4);
 }
 .hc-elite .hc-fx.hc-sparks {
   --foil: linear-gradient(#fff,#fff);
@@ -264,6 +279,117 @@
   object-fit: contain;
   filter: drop-shadow(0 0 .4cqw #ffffffa0);
 }
+/* Sellos (Tarea 7.11) en el lateral, bajo el escudo: hexágono RC, esmalte de Los Nuestros, anillo, rombo y estrella */
+.hc-seals {
+  --st: 25cqw;
+  position: absolute;
+  right: 5.5cqw;
+  top: var(--st);
+  width: 15cqw;
+  display: flex;
+  flex-direction: column;
+  gap: 3cqw;
+  transform: translateZ(44px) scale(.951);
+  transform-origin: -29.5cqw calc(70cqw - var(--st));
+  pointer-events: none;
+}
+.hc-seals-top {
+  --st: 21cqw;
+}
+.hc-seal {
+  --shape: circle(50%);
+  --rim: linear-gradient(120deg,#8a5a12,#fff1bd 30%,#c8902c 50%,#ffe39a 70%,#7d4f10);
+  --face: #120a02;
+  --ink: #ffe39a;
+  position: relative;
+  display: block;
+  width: 15cqw;
+  height: 15cqw;
+  filter: drop-shadow(0 .7cqw .9cqw #000b);
+}
+.hc-seal::before,
+.hc-seal>span {
+  position: absolute;
+  clip-path: var(--shape);
+}
+.hc-seal::before {
+  content: "";
+  inset: 0;
+  background: var(--rim);
+  background-size: 220% 220%;
+  background-position: calc(var(--mx)*1%) calc(var(--my)*1%);
+}
+.hc-seal>span {
+  inset: 1.5cqw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--face);
+  color: var(--ink);
+  line-height: .88;
+}
+.hc-seal b {
+  font-weight: 800;
+  font-size: 6.4cqw;
+  font-variant-numeric: tabular-nums;
+}
+.hc-seal small {
+  font-weight: 800;
+  font-size: 2.8cqw;
+  letter-spacing: .06em;
+}
+.hc-seal-rookie {
+  --shape: polygon(50% 0,93.3% 25%,93.3% 75%,50% 100%,6.7% 75%,6.7% 25%);
+  --rim: linear-gradient(120deg,#9a4410,#ffd6b0 30%,#ff9a4d 52%,#ffe2c7 72%,#a24a12);
+  --face: #1a0b02;
+  --ink: #ffb27a;
+}
+.hc-seal-rookie b {
+  font-size: 5.4cqw;
+}
+.hc-seal-spain>span {
+  inset: 1.6cqw;
+  background: linear-gradient(#c8102e 25%,#ffc400 25% 75%,#c8102e 75%);
+}
+.hc-seal-ring>span {
+  inset: 2.3cqw;
+  box-shadow: inset 0 0 0 .5cqw #e7bd5a80;
+}
+.hc-seal-mvp {
+  --shape: polygon(50% 0,90% 50%,50% 100%,10% 50%);
+  height: 18cqw;
+  --face: #160c02;
+  --ink: #ffe9a6;
+}
+.hc-seal-mvp>span {
+  inset: 2cqw 1.6cqw;
+}
+.hc-seal-mvp b {
+  font-size: 5.6cqw;
+}
+.hc-seal-mvp small {
+  font-size: 2.5cqw;
+}
+.hc-seal-star {
+  --shape: polygon(50% 0,67% 26.5%,97.5% 34.5%,77.6% 59%,79.4% 90.5%,50% 79%,20.6% 90.5%,22.4% 59%,2.5% 34.5%,33% 26.5%);
+  width: 16cqw;
+  height: 16cqw;
+  --rim: linear-gradient(120deg,#a87f12,#fff3b0 30%,#ffd34d 52%,#fffbe0 70%,#8a6a0c);
+  --face: #160c02;
+  --ink: #ffe9a6;
+}
+.hc-seal-star>span {
+  inset: 1.7cqw;
+  padding-top: 1.6cqw;
+}
+.hc-seal-star b {
+  font-size: 4.6cqw;
+}
+.hc-base .hc-seal {
+  filter: drop-shadow(0 .5cqw .7cqw #0008);
+}
+
 .hc-glare {
   transform: translateZ(37px) scale(.94);
   pointer-events: none;
@@ -450,8 +576,8 @@
 .hc-base .hc-paint {
   background: var(--tm1);
   opacity: .9;
-  -webkit-mask: url(/cards/key.svg) center/100% 100%;
-  mask: url(/cards/key.svg) center/100% 100%;
+  -webkit-mask: var(--m, url(/cards/key.svg)) center/100% 100% no-repeat;
+  mask: var(--m, url(/cards/key.svg)) center/100% 100% no-repeat;
 }
 .hc-base .hc-varnish {
   background: linear-gradient(105deg,#fff0 30%,#ffffff40 46%,#fff0 60%);
@@ -583,6 +709,10 @@
 }
 .hc-mini .hc-card::before {
   filter: blur(10px);
+}
+/* A 140 px no se leerían */
+.hc-mini .hc-seals {
+  display: none;
 }
 .hc-cell {
   content-visibility: auto;

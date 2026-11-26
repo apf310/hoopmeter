@@ -61,6 +61,13 @@ function imagesReady(node: HTMLElement): Promise<unknown> {
 
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
+/** Lo que la tarjeta aún prepara (la carta 3D del jugador, Tarea 7.11) lleva `data-share-pending`: se espera, con tope. */
+async function pendingDone(node: HTMLElement, maxMs = 10_000): Promise<void> {
+  for (let waited = 0; waited < maxMs && node.querySelector("[data-share-pending]"); waited += 100) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
 /** En móvil y en la app nativa se abre el menú de compartir del sistema; en escritorio, descarga directa. */
 async function deliver(blob: Blob, fileName: string): Promise<"shared" | "downloaded"> {
   if (isNativeApp()) {
@@ -205,6 +212,7 @@ function SharePanel({
       const node = cardRef.current;
       if (!node) throw new Error("Tarjeta no montada");
       await document.fonts.ready;
+      await pendingDone(node);
       await imagesReady(node);
       await nextFrame();
       const { width, height } = CARD_SIZE[frameFormat];

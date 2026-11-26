@@ -1,9 +1,10 @@
 import type { CSSProperties } from "react";
 import Image from "next/image";
+import { CardHuella, type HuellaPart } from "@/components/cards/CardHuella";
 import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { TiltSurface } from "@/components/players/TiltSurface";
 import { teamLogoUrl } from "@/lib/nba-cdn";
-import { splitName, surnameSize, type CardTier } from "@/lib/player-card";
+import { SEAL_LABEL, splitName, surnameSize, type CardSeal, type CardTier } from "@/lib/player-card";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import type { Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -11,30 +12,45 @@ import "./player-card.css";
 
 export type CardTeam = Pick<Team, "id" | "primary_color" | "secondary_color">;
 
-/** Capas de brillo de cada material: patrón (`public/cards/`, npm run cards) y cómo se mueve su luz (a, b o c). */
-const LAYERS: Record<CardTier, [pattern: string, motion: "a" | "b" | "c"][]> = {
-  legend: [
-    ["guilloche-a", "a"],
-    ["guilloche-b", "b"],
-  ],
+type Motion = "a" | "b" | "c";
+
+/** Patrones fijos del refractor (`public/cards/`, npm run cards): rayos y chispas, iguales en todas. */
+const PATTERNS: Partial<Record<CardTier, [pattern: string, motion: Motion][]>> = {
   elite: [
     ["rays-a", "a"],
     ["rays-b", "b"],
     ["rays-c", "c"],
-    ["net", "b"],
-    ["sparks", "a"],
+  ],
+};
+
+/**
+ * Huella (Tarea 7.11): el dibujo de cada carta sale de sus atributos (`lib/card-huella.ts`) y su luz se mueve de dos
+ * maneras (a, b o c). En el zafiro, `accent` es el relleno de las facetas y `main` sus aristas.
+ */
+const HUELLA: Record<CardTier, [part: HuellaPart["part"], motion: Motion][]> = {
+  legend: [
+    ["main", "a"],
+    ["accent", "b"],
+  ],
+  elite: [
+    ["main", "b"],
+    ["accent", "a"],
   ],
   great: [
-    ["waves-a", "a"],
-    ["waves-b", "b"],
+    ["main", "a"],
+    ["accent", "b"],
   ],
   good: [
-    ["facets-a", "a"],
-    ["facets-b", "b"],
-    ["facets-c", "c"],
+    ["accent", "a"],
+    ["main", "b"],
   ],
   base: [],
 };
+
+const huellaParts = (tier: CardTier): HuellaPart[] =>
+  tier === "base"
+    ? [{ part: "main", className: "hc-paint" }]
+    : HUELLA[tier].map(([part, motion]) => ({ part, className: `hc-fx hc-fx-${motion} hc-huella-${part}` }));
 
 const LONG_LINE = 18; // Con una línea más larga, la posición no cabe al lado
 
@@ -54,14 +70,21 @@ type PlayerCard3DProps = {
   bare?: boolean;
   priority?: boolean;
   greet?: boolean;
+  /** Seis valores de 0 a 1 de su huella (`lib/card-huella.ts`); null = sin atributos (cartón con la zona pintada). */
+  huella?: number[] | null;
+  /** Sellos (Tarea 7.11): hechos conocidos, nunca nada del último partido. */
+  seals?: CardSeal[];
+  /** Carta pequeña (tira de leyendas): huella más ligera y solo al acercarse. */
+  mini?: boolean;
   className?: string;
 };
 
 /**
- * Ficha coleccionable del jugador (Tarea 7.4): se inclina en 3D y su material depende de la media. Es solo
- * decorativa: quien la usa pone el nombre y la media en texto. Diseño propio: sin marcas de cromos.
+ * Ficha coleccionable del jugador (Tareas 7.4 y 7.11): se inclina en 3D, su material depende de la media y el dibujo
+ * del fondo nace de sus atributos. Es solo decorativa: quien la usa pone el nombre y la media en texto. Diseño propio:
+ * sin marcas de cromos, firmas ni numeración.
  */
-export function PlayerCard3D({ id, name, tier, team, overall, line, position, note, bare, priority, greet, className }: PlayerCard3DProps) {
+export function PlayerCard3D({ id, name, tier, team, overall, line, position, note, bare, priority, greet, huella, seals, mini, className }: PlayerCard3DProps) {
   const { first, last } = splitName(name);
   const primary = teamBackdrop(team?.primary_color);
   const vars = {
@@ -71,20 +94,23 @@ export function PlayerCard3D({ id, name, tier, team, overall, line, position, no
   } as CSSProperties;
 
   return (
-    <TiltSurface className={cn(bare && "hc-bare", className)} style={vars} greet={greet}>
+    <TiltSurface className={cn(bare && "hc-bare", mini && "hc-mini", className)} style={vars} greet={greet}>
       <div className={`hc-card hc-${tier}`} aria-hidden title={note}>
         <div className="hc-frame">
           <div className="hc-gap">
             <div className="hc-rim">
               <div className="hc-art">
-                {tier === "base" && <div className="hc-paint" />}
-                {tier === "base" && <div className="hc-varnish" />}
+                {/* Cartón sin atributos (aún no ha jugado): la zona pintada de siempre */}
+                {tier === "base" && !huella && <div className="hc-paint" />}
                 {team && tier !== "base" && (
                   <Image src={teamLogoUrl(team.id)} alt="" width={240} height={240} unoptimized className="hc-mark" draggable={false} />
                 )}
-                {LAYERS[tier].map(([pattern, motion]) => (
+                {PATTERNS[tier]?.map(([pattern, motion]) => (
                   <div key={pattern} className={`hc-fx hc-fx-${motion} hc-${pattern}`} style={{ "--m": `url(/cards/${pattern}.svg)` } as CSSProperties} />
                 ))}
+                {huella && <CardHuella tier={tier} values={huella} parts={huellaParts(tier)} mini={mini} />}
+                {tier === "elite" && <div className="hc-fx hc-fx-a hc-sparks" style={{ "--m": "url(/cards/sparks.svg)" } as CSSProperties} />}
+                {tier === "base" && <div className="hc-varnish" />}
                 <div className="hc-vignette" />
               </div>
             </div>
@@ -120,8 +146,38 @@ export function PlayerCard3D({ id, name, tier, team, overall, line, position, no
             <Image src={teamLogoUrl(team.id)} alt="" width={48} height={48} unoptimized draggable={false} />
           </div>
         )}
+        {seals && seals.length > 0 && (
+          <div className={cn("hc-seals", !team && "hc-seals-top")} title={seals.map((s) => SEAL_LABEL[s.kind]).join(" · ")}>
+            {seals.map((seal) => (
+              <SealBadge key={seal.kind} seal={seal} />
+            ))}
+          </div>
+        )}
         <div className="hc-glare" />
       </div>
     </TiltSurface>
+  );
+}
+
+/** Sello en relieve: la forma dice qué es (hexágono, esmalte, anillo, rombo o estrella) y la cifra, cuántas veces. */
+function SealBadge({ seal }: { seal: CardSeal }) {
+  return (
+    <span className={`hc-seal hc-seal-${seal.kind}`}>
+      <span>
+        {seal.kind === "rookie" && (
+          <>
+            <b>RC</b>
+            <small>’{String(seal.year).slice(-2)}</small>
+          </>
+        )}
+        {seal.kind === "mvp" && (
+          <>
+            <b>{seal.count}</b>
+            <small>MVP</small>
+          </>
+        )}
+        {(seal.kind === "ring" || seal.kind === "star") && <b>{seal.count}</b>}
+      </span>
+    </span>
   );
 }

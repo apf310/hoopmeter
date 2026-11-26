@@ -1,10 +1,13 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- html-to-image necesita <img> planas del mismo origen */
+import { useEffect, useState } from "react";
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "recharts";
 import { showSilhouette } from "@/components/players/PlayerPhoto";
-import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
+import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat, type ShareVideo } from "@/components/share/SocialCardExporter";
+import { CARD_VIDEO_DURATION, CARD_VIDEO_FPS } from "@/lib/card-video";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
+import type { CardSpec } from "@/lib/player-card";
 import { archetypeOf, avg, overallRating, pct, positionLabel, RADAR_LABEL, RATING_MIDDLE, ratingShare, shotPct, tierOf } from "@/lib/player-profile";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
@@ -22,7 +25,50 @@ type CardData = {
   radar: RadarAttributes | null;
   season: PlayerSeasonStats | null;
   age: number | null;
+  /** Carta 2.0 (Tarea 7.11): sale renderizada en 3D en la imagen y girando en el vídeo. */
+  card: CardSpec;
 };
+
+type Stage = typeof import("@/components/cards/card-stage");
+let stage: Promise<Stage> | null = null;
+const loadStage = () => (stage ??= import("@/components/cards/card-stage"));
+
+/** Imágenes de la carta ya hechas, por jugador y tamaño: cambiar de formato y volver no la repite. */
+const snapshots = new Map<string, Promise<string | null>>();
+
+function canvasWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(canvas.getContext("webgl2") ?? canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+/** La carta 3D en PNG para la tarjeta: undefined mientras se hace; null sin WebGL (entonces va la foto, como antes). */
+function useCardImage(card: CardSpec, width: number, height: number): string | null | undefined {
+  const key = `${JSON.stringify(card)}|${width}x${height}`;
+  const [image, setImage] = useState<{ key: string; url: string | null } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    if (!snapshots.has(key)) {
+      snapshots.set(
+        key,
+        loadStage()
+          .then((s) => (s.hasWebGL() ? s.cardSnapshot(card, width, height) : null))
+          .catch((error) => {
+            console.error(error);
+            return null;
+          })
+      );
+    }
+    snapshots.get(key)!.then((url) => alive && setImage({ key, url }));
+    return () => {
+      alive = false;
+    };
+  }, [key, card, width, height]);
+  return image?.key === key ? image.url : undefined;
+}
 
 /** "Luka Dončić" → "luka-doncic" */
 export function slugify(text: string): string {
@@ -39,21 +85,72 @@ export function fitFont(text: string, maxWidth: number, maxSize: number): number
   return Math.min(maxSize, Math.floor(maxWidth / (Math.max(text.length, 1) * 0.5)));
 }
 
-/** Botón de exportación de la ficha del jugador (cabecera + radar + cifras de la temporada). */
+/** Uno por carta: el exportador prepara el vídeo una sola vez mientras el objeto sea el mismo. */
+const videos = new Map<string, ShareVideo>();
+function cardVideo(card: CardSpec, season: string): ShareVideo {
+  const key = `${JSON.stringify(card)}|${season}`;
+  let video = videos.get(key);
+  if (!video) {
+    video = {
+      prepare: () => import("@/components/cards/card-video").then((m) => m.prepareCardVideo(card, season)),
+      duration: CARD_VIDEO_DURATION,
+      fps: CARD_VIDEO_FPS,
+      caption: "Carta de jugador",
+      includes: ["Su carta girando 360°", "Reverso con radar, temporadas y palmarés"],
+    };
+    videos.set(key, video);
+  }
+  return video;
+}
+
+/** Botón de exportación de la ficha del jugador (carta + radar + cifras de la temporada) y el vídeo de su carta. */
 export function PlayerCardExport({ className, ...data }: CardData & { className?: string }) {
+  const { card, radar } = data;
+  // El vídeo necesita WebGL: solo se sabe en el navegador (sin cargar Three.js: un canvas basta)
+  const [webgl, setWebgl] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    queueMicrotask(() => alive && setWebgl(canvasWebGL()));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const video = cardVideo(card, radar?.season ?? data.season?.season_id ?? "");
   return (
     <SocialCardExporter
       className={className}
       fileName={slugify(data.player.full_name)}
       caption="Ficha de jugador"
       title={`Ficha de ${data.player.full_name}`}
-      includes={["Foto y equipo", "Radar de la temporada", "Promedios de la temporada"]}
+      includes={["Su carta", "Radar de la temporada", "Promedios de la temporada"]}
       renderCard={(format) => <PlayerShareCard format={format} {...data} />}
+      video={webgl ? video : undefined}
     />
   );
 }
 
-function PlayerShareCard({ format, player, team, radar, season, age }: CardData & { format: CardFormat }) {
+/**
+ * La carta renderizada en 3D o, sin WebGL, la foto suelta de siempre. Mientras se prepara, el exportador espera
+ * (`data-share-pending`) para no sacar la imagen sin ella.
+ */
+function CardOrPhoto({ card, playerId, width, height, vertical }: { card: CardSpec; playerId: number; width: number; height: number; vertical?: boolean }) {
+  const image = useCardImage(card, width, height);
+  if (image === undefined) return <div data-share-pending style={{ width, height }} />;
+  if (image) return <img src={image} alt="" width={width} height={height} style={{ width, height, filter: "drop-shadow(0 30px 40px rgba(0,0,0,.55))" }} />;
+  return (
+    <img
+      src={sameOrigin(playerHeadshotUrl(playerId))}
+      onError={showSilhouette}
+      alt=""
+      className={cn(
+        "absolute bottom-0 left-1/2 max-w-none -translate-x-1/2 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]",
+        vertical ? "h-full w-auto object-contain" : "h-auto w-[760px]"
+      )}
+    />
+  );
+}
+
+function PlayerShareCard({ format, player, team, radar, season, age, card }: CardData & { format: CardFormat }) {
   const vertical = format === "9:16";
   const { width, height } = CARD_SIZE[format];
   const contentHeight = height - WATERMARK_HEIGHT[format];
@@ -92,15 +189,9 @@ function PlayerShareCard({ format, player, team, radar, season, age }: CardData 
         <div className="relative flex flex-col" style={{ height: contentHeight }}>
           <div className="px-16 pt-20">
             <Identity team={team} subtitle={subtitle} firstName={rest.length ? firstName : ""} lastName={lastName} nameWidth={width - 128} maxSize={200} />
-            {radar && <RatingBadge radar={radar} big />}
           </div>
-          <div className="relative min-h-0 flex-1">
-            <img
-              src={sameOrigin(playerHeadshotUrl(player.id))}
-              onError={showSilhouette}
-              alt=""
-              className="absolute bottom-0 left-1/2 h-full w-auto max-w-none -translate-x-1/2 object-contain drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
-            />
+          <div className="relative flex min-h-0 flex-1 items-center justify-center">
+            <CardOrPhoto card={card} playerId={player.id} width={680} height={920} vertical />
           </div>
           <div className="h-2" style={{ background: team?.secondary_color ?? accent }} />
           <div className="flex items-center gap-4 bg-slate-950/80 py-8 pl-4 pr-16">
@@ -117,13 +208,8 @@ function PlayerShareCard({ format, player, team, radar, season, age }: CardData 
             </div>
             {season && <StatGrid season={season} />}
           </div>
-          <div className="relative min-w-0 flex-1">
-            <img
-              src={sameOrigin(playerHeadshotUrl(player.id))}
-              onError={showSilhouette}
-              alt=""
-              className="absolute bottom-0 left-1/2 h-auto w-[760px] max-w-none -translate-x-1/2 drop-shadow-[0_20px_40px_rgba(0,0,0,0.6)]"
-            />
+          <div className="relative flex min-w-0 flex-1 items-center justify-center">
+            <CardOrPhoto card={card} playerId={player.id} width={560} height={860} />
           </div>
           {radar && (
             <div className="flex w-[600px] shrink-0 flex-col items-center justify-center pr-12">
