@@ -58,12 +58,14 @@ export async function headshot(playerId: number): Promise<string | null> {
   }
 }
 
-export async function renderOgImage(children: ReactElement): Promise<ImageResponse> {
+/** Lo que se pinta solo cambia con el calendario o el job diario: los que lo piden (WhatsApp, X) también cachean. */
+const DAILY_CACHE = "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800";
+
+export async function renderOgImage(children: ReactElement, { cache = DAILY_CACHE }: { cache?: string } = {}): Promise<ImageResponse> {
   return new ImageResponse(children, {
     ...OG_SIZE,
     fonts: await fonts(),
-    // Lo que se pinta solo cambia con el calendario o el job diario: los que lo piden (WhatsApp, X) también cachean
-    headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800" },
+    headers: { "Cache-Control": cache },
   });
 }
 

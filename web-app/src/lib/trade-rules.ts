@@ -92,6 +92,12 @@ export type Trade = {
 /** Cómo cuadra un equipo su salario. `standard` no pone hard cap; `aggregated` y `expanded`, sí. */
 export type SalaryRule = "none" | "under_cap" | "cap_room" | "standard" | "aggregated" | "expanded";
 
+/**
+ * Lo mínimo que le falta a un equipo que no cuadra (Tarea 7.9): enviar un contrato más de `send` o recibir `receive`
+ * menos (recortando primero los sueldos más altos, que son los que más cuesta encajar).
+ */
+export type SalaryGap = { send: number; receive: number };
+
 export type TeamReport = {
   teamId: number;
   outgoing: number;
@@ -105,6 +111,8 @@ export type TeamReport = {
   /** Hard cap activo o, si es más estricto, el que le pondría este traspaso. */
   hardCap: Apron | null;
   ok: boolean;
+  /** Solo si el salario no cuadra y todas las cifras del traspaso se conocen (o están estimadas). */
+  gap: SalaryGap | null;
 };
 
 export type TradeIssue = { teamId: number | null; message: string };
@@ -128,6 +136,11 @@ export type TradeVerdict = TradeIssues & {
 export function formatMoney(value: number): string {
   const millions = (value / 1_000_000).toLocaleString("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   return `${millions} M$`;
+}
+
+/** Redondeado hacia arriba a la décima: para lo que "falta", el redondeo normal podría quedarse corto (o en 0,0). */
+export function formatMoneyUp(value: number): string {
+  return formatMoney(Math.ceil(value / 100_000) * 100_000);
 }
 
 const dateFormat = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -293,6 +306,47 @@ function incomingLimit(payroll: number, sent: number[], hardCap: Apron | null): 
 /** Hard cap que deja cada vía de cuadre. */
 const RULE_HARD_CAP: Partial<Record<SalaryRule, Apron>> = { aggregated: "second", expanded: "first" };
 
+/** ¿Cuadra el salario de un equipo que envía `sent` y recibe `received`? La vía y si choca con su hard cap. */
+function salaryCheck(team: TradeTeam, sent: number[], received: number[]) {
+  const outgoing = sum(sent);
+  const incoming = sum(received);
+  const payrollAfter = team.payroll - outgoing + incoming;
+  const activeCap = HARD_CAPS[team.abbreviation] ?? null;
+  const rule = salaryRule(team.payroll, sent, received);
+  const overHardCap = activeCap !== null && incoming > outgoing && payrollAfter > APRON_AMOUNT[activeCap];
+  return { rule, activeCap, overHardCap, ok: rule !== null && !overHardCap };
+}
+
+/**
+ * Las dos salidas de un equipo que no cuadra, por búsqueda binaria sobre las mismas reglas (las dos son monótonas: más
+ * salario enviado o menos recibido nunca descuadran). Un contrato enviado del tamaño de todo lo recibido siempre cuadra.
+ */
+function salaryGap(team: TradeTeam, sent: number[], received: number[]): SalaryGap {
+  const works = (out: number[], into: number[]) => salaryCheck(team, out, into).ok;
+
+  let tooLittle = 0;
+  let send = sum(received);
+  while (send - tooLittle > 1) {
+    const mid = Math.floor((tooLittle + send) / 2);
+    if (works([...sent, mid], received)) send = mid;
+    else tooLittle = mid;
+  }
+
+  // Recibir menos: todos los sueldos recibidos, como mucho `level`. Con 0 no recibe nada y siempre cuadra
+  const capped = (level: number) => received.map((salary) => Math.min(salary, level)).filter((salary) => salary > 0);
+  let level = 0;
+  let tooMuch = Math.max(...received);
+  while (tooMuch - level > 1) {
+    const mid = Math.floor((level + tooMuch) / 2);
+    if (works(sent, capped(mid))) level = mid;
+    else tooMuch = mid;
+  }
+  return { send, receive: sum(received) - sum(capped(level)) };
+}
+
+const gapText = ({ send, receive }: SalaryGap) =>
+  ` Para cuadrar, tendría que enviar ${formatMoneyUp(send)} más o recibir ${formatMoneyUp(receive)} menos.`;
+
 function salaryError(team: TradeTeam, report: TeamReport, sent: number[]): string {
   const { incoming, outgoing, payrollAfter, maxIncoming } = report;
   if (sent.length === 0) {
@@ -320,12 +374,12 @@ function checkTeam(team: TradeTeam, trade: Trade, today: string, issues: TradeIs
   const payrollAfter = team.payroll - outgoing + incoming;
   const rosterAfter = team.rosterSize - leaving.length + arriving.length;
 
-  const activeCap = HARD_CAPS[team.abbreviation] ?? null;
-  const rule = salaryRule(team.payroll, sent, received);
-  const overHardCap = activeCap !== null && incoming > outgoing && payrollAfter > APRON_AMOUNT[activeCap];
+  const { rule, activeCap, overHardCap, ok } = salaryCheck(team, sent, received);
   const ruleCap = rule ? (RULE_HARD_CAP[rule] ?? null) : null;
   // Un hard cap nuevo solo importa si es más estricto que el que ya tiene
   const newCap = ruleCap && (activeCap === null || (activeCap === "second" && ruleCap === "first")) ? ruleCap : null;
+  // Con una cifra aún sin poner, lo que falta no se puede saber
+  const unknown = trade.players.some(({ player }) => player.salaryStatus === "pending");
 
   const report: TeamReport = {
     teamId: team.id,
@@ -336,17 +390,19 @@ function checkTeam(team: TradeTeam, trade: Trade, today: string, issues: TradeIs
     rule,
     maxIncoming: incomingLimit(team.payroll, sent, activeCap),
     hardCap: newCap ?? activeCap,
-    ok: rule !== null && !overHardCap,
+    ok,
+    gap: ok || unknown ? null : salaryGap(team, sent, received),
   };
+  const fix = report.gap ? gapText(report.gap) : "";
 
-  if (overHardCap) {
+  if (overHardCap && activeCap) {
     const label = APRON_LABEL[activeCap];
     issues.errors.push({
       teamId: team.id,
-      message: `${team.name} tiene hard cap en el ${label} (${formatMoney(APRON_AMOUNT[activeCap])}) y acabaría en ${formatMoney(payrollAfter)}: no puede superarlo en toda la temporada.`,
+      message: `${team.name} tiene hard cap en el ${label} (${formatMoney(APRON_AMOUNT[activeCap])}) y acabaría en ${formatMoney(payrollAfter)}: no puede superarlo en toda la temporada.${fix}`,
     });
   } else if (rule === null) {
-    issues.errors.push({ teamId: team.id, message: salaryError(team, report, sent) });
+    issues.errors.push({ teamId: team.id, message: `${salaryError(team, report, sent)}${fix}` });
   }
 
   if (newCap) {
@@ -492,4 +548,37 @@ export function checkTrade(trade: Trade, today: string): TradeVerdict {
 
   const status = issues.errors.length > 0 ? "invalid" : validFrom ? "valid_from" : "valid";
   return { status, validFrom: status === "valid_from" ? validFrom : null, teams, ...issues };
+}
+
+// ---------- Contratos que encajan (Tarea 7.9) ----------
+
+const teamWorks = (team: TradeTeam, players: Trade["players"]) =>
+  salaryCheck(
+    team,
+    players.filter((move) => move.player.teamId === team.id).map((move) => move.player.salary),
+    players.filter((move) => move.to === team.id).map((move) => move.player.salary)
+  ).ok;
+
+/**
+ * Jugadores de `roster` (del equipo `teamId`, fuera del traspaso y con cifra pública) que, enviados a uno de los otros
+ * equipos (`to`), hacen cuadrar el salario de su equipo sin descuadrar a ninguno de los que ya cuadraban. Solo mira el
+ * salario: fechas, plantilla y rondas siguen en el veredicto. Vacío si el equipo ya cuadra o falta alguna cifra.
+ */
+export function fittingContracts(trade: Trade, teamId: number, roster: TradePlayer[]): { playerId: number; to: number }[] {
+  const team = trade.teams.find(({ id }) => id === teamId);
+  if (!team || teamWorks(team, trade.players) || trade.players.some(({ player }) => player.salaryStatus === "pending")) return [];
+
+  const partners = trade.teams.filter(({ id }) => id !== teamId);
+  const fine = partners.filter((partner) => teamWorks(partner, trade.players));
+  const inTrade = new Set(trade.players.map(({ player }) => player.id));
+  const fits: { playerId: number; to: number }[] = [];
+  for (const player of roster) {
+    if (player.teamId !== teamId || inTrade.has(player.id) || player.salaryStatus === "pending" || player.salary <= 0) continue;
+    const to = partners.find((partner) => {
+      const players = [...trade.players, { player, to: partner.id }];
+      return teamWorks(team, players) && fine.every((other) => teamWorks(other, players));
+    });
+    if (to) fits.push({ playerId: player.id, to: to.id });
+  }
+  return fits;
 }

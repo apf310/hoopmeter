@@ -75,12 +75,15 @@ export type Player = {
 export const RADAR_CATEGORIES = ["scoring", "shooting", "playmaking", "defense", "rebounding", "efficiency"] as const;
 export type RadarCategory = (typeof RADAR_CATEGORIES)[number];
 
-/** `players.radar_attributes`, rellenado por `player_radar_calc.py` (percentiles 0-99). */
+/**
+ * `players.radar_attributes`, rellenado por `player_radar_calc.py`: atributos de 40 a 99 frente a la rotación (Tarea 7.10).
+ * En activo sin partidos esta temporada: los seis a 0, `games_played` 0 y sin media (`getRadar` devuelve null).
+ */
 export type RadarAttributes = Record<RadarCategory, number> & {
   season: string;
-  /** Media (Tarea 6.19): percentil del Game Score por partido; null si no entra en la escala. Falta en radares anteriores. */
+  /** Media de 40 a 99 (Tarea 7.10), proporcional al Game Score por partido; null sin partidos. Falta en radares anteriores a la 6.19. */
   overall?: number | null;
-  /** En la escala: jugador de rotación (40 % de los partidos y 15+ minutos). */
+  /** Marca la escala de los atributos: jugador de rotación (40 % de los partidos y 15+ minutos). */
   qualified: boolean;
   games_played: number;
   /** Minutos totales de la temporada (desde la Tarea 6.19). */

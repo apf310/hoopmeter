@@ -1,17 +1,19 @@
 // Fichas 3D de jugador (Tarea 7.4): nivel, textos y tamaños. Puro y sin dependencias: se prueba con `npm test`.
 // El nivel sale de la media (solo cambia en el job diario), así que se ve en los tres niveles de spoilers.
+import { ratingLevel } from "./player-rating.ts";
 
 /** Material de la ficha: oro, refractor, onda esmeralda, zafiro o cartón con parquet. */
 export type CardTier = "legend" | "elite" | "great" | "good" | "base";
 
-/** Mismos tramos que `tierOf` (lib/player-profile.ts); sin media, la ficha mate. */
+/**
+ * Mismos cortes que `tierOf` (`ratingLevel`, Tarea 7.10): 84+ refractor, 70-83 esmeralda, 55-69 zafiro y
+ * menos de 55 cartón, igual que quien aún no ha jugado esta temporada (sin media).
+ */
 export function cardTier(isActive: boolean, overall: number | null): CardTier {
   if (!isActive) return "legend";
   if (overall === null) return "base";
-  if (overall >= 90) return "elite";
-  if (overall >= 75) return "great";
-  if (overall >= 45) return "good";
-  return "base";
+  const level = ratingLevel(overall);
+  return level === "low" ? "base" : level;
 }
 
 /** Premios que caben en la ficha de una leyenda: claves de `trophyCounts` (components/trophies/trophy-catalog.ts). */

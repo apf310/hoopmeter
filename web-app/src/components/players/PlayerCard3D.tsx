@@ -43,6 +43,7 @@ type PlayerCard3DProps = {
   name: string;
   tier: CardTier;
   team?: CardTeam | null;
+  /** Media de 40 a 99; null = aún sin partidos esta temporada ("–"); sin pasar, no hay insignia. */
   overall?: number | null;
   /** Arquetipo o, en las leyendas, su palmarés. */
   line?: string;
@@ -107,9 +108,10 @@ export function PlayerCard3D({ id, name, tier, team, overall, line, position, no
             <small>Leyenda</small>
           </div>
         )}
-        {overall != null && (
+        {/* null = en activo y aún sin partidos esta temporada (Tarea 7.10): "–", nunca la del año pasado */}
+        {tier !== "legend" && overall !== undefined && (
           <div className="hc-badge">
-            <b>{overall}</b>
+            <b>{overall ?? "–"}</b>
             <small>Media</small>
           </div>
         )}

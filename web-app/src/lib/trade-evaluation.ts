@@ -36,7 +36,7 @@ Reglas OBLIGATORIAS:
 - "headline": titular de cada equipo, 8 palabras como máximo.
 - "grade": de A+ a F. Usa toda la escala con honestidad: un robo o un disparate deben verse en la nota, y no todo merece una B.
 - "summary": una frase de 30 palabras como máximo con la conclusión del traspaso.
-- Los atributos son percentiles de 0 a 99 frente al resto de la liga: no los cites, tradúcelos a lenguaje de baloncesto.
+- Los atributos van de 40 (el último de los jugadores de rotación) a 99 (el primero): no los cites, tradúcelos a lenguaje de baloncesto.
 - Si un contrato aún no es público y su salario es una estimación del aficionado, dilo así: nunca lo presentes como una cifra oficial.
 - Texto plano: sin markdown ni emojis. Salarios en millones ("25,8 millones").`;
 

@@ -46,7 +46,7 @@ export type ExplorerRow = {
   /** Salario de la temporada del GM: null si no hay cifra (nunca inventada). */
   salary: number | null;
   salaryStatus: "confirmed" | "approx" | "pending" | null;
-  /** Media de la ficha (Tarea 6.19): solo si su radar es de esta temporada y entra en la escala. */
+  /** Media de la ficha (Tareas 6.19 y 7.10): la tiene todo el que ha jugado; null si su radar no es de esta temporada. */
   overall: number | null;
   /** Fracciones 0-1 calculadas con los boxscores (solo la temporada en curso). */
   usgPct: number | null;
@@ -85,7 +85,7 @@ export type StatKey =
 
 /**
  * count = se divide según el modo · games = partidos, siempre enteros · minutes = por partido (o totales)
- * pct = fracción 0-1 · ratio = cociente con 2 decimales · rating = media 0-99 · money = salario.
+ * pct = fracción 0-1 · ratio = cociente con 2 decimales · rating = media 40-99 · money = salario.
  */
 type StatKind = "count" | "games" | "minutes" | "pct" | "ratio" | "rating" | "money";
 
@@ -127,7 +127,7 @@ const STAT_LIST: StatDef[] = [
   { key: "ast_pct", label: "AST%", name: "Asistencias (AST%)", hint: "% de canastas de sus compañeros que asiste él mientras está en pista", kind: "pct" },
   { key: "reb_pct", label: "REB%", name: "Rebotes (REB%)", hint: "% de los rebotes que coge él mientras está en pista", kind: "pct" },
   { key: "ast_tov", label: "AST/PÉR", name: "Asistencias por pérdida", kind: "ratio" },
-  { key: "overall", label: "MEDIA", name: "Media Hoopmeter", hint: "la de su ficha, frente a los jugadores de rotación", kind: "rating" },
+  { key: "overall", label: "MEDIA", name: "Media Hoopmeter", hint: "la de su ficha: de 40 a 99, según lo que aporta por partido", kind: "rating" },
   { key: "salary", label: "M$", name: "Salario", kind: "money" },
 ];
 

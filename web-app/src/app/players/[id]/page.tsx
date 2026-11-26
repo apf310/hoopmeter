@@ -30,11 +30,13 @@ import {
   avg,
   formatDraft,
   getRadar,
+  NO_GAMES_NOTE,
   OVERALL_EXPLAINED,
   overallRating,
   pct,
   positionLabel,
   RADAR_LABEL,
+  ratingShare,
   sampleNote,
   shotPct,
   tierOf,
@@ -142,7 +144,7 @@ async function PlayerContent({ params }: { params: PageProps<"/players/[id]">["p
         ) : (
           <p className="py-4 text-sm text-slate-400">
             {player.is_active ? (
-              "Aún no hay datos suficientes para calcular sus atributos."
+              NO_GAMES_NOTE
             ) : (
               <>
                 Este radar solo existe para jugadores en activo.{" "}
@@ -308,7 +310,7 @@ function PlayerHero({
               team={team}
               overall={overall}
               line={line || position || undefined}
-              note={overall === null ? ((radar && sampleNote(radar)) ?? undefined) : OVERALL_EXPLAINED}
+              note={overall !== null ? OVERALL_EXPLAINED : player.is_active ? NO_GAMES_NOTE : undefined}
               bare
               priority
               greet
@@ -384,7 +386,7 @@ function SectionNav({ active }: { active: boolean }) {
   );
 }
 
-/** Barras de percentil con su nivel en palabras y la marca de la media de la liga (50). */
+/** Barras de 40 a 99 (vacía en 40, llena en 99) con su nivel en palabras y la marca de la mitad de la rotación. */
 function AttributeBars({ radar }: { radar: RadarAttributes }) {
   const note = sampleNote(radar);
   return (
@@ -403,7 +405,7 @@ function AttributeBars({ radar }: { radar: RadarAttributes }) {
                 </span>
               </div>
               <div className="relative mt-1 h-2 bg-slate-800">
-                <div className="h-full" style={{ width: `${value}%`, background: tier.color }} />
+                <div className="h-full" style={{ width: `${ratingShare(value) * 100}%`, background: tier.color }} />
                 <span className="absolute -top-1 left-1/2 h-4 w-px bg-slate-400" title="Media de la liga" aria-hidden />
               </div>
             </li>
@@ -411,8 +413,8 @@ function AttributeBars({ radar }: { radar: RadarAttributes }) {
         })}
       </ul>
       <p className="mt-5 text-xs leading-relaxed text-slate-400">
-        Percentil frente a los jugadores de rotación de la temporada {radar.season} (15 minutos o más en al menos el 40 % de los partidos):
-        un 90 significa que supera al 90 % de ellos. La línea vertical marca la mitad de la tabla. La media de arriba sale de lo que aporta por
+        De 40 a 99 frente a los jugadores de rotación de la temporada {radar.season} (15 minutos o más en al menos el 40 % de los partidos):
+        99 es el primero de ellos y 40, el último. La línea vertical marca la mitad de la tabla. La media de arriba sale de lo que aporta por
         partido (Game Score), no de estas barras.
         {note && ` ${note}`}
       </p>

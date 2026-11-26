@@ -12,7 +12,7 @@ import { TradeCardExport } from "@/components/share/TradeShareCard";
 import { buildTrade, canonicalTrade, MAX_TEAMS, pickKey, type GmData, type GmPlayer, type GmTeam, type TradeEvaluation, type TradeRequest } from "@/lib/gm";
 import { tradeSearch, type RestoredTrade } from "@/lib/gm-link";
 import { teamLogoUrl } from "@/lib/nba-cdn";
-import { checkTrade, type DraftPick } from "@/lib/trade-rules";
+import { checkTrade, fittingContracts, type DraftPick } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
 
 const withoutKey = <T,>(record: Record<string, T>, key: string | number) =>
@@ -88,6 +88,16 @@ export function TradeMachine({
   }, [search, pendingPlayer]);
 
   const payrollAfter = useMemo(() => new Map(verdict?.teams.map((report) => [report.teamId, report.payrollAfter])), [verdict]);
+  // Contratos que encajan (Tarea 7.9): solo de los equipos cuyo salario no cuadra
+  const fits = useMemo(
+    () =>
+      new Map(
+        trade && verdict
+          ? verdict.teams.filter((report) => report.gap).map((report) => [report.teamId, fittingContracts(trade, report.teamId, playersOf.get(report.teamId) ?? [])])
+          : []
+      ),
+    [trade, verdict, playersOf]
+  );
 
   function toggleTeam(teamId: number) {
     if (teamIds.includes(teamId)) {
@@ -190,6 +200,7 @@ export function TradeMachine({
                   playerMoves={playerMoves}
                   pickMoves={pickMoves}
                   estimates={estimates}
+                  fits={fits.get(team.id) ?? []}
                   onPlayer={movePlayer}
                   onPick={movePick}
                   onEstimate={estimate}

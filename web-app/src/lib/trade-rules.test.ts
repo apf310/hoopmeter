@@ -6,7 +6,9 @@ import {
   checkTrade,
   expandedLimit,
   FIRST_APRON,
+  fittingContracts,
   formatMoney,
+  formatMoneyUp,
   isValidEstimate,
   MAX_SALARY,
   MIN_SALARY,
@@ -385,5 +387,108 @@ describe("contratos sin cifra pública (Tarea 4.4)", () => {
     assert.equal(verdict.status, "valid");
     assert.ok(verdict.warnings.some((w) => w.teamId === 1 && /2 contratos firmados/.test(w.message)));
     assert.ok(verdict.warnings.some((w) => w.teamId === 1 && /dinero muerto por confirmar/.test(w.message)));
+  });
+});
+
+describe("lo que falta para cuadrar (Tarea 7.9)", () => {
+  const ok = (a: TradeTeam, sent: number[], received: number[]) => forTeam(a, sent, received).report.ok;
+
+  it("enviar justo lo que falta cuadra y un dólar menos no, en un barrido de casos", () => {
+    let checked = 0;
+    for (const [abbreviation, payroll] of [["NYK", 150], ["NYK", 190], ["NYK", 207], ["NYK", 215], ["NYK", 230], ["MIA", 205], ["HOU", 219]] as const) {
+      const a = team(1, abbreviation, payroll * M);
+      for (const sent of [[], [5 * M], [10 * M], [8 * M, 6 * M], [20 * M, 3 * M]]) {
+        for (const received of [[14 * M], [30 * M], [12 * M, 9 * M], [26 * M, 2 * M]]) {
+          const { report } = forTeam(a, sent, received);
+          if (report.ok) {
+            assert.equal(report.gap, null);
+            continue;
+          }
+          checked += 1;
+          const { send, receive } = report.gap!;
+          const label = `${abbreviation} ${payroll} ${sent} ${received}`;
+          assert.ok(ok(a, [...sent, send], received), `enviar ${send}: ${label}`);
+          assert.ok(!ok(a, [...sent, send - 1], received), `enviar ${send - 1}: ${label}`);
+          // Recibir menos: todos los sueldos recibidos recortados hasta un mismo tope (primero los más altos)
+          const capAt = (level: number) => received.map((s) => Math.min(s, level)).filter((s) => s > 0);
+          const cut = (level: number) => received.reduce((total, s) => total + Math.max(0, s - level), 0);
+          let level = Math.max(...received);
+          while (cut(level) < receive) level -= 1_000;
+          while (cut(level) > receive) level += 1;
+          assert.equal(cut(level), receive, label);
+          assert.ok(ok(a, sent, capAt(level)), `recibir ${receive} menos: ${label}`);
+          assert.ok(!ok(a, sent, capAt(level + 1)), `recibir algo menos de ${receive} menos: ${label}`);
+        }
+      }
+    }
+    assert.ok(checked > 20, `solo ${checked} casos sin cuadrar`);
+  });
+
+  it("con un solo jugador recibido, lo que sobra es lo que pasa del límite que se muestra", () => {
+    for (const payroll of [170, 200, 215, 230].map((m) => m * M)) {
+      for (const sent of [5, 15, 30].map((m) => m * M)) {
+        const { report } = forTeam(team(1, "NYK", payroll), [sent], [sent * 3]);
+        assert.equal(report.gap?.receive, report.incoming - report.maxIncoming, `${payroll} ${sent}`);
+      }
+    }
+  });
+
+  it("el aviso dice cuánto, redondeado hacia arriba", () => {
+    const { verdict, report } = forTeam(team(1, "NYK", 215 * M), [10 * M], [12 * M]);
+    assert.deepEqual(report.gap, { send: 2 * M, receive: 2 * M });
+    assert.match(verdict.errors[0].message, /Para cuadrar, tendría que enviar 2,0 M\$ más o recibir 2,0 M\$ menos\.$/);
+    assert.equal(formatMoneyUp(2_030_000), "2,1 M$");
+    assert.equal(formatMoneyUp(30_000), "0,1 M$");
+  });
+
+  it("también con el hard cap", () => {
+    const { verdict, report } = forTeam(team(1, "MIA", 208 * M), [10 * M], [12 * M]);
+    assert.ok(report.gap);
+    assert.match(verdict.errors[0].message, /hard cap.*Para cuadrar/);
+  });
+
+  it("sin la cifra de un contrato no se calcula", () => {
+    const a = team(1, "NYK", 215 * M);
+    const b = team(2, "BKN", 120 * M);
+    const verdict = checkTrade(trade([a, b], [[player(1, 10 * M), 2], [player(2, 12 * M), 1], [player(2, 0, { salaryStatus: "pending" }), 1]]), TODAY);
+    assert.equal(verdict.teams[0].ok, false);
+    assert.equal(verdict.teams[0].gap, null);
+  });
+});
+
+describe("contratos que encajan (Tarea 7.9)", () => {
+  const a = team(1, "NYK", 215 * M);
+  const b = team(2, "BKN", 120 * M);
+  const sent = player(1, 10 * M);
+  const base = trade([a, b], [[sent, 2], [player(2, 12 * M), 1]]);
+  const roster = [sent, player(1, 1 * M), player(1, 2 * M), player(1, 5 * M), player(1, 0, { salaryStatus: "pending" }), player(2, 30 * M)];
+
+  it("solo los de su plantilla, fuera del traspaso, con cifra y que lo hacen cuadrar", () => {
+    assert.deepEqual(fittingContracts(base, 1, roster), [roster[2], roster[3]].map((p) => ({ playerId: p.id, to: 2 })));
+    // Cada uno, de verdad, lo arregla
+    for (const { playerId, to } of fittingContracts(base, 1, roster)) {
+      const extra = roster.find((p) => p.id === playerId)!;
+      assert.equal(checkTrade({ ...base, players: [...base.players, { player: extra, to }] }, TODAY).status, "valid");
+    }
+  });
+
+  it("nunca descuadra al equipo que lo recibe", () => {
+    const tight = team(2, "ORL", 215 * M);
+    const deal = trade([a, tight], [[sent, 2], [player(2, 12 * M), 1]]);
+    // ORL acabaría sobre el primer apron recibiendo más de lo que envía: solo vale el de 2 M$
+    assert.deepEqual(fittingContracts(deal, 1, roster), [{ playerId: roster[2].id, to: 2 }]);
+  });
+
+  it("a tres bandas, busca el destino que lo permite", () => {
+    const c = team(3, "ORL", 215 * M);
+    const deal = trade([a, c, b], [[sent, 3], [player(3, 12 * M), 1]]);
+    // ORL no puede recibir más; BKN, con espacio, sí
+    assert.deepEqual(fittingContracts(deal, 1, [roster[3]]), [{ playerId: roster[3].id, to: 2 }]);
+  });
+
+  it("nada si ya cuadra o si falta una cifra", () => {
+    assert.deepEqual(fittingContracts(trade([a, b], [[sent, 2], [player(2, 10 * M), 1]]), 1, roster), []);
+    const unknown = trade([a, b], [[sent, 2], [player(2, 12 * M), 1], [player(2, 0, { salaryStatus: "pending" }), 1]]);
+    assert.deepEqual(fittingContracts(unknown, 1, roster), []);
   });
 });

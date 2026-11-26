@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Check, Clock, X } from "lucide-react";
+import { Check, CheckCircle2, Clock, X, XCircle } from "lucide-react";
 import { SalaryCapBar } from "@/components/gm/SalaryCapBar";
 import { PlayerPhoto } from "@/components/players/PlayerPhoto";
 import { pickKey, type GmPlayer, type GmTeam } from "@/lib/gm";
@@ -11,6 +11,7 @@ import { tierOf } from "@/lib/player-profile";
 import {
   APRON_LABEL,
   formatMoney,
+  formatMoneyUp,
   formatTradeDate,
   isValidEstimate,
   MAX_SALARY,
@@ -20,6 +21,7 @@ import {
   tradableFrom,
   ZONE_LABEL,
   type DraftPick,
+  type SalaryGap,
   type TeamReport,
 } from "@/lib/trade-rules";
 import { cn } from "@/lib/utils";
@@ -46,6 +48,7 @@ export function TeamPanel({
   playerMoves,
   pickMoves,
   estimates,
+  fits,
   onPlayer,
   onPick,
   onEstimate,
@@ -54,6 +57,8 @@ export function TeamPanel({
   team: GmTeam;
   players: GmPlayer[];
   report: TeamReport;
+  /** Contratos suyos que harían cuadrar su salario (Tarea 7.9), con el equipo al que irían. */
+  fits: { playerId: number; to: number }[];
   /** Los otros equipos del traspaso: posibles destinos de sus activos. */
   partners: GmTeam[];
   today: string;
@@ -65,8 +70,19 @@ export function TeamPanel({
   onEstimate: (playerId: number, salary: number | null) => void;
   onRemove: () => void;
 }) {
-  const { payrollAfter, hardCap, rosterAfter } = report;
+  const { payrollAfter, hardCap, rosterAfter, gap } = report;
   const moved = payrollAfter !== team.payroll;
+  const [showFits, setShowFits] = useState(false);
+  // Ya cuadra: la próxima vez que no cuadre, los contratos que encajan vuelven a estar ocultos
+  if (showFits && !gap) setShowFits(false);
+  const fitTo = new Map(showFits ? fits.map(({ playerId, to }) => [playerId, to]) : []);
+
+  function toggleFits() {
+    const first = !showFits && fits[0];
+    setShowFits(!showFits);
+    // El primero que encaja puede quedar lejos, más abajo en la plantilla
+    if (first) requestAnimationFrame(() => document.getElementById(`gm-player-${first.playerId}`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+  }
 
   return (
     <div>
@@ -105,6 +121,8 @@ export function TeamPanel({
         <div className="relative h-1" style={{ background: team.accent }} aria-hidden />
       </header>
 
+      {gap && <SalaryFix team={team} gap={gap} fits={fits.length} showing={showFits} onToggle={toggleFits} />}
+
       <h3 className="border-b border-slate-800 px-4 pb-2 pt-4 font-display text-lg font-bold uppercase tracking-wide text-white">
         Plantilla <span className="text-slate-500">{players.length}</span>
       </h3>
@@ -118,6 +136,7 @@ export function TeamPanel({
             today={today}
             to={playerMoves[player.id] ?? null}
             estimate={estimates[player.id] ?? null}
+            fitTo={fitTo.get(player.id) ?? null}
             onChange={(to) => onPlayer(player.id, to)}
             onEstimate={(salary) => onEstimate(player.id, salary)}
           />
@@ -159,6 +178,43 @@ export function TeamPanel({
   );
 }
 
+/** El salario de este equipo no cuadra: cuánto le falta o le sobra y qué contratos suyos lo arreglarían (Tarea 7.9). */
+function SalaryFix({ team, gap, fits, showing, onToggle }: { team: GmTeam; gap: SalaryGap; fits: number; showing: boolean; onToggle: () => void }) {
+  return (
+    <section aria-label={`Cómo cuadrar el salario de ${team.name}`} className="relative border-b border-slate-800 bg-red-950/40 px-4 py-3">
+      <span className="absolute inset-y-0 left-0 w-1 bg-red-500" aria-hidden />
+      <p className="flex items-center gap-1.5 font-display text-sm font-extrabold uppercase tracking-wider text-red-300">
+        <XCircle className="size-4 shrink-0" />
+        Su salario no cuadra
+      </p>
+      <p className="mt-1 text-sm leading-snug text-slate-200">
+        Tendría que enviar <Amount>{formatMoneyUp(gap.send)}</Amount> más o recibir <Amount>{formatMoneyUp(gap.receive)}</Amount> menos.
+      </p>
+      {fits > 0 ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-pressed={showing}
+          className={cn(
+            "mt-2.5 inline-flex h-10 items-center gap-1.5 border px-3 font-display text-sm font-bold uppercase tracking-wider outline-none transition-colors focus-visible:ring-2 focus-visible:ring-emerald-300",
+            showing ? "border-emerald-400 bg-emerald-400 text-slate-950" : "border-emerald-500/70 text-emerald-300 hover:bg-emerald-500/10"
+          )}
+        >
+          <CheckCircle2 className="size-4" />
+          {showing ? `${fits === 1 ? "Marcado" : "Marcados"} en verde` : "Contratos que encajan"}
+          <span className={cn("px-1.5 tabular-nums", showing ? "bg-slate-950 text-emerald-300" : "bg-emerald-500/20")}>{fits}</span>
+        </button>
+      ) : (
+        <p className="mt-1 text-xs text-slate-400">Ningún otro contrato suyo lo arregla por sí solo.</p>
+      )}
+    </section>
+  );
+}
+
+function Amount({ children }: { children: React.ReactNode }) {
+  return <strong className="font-display text-base font-bold text-white tabular-nums">{children}</strong>;
+}
+
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -175,6 +231,7 @@ function PlayerRow({
   today,
   to,
   estimate,
+  fitTo,
   onChange,
   onEstimate,
 }: {
@@ -185,6 +242,8 @@ function PlayerRow({
   to: number | null;
   /** Estimación del usuario si el contrato aún no tiene cifra pública. */
   estimate: number | null;
+  /** Encaja (Tarea 7.9): enviado a este equipo, su salario cuadra. Solo si el usuario pidió verlos. */
+  fitTo: number | null;
   onChange: (to: number | null) => void;
   onEstimate: (salary: number | null) => void;
 }) {
@@ -195,11 +254,11 @@ function PlayerRow({
   const details = [player.position, player.age && `${player.age} años`, contractLength(player), player.option && OPTION_LABEL[player.option]].filter(Boolean).join(" · ");
 
   return (
-    <li className={cn("relative border-b border-slate-800/80", selected && "bg-orange-500/10")}>
-      {selected && <span className="absolute inset-y-0 left-0 w-1 bg-orange-500" aria-hidden />}
+    <li id={`gm-player-${player.id}`} className={cn("relative border-b border-slate-800/80", selected ? "bg-orange-500/10" : fitTo !== null && "bg-emerald-500/10")}>
+      {(selected || fitTo !== null) && <span className={cn("absolute inset-y-0 left-0 w-1", selected ? "bg-orange-500" : "bg-emerald-400")} aria-hidden />}
       <button
         type="button"
-        onClick={() => onChange(selected ? null : partners[0].id)}
+        onClick={() => onChange(selected ? null : (fitTo ?? partners[0].id))}
         aria-pressed={selected}
         className="flex w-full items-center gap-3 px-4 py-1.5 text-left transition-colors hover:bg-slate-900"
       >
@@ -214,6 +273,12 @@ function PlayerRow({
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold text-white">{player.name}</span>
           <span className="block truncate text-xs text-slate-300">{details}</span>
+          {fitTo !== null && (
+            <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-emerald-300">
+              <CheckCircle2 className="size-3 shrink-0" />
+              {partners.length > 1 ? `Encaja si va a ${partners.find((partner) => partner.id === fitTo)?.abbreviation}` : "Encaja: con él cuadra"}
+            </span>
+          )}
           {locked && (
             <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-amber-300">
               <Clock className="size-3 shrink-0" />

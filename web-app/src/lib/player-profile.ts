@@ -1,5 +1,6 @@
 // Interpretación "para todos los públicos" del radar: etiquetas, niveles, media y arquetipo.
 import { RADAR_CATEGORIES, type Player, type RadarAttributes, type RadarCategory } from "@/lib/supabase";
+import { RATING_CUTS, RATING_MIDDLE, ratingLevel, type RatingLevel } from "./player-rating";
 
 export const RADAR_LABEL: Record<RadarCategory, string> = {
   scoring: "Anotación",
@@ -12,21 +13,38 @@ export const RADAR_LABEL: Record<RadarCategory, string> = {
 
 export type Tier = { label: string; color: string; textClass: string };
 
-/** Nivel de un percentil 0-99 con el color que se usa en barras, insignias y radar. */
+const TIERS: Record<RatingLevel, Tier> = {
+  elite: { label: "Élite", color: "#f59e0b", textClass: "text-amber-400" },
+  great: { label: "Notable", color: "#10b981", textClass: "text-emerald-400" },
+  good: { label: "Bueno", color: "#38bdf8", textClass: "text-sky-400" },
+  low: { label: "Mejorable", color: "#64748b", textClass: "text-slate-400" },
+};
+
+/** Nivel de una media o un atributo (escala 40-99, Tarea 7.10) con el color de barras, insignias y radar. */
 export function tierOf(value: number): Tier {
-  if (value >= 90) return { label: "Élite", color: "#f59e0b", textClass: "text-amber-400" };
-  if (value >= 75) return { label: "Notable", color: "#10b981", textClass: "text-emerald-400" };
-  if (value >= 45) return { label: "Bueno", color: "#38bdf8", textClass: "text-sky-400" };
-  return { label: "Mejorable", color: "#64748b", textClass: "text-slate-400" };
+  return TIERS[ratingLevel(value)];
 }
 
+/** Radar de la temporada, o null si no hay (leyendas) o si aún no ha jugado: sus ceros no se dibujan (Tarea 7.10). */
 export function getRadar(player: Pick<Player, "radar_attributes">): RadarAttributes | null {
   const radar = player.radar_attributes as Partial<RadarAttributes>;
-  return RADAR_CATEGORIES.every((c) => typeof radar?.[c] === "number") ? (radar as RadarAttributes) : null;
+  if (!RADAR_CATEGORIES.every((c) => typeof radar?.[c] === "number") || radar.games_played === 0) return null;
+  return radar as RadarAttributes;
 }
 
-// Media, avisos de muestra corta y % de tiro con pocos intentos (Tarea 6.19): módulo puro con tests
-export { MIN_PCT_ATTEMPTS, OVERALL_EXPLAINED, overallRating, SHORT_SAMPLE_GAMES, sampleNote, shotPct } from "./player-rating";
+// Media, escala, avisos de muestra corta y % de tiro con pocos intentos (Tareas 6.19 y 7.10): módulo puro con tests
+export {
+  MIN_PCT_ATTEMPTS,
+  NO_GAMES_NOTE,
+  OVERALL_EXPLAINED,
+  overallRating,
+  RATING_CUTS,
+  RATING_MIDDLE,
+  ratingShare,
+  SHORT_SAMPLE_GAMES,
+  sampleNote,
+  shotPct,
+} from "./player-rating";
 
 // Arquetipo según sus dos mejores atributos (clave ordenada como RADAR_CATEGORIES).
 const ARCHETYPES: Record<string, string> = {
@@ -49,9 +67,10 @@ const ARCHETYPES: Record<string, string> = {
 
 export function archetypeOf(radar: RadarAttributes): string {
   const ranked = [...RADAR_CATEGORIES].sort((a, b) => radar[b] - radar[a]);
-  // Solo los muy completos (sin ningún atributo flojo); el resto se define por sus dos puntos fuertes
-  if (RADAR_CATEGORIES.every((c) => radar[c] >= 75)) return "Jugador total";
-  if (radar[ranked[0]] < 50) return "Jugador de rotación";
+  // Solo los muy completos (los seis élite: entre el mejor cuarto de la rotación); el resto, por sus dos puntos fuertes
+  if (RADAR_CATEGORIES.every((c) => radar[c] >= RATING_CUTS.elite)) return "Jugador total";
+  // Ningún atributo por encima de la mitad de la rotación
+  if (radar[ranked[0]] < RATING_MIDDLE) return "Jugador de rotación";
   const key = ranked
     .slice(0, 2)
     .sort((a, b) => RADAR_CATEGORIES.indexOf(a) - RADAR_CATEGORIES.indexOf(b))

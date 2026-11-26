@@ -9,7 +9,7 @@ import type { TradeEvaluation } from "./gm";
 import { getSupabase } from "./supabase.ts";
 
 /** Subirla al cambiar el *prompt* o el modelo: las guardadas con la anterior dejan de valer. */
-const EVALUATION_VERSION = 1;
+const EVALUATION_VERSION = 2;
 const DEFAULT_DAILY_LIMIT = 300;
 const TIMEOUT_MS = 2_500;
 const MEMORY_MS = 24 * 3_600_000;

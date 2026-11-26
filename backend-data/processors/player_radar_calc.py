@@ -1,31 +1,39 @@
-"""Tarea 2.1 — Percentiles 0-99 del radar de 6 atributos de cada jugador.
+"""Tareas 2.1, 6.19 y 7.10 — Radar de 6 atributos y "Media" de cada jugador, de 40 a 99.
 
 Las métricas de cada jugador salen de los boxscores guardados (`player_game_stats`, Tarea 5.2b:
 stats.nba.com bloquea la nube), con las mismas claves que LeagueDashPlayerStats Base + Advanced, y se
 guarda en `players.radar_attributes`:
 
-    {"season": "2025-26", "scoring": 91, "shooting": 64, "playmaking": 99,
-     "defense": 72, "rebounding": 97, "efficiency": 95, "overall": 98,
-     "qualified": true, "games_played": 70, "minutes": 2436, "updated_at": "..."}
+    {"season": "2026-27", "scoring": 98, "shooting": 93, "playmaking": 98,
+     "defense": 96, "rebounding": 86, "efficiency": 96, "overall": 99,
+     "qualified": true, "games_played": 16, "minutes": 579, "updated_at": "..."}
 
-Tarea 6.19 — lo más justo y objetivo posible, siempre la temporada frente a los jugadores actuales:
+Lo más justo y objetivo posible, siempre la temporada en curso frente a los jugadores actuales:
 - Cada atributo combina varias métricas (percentil de cada una o, en defensa, desviaciones típicas)
-  con su media ponderada, que se vuelve a convertir en percentil.
-- La escala la marcan los jugadores de rotación (40 % de los partidos y 15+ minutos); los demás se
-  sitúan sobre ella con `qualified: false`, sin media, y la ficha avisa de la muestra corta.
+  con su media ponderada (el "compuesto").
+- Con pocos partidos, el compuesto y el Game Score se acercan a los de un suplente (percentil 30 de
+  todos los que han jugado): pesa `GP / (GP + 4)` lo suyo. Así todo el que ha jugado tiene media
+  (Tarea 7.10) y un buen partido suelto no lo sube arriba del todo: sube según juega.
+- La escala la marcan los jugadores de rotación (40 % de los partidos y 15+ minutos, `qualified`):
+  cada atributo = 40 + 59 · su percentil frente a ellos (40 el último, 99 el primero).
+- `overall` ("Media") = 40 + 59 · (Game Score / ancla)^0,75: proporcional a lo que aporta por
+  partido (Hollinger, público), no un percentil. El ancla es la media de los 3 mejores de la
+  rotación y quien la supera se queda en 99: con "el mejor" de ancla, un MVP descomunal hundía a
+  todos (2024-25: Jokić, 28,7 por partido, y solo 11 jugadores con 84+). Validado con 2023-24,
+  2024-25 y 2025-26: los All-NBA, entre 79 y 99 (mediana 86-88), y 22-27 jugadores con 84+.
+- Quien no ha jugado ningún partido de la temporada: atributos a 0 y sin media (nunca la del año
+  pasado). Las leyendas no se tocan.
 - Defensa = robos + tapones en desviaciones típicas, como el comparador (Tarea 6.4). DEF_RATING
   medía sobre todo al equipo: Holmgren, del Quinteto Defensivo de 2025-26, era el 35.º.
 - Los porcentajes (triples, TS%) se acercan a la media de la liga según los intentos (Bayes
   empírico, `PRIOR_*`): con 15 triples un 13 % o un 54 % no dicen casi nada.
-- `overall` ("Media") = percentil del Game Score por partido (Hollinger, público). La media de los
-  4 mejores atributos subía a los pívots de rol (rebote, eficiencia y tapones van juntos): con
-  2024-25 y 2025-26, Game Score coloca a los All-NBA igual o mejor y deja a Hartenstein o Allen
-  por detrás de LeBron o Brunson.
-Si la temporada lleva menos de 10 partidos se usa la anterior (salvo que se pase --season).
+- Game Score y no la media de los 4 mejores atributos, que subía a los pívots de rol (rebote,
+  eficiencia y tapones van juntos): con 2024-25 y 2025-26, Game Score coloca a los All-NBA igual o
+  mejor y deja a Hartenstein o Allen por detrás de LeBron o Brunson.
 
 Uso (desde backend-data/):
     python -m processors.player_radar_calc                    # temporada actual
-    python -m processors.player_radar_calc --season 2026-27
+    python -m processors.player_radar_calc --season 2025-26   # otra (sin tocar a quien no jugó)
     python -m processors.player_radar_calc --dry-run          # muestra el top sin escribir
     python -m processors.player_radar_calc --official         # métricas de stats.nba.com (solo desde un PC)
 """
@@ -44,7 +52,6 @@ from extractors.fetch_teams_players import upsert
 
 TIMEOUT = 60
 PAGE_SIZE = 1000
-MIN_SEASON_GAMES = 10      # por debajo, la temporada es demasiado ruidosa: se usa la anterior
 QUALIFY_GP_SHARE = 0.4     # en la escala: >= 40% de los partidos del líder en GP...
 QUALIFY_MIN = 15.0         # ...y >= 15 minutos por partido (la rotación; como el comparador)
 MIN_FG3A = 1.0             # el % de triples solo cuenta con >= 1 intento por partido
@@ -52,6 +59,12 @@ MIN_FG3A = 1.0             # el % de triples solo cuenta con >= 1 intento por pa
 # los jugadores de rotación: 311 y 324 triples, 163 y 160 tiros en 2024-25 y 2025-26)
 PRIOR_FG3A = 320
 PRIOR_TSA = 160
+# Tarea 7.10: escala de 40 a 99 para todo el que ha jugado
+PRIOR_GAMES = 4            # con GP partidos pesa GP / (GP + 4) lo suyo y el resto, lo de un suplente
+BENCH_PERCENTILE = 30      # "un suplente": el percentil 30 de todos los que han jugado
+SCALE_MIN, SCALE_MAX = 40, 99
+ANCHOR_TOP = 3             # el 99 de la media: la media de los 3 mejores de la rotación
+CURVE = 0.75               # media = 40 + 59 · (Game Score / ancla)^0,75
 
 # atributo -> (cómo se combinan, [(métrica, peso)]). "percentile": percentil de cada métrica;
 # "spread": desviaciones típicas sin techo (un récord de tapones no vale lo mismo que ser el 1 % mejor).
@@ -64,11 +77,6 @@ CATEGORIES = {
     "efficiency": ("percentile", [("TS_PCT_ADJ", 0.6), ("PIE", 0.4)]),
 }
 ADVANCED_COLS = ["USG_PCT", "AST_PCT", "REB_PCT", "TS_PCT", "PIE"]
-
-
-def previous_season(season: str) -> str:
-    start = int(season[:4]) - 1
-    return f"{start}-{(start + 1) % 100:02d}"
 
 
 def fetch_league(season: str) -> pd.DataFrame:
@@ -85,11 +93,12 @@ def fetch_league(season: str) -> pd.DataFrame:
     return base.merge(adv[["PLAYER_ID", *ADVANCED_COLS]], on="PLAYER_ID", how="left")
 
 
-def percentile_vs(values: pd.Series, pool: np.ndarray) -> np.ndarray:
+def percentile_vs(values, pool) -> np.ndarray:
     """Percentil (0-1) de cada valor respecto a la distribución `pool` (rango medio en empates)."""
-    pool = np.sort(pool)
-    lo = np.searchsorted(pool, values.to_numpy(), side="left")
-    hi = np.searchsorted(pool, values.to_numpy(), side="right")
+    values = np.asarray(values, dtype=float)
+    pool = np.sort(np.asarray(pool, dtype=float))
+    lo = np.searchsorted(pool, values, side="left")
+    hi = np.searchsorted(pool, values, side="right")
     return (lo + hi) / 2 / len(pool)
 
 
@@ -99,6 +108,13 @@ def shrink(made: pd.Series, attempts: pd.Series, prior: float, pool: np.ndarray)
     return (made + prior * league) / (attempts + prior)
 
 
+def toward_bench(values, games) -> np.ndarray:
+    """Acerca cada valor al de un suplente (percentil 30 de todos) según sus partidos: pesa GP / (GP + 4) lo suyo."""
+    values, games = np.asarray(values, dtype=float), np.asarray(games, dtype=float)
+    weight = games / (games + PRIOR_GAMES)
+    return weight * values + (1 - weight) * np.percentile(values, BENCH_PERCENTILE)
+
+
 def game_score(df: pd.DataFrame) -> pd.Series:
     """Game Score de Hollinger por partido (es lineal: vale con los promedios)."""
     return (df["PTS"] + 0.4 * df["FGM"] - 0.7 * df["FGA"] - 0.4 * (df["FTA"] - df["FTM"])
@@ -106,16 +122,28 @@ def game_score(df: pd.DataFrame) -> pd.Series:
             - 0.4 * df["PF"] - df["TOV"])
 
 
-def to_scale(values: pd.Series, pool: np.ndarray) -> np.ndarray:
-    """Percentil 0-99 frente a los jugadores de la escala."""
-    return np.round(percentile_vs(values, values[pool].to_numpy()) * 99).astype(int)
+def to_scale(values, pool: np.ndarray) -> np.ndarray:
+    """Atributo de 40 (el último de la rotación) a 99 (el primero): 40 + 59 · percentil frente a la escala."""
+    values = np.asarray(values, dtype=float)
+    share = percentile_vs(values, values[pool])
+    return np.round(SCALE_MIN + (SCALE_MAX - SCALE_MIN) * share).astype(int)
+
+
+def overall_scale(score, pool: np.ndarray) -> np.ndarray:
+    """Media de 40 a 99 proporcional a lo que aporta: 40 + 59 · (Game Score / ancla)^0,75, con tope en 99."""
+    score = np.asarray(score, dtype=float)
+    anchor = np.sort(score[pool])[::-1][:ANCHOR_TOP].mean()
+    share = np.clip(score / anchor, 0, 1) if anchor > 0 else np.zeros(len(score))
+    return np.round(SCALE_MIN + (SCALE_MAX - SCALE_MIN) * share ** CURVE).astype(int)
 
 
 def compute_radar(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     max_gp = df["GP"].max()
     df["qualified"] = (df["GP"] >= max(1, QUALIFY_GP_SHARE * max_gp)) & (df["MIN"] >= QUALIFY_MIN)
-    pool = df["qualified"].to_numpy()
+    # Sin nadie en la rotación (un primer día raro), la escala son todos
+    pool = df["qualified"].to_numpy() if df["qualified"].any() else np.ones(len(df), dtype=bool)
+    games = df["GP"].to_numpy(dtype=float)
 
     fg3a = df["FG3A"] * df["GP"]
     fg3_pct = shrink(df["FG3M"] * df["GP"], fg3a, PRIOR_FG3A, pool)
@@ -131,12 +159,13 @@ def compute_radar(df: pd.DataFrame) -> pd.DataFrame:
                 ref = values[pool]
                 score = ((values - ref.mean()) / ref.std(ddof=0)).fillna(ref.min())
             else:
-                score = percentile_vs(values.fillna(-np.inf), values[pool].fillna(-np.inf).to_numpy())  # sin dato = peor posible
+                score = percentile_vs(values.fillna(-np.inf), values[pool].fillna(-np.inf))  # sin dato = peor posible
             composite += weight * np.asarray(score, dtype=float)
-        df[category] = to_scale(pd.Series(composite, index=df.index), pool)
+        df[category] = to_scale(toward_bench(composite, games), pool)
 
     df["GAME_SCORE"] = game_score(df)
-    df["overall"] = to_scale(df["GAME_SCORE"], pool)
+    df["GAME_SCORE_ADJ"] = toward_bench(df["GAME_SCORE"], games)
+    df["overall"] = overall_scale(df["GAME_SCORE_ADJ"], pool)
     return df
 
 
@@ -144,11 +173,23 @@ def radar_payload(r, season: str, updated_at: str) -> dict:
     return {
         "season": season,
         **{category: int(r[category]) for category in CATEGORIES},
-        # Fuera de la escala no hay media: su percentil frente a la rotación (1-5) solo diría "juega poco"
-        "overall": int(r["overall"]) if r["qualified"] else None,
+        "overall": int(r["overall"]),
         "qualified": bool(r["qualified"]),
         "games_played": int(r["GP"]),
         "minutes": int(round(r["MIN"] * r["GP"])),
+        "updated_at": updated_at,
+    }
+
+
+def no_games_payload(season: str, updated_at: str) -> dict:
+    """Sin partidos esta temporada: atributos a 0 y sin media, para que nunca quede el radar del año pasado."""
+    return {
+        "season": season,
+        **{category: 0 for category in CATEGORIES},
+        "overall": None,
+        "qualified": False,
+        "games_played": 0,
+        "minutes": 0,
         "updated_at": updated_at,
     }
 
@@ -165,20 +206,27 @@ def fetch_league_from_boxscores(client, season: str) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame()
     df = pd.DataFrame(rows)
-    names = load_player_names(client)
+    names = {pid: p["full_name"] for pid, p in load_players(client).items()}
     df["PLAYER_NAME"] = df["PLAYER_ID"].map(lambda pid: names.get(int(pid), str(pid)))
     return df
 
 
-def load_player_names(client) -> dict[int, str]:
-    names, start = {}, 0
+def load_players(client) -> dict[int, dict]:
+    """Nombre y si está en activo de cada jugador de `players`, por id."""
+    players, start = {}, 0
     while True:
-        page = (client.table("players").select("id, full_name")
+        page = (client.table("players").select("id, full_name, is_active")
                 .order("id").range(start, start + PAGE_SIZE - 1).execute().data)
-        names.update({p["id"]: p["full_name"] for p in page})
+        players.update({p["id"]: p for p in page})
         if len(page) < PAGE_SIZE:
-            return names
+            return players
         start += PAGE_SIZE
+
+
+def tier_counts(overall: pd.Series) -> str:
+    """Jugadores por material de la carta (mismos cortes que `tierOf` en la web)."""
+    cuts = [("84+", 84, 100), ("70-83", 70, 84), ("55-69", 55, 70), ("<55", 0, 55)]
+    return " · ".join(f"{label}: {int(((overall >= lo) & (overall < hi)).sum())}" for label, lo, hi in cuts)
 
 
 def main() -> None:
@@ -196,7 +244,6 @@ def main() -> None:
     client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     if args.official:
         season = args.season or Season.default
-        load = fetch_league
     else:
         from processors.season_stats_calc import current_season
 
@@ -204,38 +251,40 @@ def main() -> None:
         if season is None:
             print("Sin partidos terminados: el radar no cambia")
             return
-        load = lambda s: fetch_league_from_boxscores(client, s)  # noqa: E731
 
     print(f"Estadísticas de la liga {season}{' (stats.nba.com)' if args.official else ' (boxscores)'}...")
-    df = load(season)
-    if not args.season and (df.empty or df["GP"].max() < MIN_SEASON_GAMES):
-        season = previous_season(season)
-        print(f"  pocos partidos jugados: se usa la temporada {season}")
-        df = load(season)
+    df = fetch_league(season) if args.official else fetch_league_from_boxscores(client, season)
     if df.empty:
         # Sin datos (p. ej. la temporada anterior a la Tarea 5.2b): se conserva el radar guardado
         print(f"Sin estadísticas para {season}: el radar no cambia")
         return
 
     df = compute_radar(df)
-    print(f"  {len(df)} jugadores · {int(df['qualified'].sum())} cualificados")
+    players = load_players(client)
+    played = {int(pid) for pid in df["PLAYER_ID"]}
+    # Solo con la temporada en curso: otra temporada no dice nada de quién juega hoy
+    idle = [] if args.season else sorted(pid for pid, p in players.items() if p["is_active"] and pid not in played)
+    print(f"  {len(df)} jugadores · {int(df['qualified'].sum())} de rotación · {len(idle)} en activo sin jugar")
+    print(f"  Media: {tier_counts(df['overall'])}")
 
     if args.dry_run:
-        top = df[df["qualified"]].sort_values("GAME_SCORE", ascending=False).head(25)
+        top = df.sort_values("GAME_SCORE_ADJ", ascending=False).head(25)
         print("\n[dry-run] Top 25 por media:")
         print(top[["PLAYER_NAME", "GP", *CATEGORIES, "overall"]].to_string(index=False))
         return
 
-    names = load_player_names(client)
     updated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     # full_name va incluido porque el upsert valida NOT NULL antes de resolver el conflicto
     rows = [
-        {"id": int(r["PLAYER_ID"]), "full_name": names[int(r["PLAYER_ID"])],
+        {"id": int(r["PLAYER_ID"]), "full_name": players[int(r["PLAYER_ID"])]["full_name"],
          "radar_attributes": radar_payload(r, season, updated_at)}
-        for _, r in df.iterrows() if int(r["PLAYER_ID"]) in names
+        for _, r in df.iterrows() if int(r["PLAYER_ID"]) in players
     ]
+    missing = len(df) - len(rows)
+    rows += [{"id": pid, "full_name": players[pid]["full_name"], "radar_attributes": no_games_payload(season, updated_at)}
+             for pid in idle]
     upsert(client, "players", rows)
-    print(f"\nSupabase -> radar actualizado en {len(rows)} jugadores ({len(df) - len(rows)} sin ficha en `players`)")
+    print(f"\nSupabase -> radar actualizado en {len(rows)} jugadores ({len(idle)} sin partidos; {missing} sin ficha en `players`)")
 
 
 if __name__ == "__main__":

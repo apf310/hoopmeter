@@ -179,3 +179,52 @@
     animation: none !important;
   }
 }
+
+/* Barra deslizante del modo diferido (Tarea 7.9, `DeferredMode.tsx`): lo ya jugado del periodo en naranja (`--fill`, de 0
+   a 1, hasta el centro del tirador) y un tirador rectangular como las marcas de la barra salarial del GM. */
+.deferred-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2.25rem;
+  background: transparent;
+  cursor: pointer;
+}
+.deferred-range::-webkit-slider-runnable-track {
+  height: 6px;
+  background: linear-gradient(to right, #f97316 calc(7px + (100% - 14px) * var(--fill, 0)), #334155 0);
+}
+.deferred-range::-moz-range-track {
+  height: 6px;
+  background: #334155;
+}
+.deferred-range::-moz-range-progress {
+  height: 6px;
+  background: #f97316;
+}
+.deferred-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 26px;
+  margin-top: -10px;
+  border: 0;
+  background: #fff;
+  box-shadow: 0 0 0 2px #020617;
+}
+.deferred-range::-moz-range-thumb {
+  width: 14px;
+  height: 26px;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: 0 0 0 2px #020617;
+}
+.deferred-range:focus-visible {
+  outline: none;
+}
+.deferred-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 2px #020617, 0 0 0 4px #fb923c;
+}
+.deferred-range:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 2px #020617, 0 0 0 4px #fb923c;
+}

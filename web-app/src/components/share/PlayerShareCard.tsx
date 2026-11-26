@@ -5,7 +5,7 @@ import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart } from "r
 import { showSilhouette } from "@/components/players/PlayerPhoto";
 import { CARD_SIZE, SocialCardExporter, WATERMARK_HEIGHT, type CardFormat } from "@/components/share/SocialCardExporter";
 import { playerHeadshotUrl, sameOrigin, teamLogoUrl } from "@/lib/nba-cdn";
-import { archetypeOf, avg, overallRating, pct, positionLabel, RADAR_LABEL, shotPct, tierOf } from "@/lib/player-profile";
+import { archetypeOf, avg, overallRating, pct, positionLabel, RADAR_LABEL, RATING_MIDDLE, ratingShare, shotPct, tierOf } from "@/lib/player-profile";
 import { teamAccent, teamBackdrop } from "@/lib/team-colors";
 import { RADAR_CATEGORIES, type Player, type PlayerSeasonStats, type RadarAttributes, type Team } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -127,7 +127,7 @@ function PlayerShareCard({ format, player, team, radar, season, age }: CardData 
           </div>
           {radar && (
             <div className="flex w-[600px] shrink-0 flex-col items-center justify-center pr-12">
-              <p className="font-display text-lg font-semibold uppercase tracking-[0.3em] text-white/70">Atributos · Percentil vs liga</p>
+              <p className="font-display text-lg font-semibold uppercase tracking-[0.3em] text-white/70">Atributos · De 40 a 99</p>
               <ShareRadar radar={radar} accent={accent} size={560} />
             </div>
           )}
@@ -230,7 +230,8 @@ const LABEL_OFFSET: Record<number, number> = { 0: -48, 3: 24 };
 
 /** Radar a tamaño fijo y sin animación: en la captura tiene que salir completo al instante. */
 function ShareRadar({ radar, accent, size }: { radar: RadarAttributes; accent: string; size: number }) {
-  const data = RADAR_CATEGORIES.map((c) => ({ label: RADAR_LABEL[c], value: radar[c], league: 50 }));
+  // 40 en el centro y 99 en el borde, como el radar de la ficha
+  const data = RADAR_CATEGORIES.map((c) => ({ label: RADAR_LABEL[c], value: radar[c], plot: ratingShare(radar[c]), league: ratingShare(RATING_MIDDLE) }));
   const valueByLabel = new Map(data.map((d) => [d.label, d.value]));
 
   const renderTick = ({ x, y, textAnchor, index = 1, payload }: AngleTickProps) => {
@@ -253,10 +254,10 @@ function ShareRadar({ radar, accent, size }: { radar: RadarAttributes; accent: s
     <RadarChart width={size} height={size} data={data} outerRadius="62%" margin={{ top: 56, right: 72, bottom: 56, left: 72 }}>
       <PolarGrid stroke="#475569" strokeOpacity={0.7} />
       <PolarAngleAxis dataKey="label" tick={renderTick} />
-      <PolarRadiusAxis domain={[0, 99]} tick={false} axisLine={false} tickCount={5} />
+      <PolarRadiusAxis domain={[0, 1]} tick={false} axisLine={false} tickCount={5} />
       <Radar dataKey="league" stroke="#94a3b8" strokeDasharray="6 6" strokeWidth={2} fill="none" isAnimationActive={false} />
       <Radar
-        dataKey="value"
+        dataKey="plot"
         stroke={accent}
         strokeWidth={4}
         fill={accent}

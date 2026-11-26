@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { buildDeferredDetail, happenedBy } from "./deferred.ts";
-import { DEFERRED_START, parsePosition, positionLabel, stepPosition, type DeferredPosition } from "./deferred-position.ts";
+import { DEFERRED_START, elapsedInPeriod, parsePosition, positionAt, positionLabel, stepPosition, type DeferredPosition } from "./deferred-position.ts";
 import type { GameDetail } from "./game-detail.ts";
 import type { RawAction, RawBoxscoreGame, RawPlayer, RawTeam } from "./game-pbp.ts";
 import { gameWinProbability } from "./win-probability.ts";
@@ -47,6 +47,25 @@ describe("posición y pasos", () => {
       ["3", null],
     ] as const) {
       assert.equal(parsePosition(p, s), null, `${p}/${s}`);
+    }
+  });
+
+  it("la barra deslizante va del inicio al final del periodo, de minuto en minuto (Tarea 7.9)", () => {
+    assert.equal(elapsedInPeriod(at(3, 360)), 360);
+    assert.equal(elapsedInPeriod(DEFERRED_START), 0);
+    assert.equal(elapsedInPeriod(at(5, 0)), 300);
+    assert.deepEqual(positionAt(3, 360), at(3, 360));
+    assert.deepEqual(positionAt(2, 0), at(2, 720));
+    assert.deepEqual(positionAt(2, 720), at(2, 0));
+    // Siempre en un minuto entero y dentro del periodo (la prórroga dura 5)
+    assert.deepEqual(positionAt(1, 89), at(1, 660));
+    assert.deepEqual(positionAt(1, 91), at(1, 600));
+    assert.deepEqual(positionAt(5, 999), at(5, 0));
+    assert.deepEqual(positionAt(4, -30), at(4, 720));
+    // Ida y vuelta: la barra y los botones hablan de las mismas posiciones
+    for (const position of [at(1, 720), at(2, 60), at(4, 0), at(6, 240)]) {
+      assert.deepEqual(positionAt(position.period, elapsedInPeriod(position)), position);
+      assert.deepEqual(stepPosition(positionAt(position.period, 120), 1), positionAt(position.period, 180));
     }
   });
 

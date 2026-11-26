@@ -70,6 +70,24 @@ export function stepPosition(position: DeferredPosition, direction: 1 | -1, regu
   return { period: period - 1, remaining: STEP_S };
 }
 
+/** Barra deslizante del periodo (Tarea 7.9): segundos de reloj ya jugados, de 0 (inicio) a la duración del periodo. */
+export function elapsedInPeriod(position: DeferredPosition, regulation = 4): number {
+  return periodLength(position.period, regulation) - position.remaining;
+}
+
+/**
+ * La posición en la que deja la barra: siempre en un minuto entero (como los botones de ±1 min, así la caché compartida
+ * de cada instante sirve a todos) y dentro del periodo.
+ */
+export function positionAt(period: number, elapsed: number, regulation = 4): DeferredPosition {
+  const length = periodLength(period, regulation);
+  const minute = Math.min(length, Math.max(0, Math.round(elapsed / STEP_S) * STEP_S));
+  return { period, remaining: length - minute };
+}
+
+/** Paso de la barra, en segundos. */
+export const SLIDER_STEP_S = STEP_S;
+
 /** 360 → "6:00" */
 export function clockLabel(remaining: number): string {
   return `${Math.floor(remaining / 60)}:${String(remaining % 60).padStart(2, "0")}`;

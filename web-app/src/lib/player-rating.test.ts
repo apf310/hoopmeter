@@ -1,8 +1,8 @@
-// Tests de la media y los avisos de la ficha del jugador (Tarea 6.19). Se lanzan con `npm test`.
+// Tests de la media, la escala y los avisos de la ficha del jugador (Tareas 6.19 y 7.10). Se lanzan con `npm test`.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { RadarAttributes } from "@/lib/supabase";
-import { overallRating, sampleNote, shotPct } from "./player-rating.ts";
+import { NO_GAMES_NOTE, overallRating, RATING_MIDDLE, ratingLevel, ratingShare, sampleNote, shotPct } from "./player-rating.ts";
 
 const radar = (extra: Partial<RadarAttributes>): RadarAttributes => ({
   season: "2026-27",
@@ -23,28 +23,40 @@ describe("overallRating", () => {
     assert.equal(overallRating(radar({ overall: 97, rebounding: 99, efficiency: 99, defense: 99 })), 97);
   });
 
-  it("sin media fuera de la escala o en radares anteriores a la 6.19", () => {
-    assert.equal(overallRating(radar({ overall: null, qualified: false })), null);
-    // Un pívot de rol con tres barras de 99 ya no saca una media inflada por las 4 mejores
+  it("todo el que ha jugado tiene media, también fuera de la rotación (Tarea 7.10)", () => {
+    assert.equal(overallRating(radar({ overall: 54, qualified: false, games_played: 18 })), 54);
+  });
+
+  it("sin media si no ha jugado esta temporada o en radares anteriores a la 6.19", () => {
+    assert.equal(overallRating(radar({ overall: null, qualified: false, games_played: 0 })), null);
+    // Un pívot de rol con tres barras de 99 no saca una media inventada con las barras
     assert.equal(overallRating(radar({ rebounding: 99, efficiency: 99, defense: 99, scoring: 60 })), null);
   });
 });
 
+describe("escala de 40 a 99", () => {
+  it("niveles: 84+, 70-83, 55-69 y menos de 55", () => {
+    assert.deepEqual([99, 84, 83, 70, 69, 55, 54, 40].map(ratingLevel), ["elite", "elite", "great", "great", "good", "good", "low", "low"]);
+  });
+
+  it("se dibuja con 40 en el centro y 99 en el borde, sin salirse", () => {
+    assert.equal(ratingShare(40), 0);
+    assert.equal(ratingShare(99), 1);
+    assert.equal(ratingShare(RATING_MIDDLE), 0.5);
+    assert.equal(ratingShare(0), 0);
+    assert.equal(ratingShare(120), 1);
+  });
+});
+
 describe("sampleNote", () => {
-  it("avisa de quien no entra en la escala, con sus minutos por partido", () => {
-    assert.equal(
-      sampleNote({ qualified: false, games_played: 15, minutes: 194 }),
-      "Juega poco para entrar en la escala (15 partidos, 13 min por partido): valores orientativos y sin media."
-    );
-    assert.equal(
-      sampleNote({ qualified: false, games_played: 1 }),
-      "Juega poco para entrar en la escala (1 partido): valores orientativos y sin media."
-    );
+  it("sin partidos esta temporada: ni media ni atributos", () => {
+    assert.equal(sampleNote({ games_played: 0 }), NO_GAMES_NOTE);
   });
 
   it("muestra corta al principio de la temporada; nada con 20 partidos o más", () => {
-    assert.equal(sampleNote({ qualified: true, games_played: 14, minutes: 515 }), "Muestra corta (14 partidos): aún puede moverse bastante.");
-    assert.equal(sampleNote({ qualified: true, games_played: 20, minutes: 700 }), null);
+    assert.equal(sampleNote({ games_played: 1 }), "Muestra corta (1 partido): media y atributos se acercan a los de un suplente hasta que juegue más.");
+    assert.equal(sampleNote({ games_played: 14 }), "Muestra corta (14 partidos): media y atributos se acercan a los de un suplente hasta que juegue más.");
+    assert.equal(sampleNote({ games_played: 20 }), null);
   });
 });
 

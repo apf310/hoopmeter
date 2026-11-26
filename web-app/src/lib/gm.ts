@@ -5,7 +5,7 @@ import { applyEstimates, type DraftPick, type Trade, type TradePlayer, type Trad
 export type GmPlayer = TradePlayer & {
   position: string | null;
   age: number | null;
-  /** Media del radar (0-99), null si aún no la tiene. */
+  /** Media de la ficha (40-99), null si aún no ha jugado esta temporada. */
   overall: number | null;
   /** Salarios de la temporada actual y las 3 siguientes. */
   contract: (number | null)[];

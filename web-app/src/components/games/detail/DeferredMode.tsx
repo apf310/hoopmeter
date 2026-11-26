@@ -1,12 +1,17 @@
 // Modo diferido (Tarea 6.13): la invitación en Niveles 1 y 2 y la barra para decir por dónde vas.
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { History, LoaderCircle, Minus, Plus, X } from "lucide-react";
 import { Eyebrow, Segmented } from "@/components/games/detail/ui";
 import {
+  clockLabel,
+  elapsedInPeriod,
   MAX_PERIOD,
+  periodLength,
   periodStartPosition,
+  positionAt,
   positionLabel,
   samePosition,
+  SLIDER_STEP_S,
   stepPosition,
   type DeferredPosition,
 } from "@/lib/deferred-position";
@@ -53,7 +58,11 @@ export function DeferredBar({ position, regulation, loading, onChange, onExit }:
   const lastChip = Math.min(MAX_PERIOD, Math.max(regulation + 1, position.period + 1));
   const back = stepPosition(position, -1, regulation);
   const forward = stepPosition(position, 1, regulation);
-  const label = positionLabel(position, regulation);
+  // Mientras se arrastra la barra (Tarea 7.9) solo cambia el texto; la ficha se pide al soltarla. Si entre medias la
+  // posición cambia por otro lado (±1 min), lo arrastrado deja de valer
+  const [dragging, setDragging] = useState<{ from: DeferredPosition; to: DeferredPosition } | null>(null);
+  const shown = dragging && samePosition(dragging.from, position) ? dragging.to : position;
+  const label = positionLabel(shown, regulation);
 
   return (
     <section aria-label="Modo diferido" className="border-b border-slate-800 bg-slate-900/50 px-4 py-4 md:px-8">
@@ -104,8 +113,78 @@ export function DeferredBar({ position, regulation, loading, onChange, onExit }:
           </StepButton>
         </div>
       </div>
+      <PeriodSlider
+        position={position}
+        shown={shown}
+        regulation={regulation}
+        onDrag={(to) => setDragging({ from: position, to })}
+        onCommit={(to) => {
+          setDragging(null);
+          if (!samePosition(to, position)) onChange(to);
+        }}
+      />
       <p className="mt-3 text-xs text-slate-400">Solo lo ocurrido hasta aquí: ni la nota ni nada de lo que viene después.</p>
     </section>
+  );
+}
+
+/**
+ * Barra deslizante del periodo (Tarea 7.9): de su inicio (12:00, o 5:00 en la prórroga) a su final, de minuto en minuto.
+ * El `input` de React avisa en cada paso; el `change` nativo, al soltar (o con cada tecla), y solo entonces se pide la ficha.
+ */
+function PeriodSlider({
+  position,
+  shown,
+  regulation,
+  onDrag,
+  onCommit,
+}: {
+  position: DeferredPosition;
+  shown: DeferredPosition;
+  regulation: number;
+  onDrag: (to: DeferredPosition) => void;
+  onCommit: (to: DeferredPosition) => void;
+}) {
+  const slider = useRef<HTMLInputElement>(null);
+  const { period } = position;
+  const length = periodLength(period, regulation);
+  const elapsed = elapsedInPeriod(shown, regulation);
+
+  useEffect(() => {
+    const input = slider.current;
+    if (!input) return;
+    const commit = () => onCommit(positionAt(period, Number(input.value), regulation));
+    input.addEventListener("change", commit);
+    return () => input.removeEventListener("change", commit);
+  }, [period, regulation, onCommit]);
+
+  return (
+    <div className="mt-3">
+      <input
+        ref={slider}
+        type="range"
+        min={0}
+        max={length}
+        step={SLIDER_STEP_S}
+        value={elapsed}
+        onChange={(event) => onDrag(positionAt(period, Number(event.target.value), regulation))}
+        aria-label="Minuto del periodo"
+        aria-valuetext={positionLabel(shown, regulation)}
+        className="deferred-range block w-full"
+        style={{ "--fill": elapsed / length } as CSSProperties}
+      />
+      {/* Una marca por minuto, alineadas con el centro del tirador (14 px de ancho) */}
+      <div aria-hidden className="flex justify-between px-[7px]">
+        {Array.from({ length: length / SLIDER_STEP_S + 1 }, (_, i) => (
+          <span key={i} className={cn("h-1.5 w-px", i * SLIDER_STEP_S <= elapsed ? "bg-orange-400" : "bg-slate-600")} />
+        ))}
+      </div>
+      <div aria-hidden className="mt-1 flex justify-between font-display text-[11px] font-semibold uppercase tracking-wider text-slate-400 tabular-nums">
+        <span>{clockLabel(length)}</span>
+        <span>{clockLabel(length / 2)}</span>
+        <span>{clockLabel(0)}</span>
+      </div>
+    </div>
   );
 }
 

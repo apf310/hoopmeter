@@ -1,10 +1,9 @@
 "use client";
 
 import { PolarAngleAxis, PolarGrid, PolarRadiusAxis, Radar, RadarChart, ResponsiveContainer } from "recharts";
-import { RADAR_LABEL, tierOf } from "@/lib/player-profile";
+import { RADAR_LABEL, RATING_MIDDLE, ratingShare, tierOf } from "@/lib/player-profile";
 import { RADAR_CATEGORIES, type RadarAttributes } from "@/lib/supabase";
 
-const LEAGUE_AVERAGE = 50;
 
 type AngleTickProps = {
   x?: number | string;
@@ -18,12 +17,18 @@ type AngleTickProps = {
 // del vértice, el inferior (3) por debajo y los laterales centrados.
 const LABEL_OFFSET: Record<number, number> = { 0: -32, 3: 16 };
 
-/** Radar de 6 atributos (percentiles 0-99) en el color del equipo, con la media de la liga de referencia. */
+/** Radar de 6 atributos (de 40 a 99: 40 en el centro, 99 en el borde) en el color del equipo, con la mitad de la rotación de referencia. */
 export function PlayerRadarChart({ radar, accent }: { radar: RadarAttributes; accent: string }) {
-  const data = RADAR_CATEGORIES.map((c) => ({ key: c, label: RADAR_LABEL[c], value: radar[c], league: LEAGUE_AVERAGE }));
+  const data = RADAR_CATEGORIES.map((c) => ({
+    key: c,
+    label: RADAR_LABEL[c],
+    value: radar[c],
+    plot: ratingShare(radar[c]),
+    league: ratingShare(RATING_MIDDLE),
+  }));
   const valueByLabel = new Map(data.map((d) => [d.label, d.value]));
 
-  // Etiqueta de cada eje: nombre del atributo + percentil en el color de su nivel
+  // Etiqueta de cada eje: nombre del atributo + valor en el color de su nivel
   const renderTick = ({ x, y, textAnchor, index = 1, payload }: AngleTickProps) => {
     if (!payload) return <g />;
     const value = valueByLabel.get(payload.value) ?? 0;
@@ -46,9 +51,9 @@ export function PlayerRadarChart({ radar, accent }: { radar: RadarAttributes; ac
           <RadarChart data={data} outerRadius="66%" margin={{ top: 40, right: 48, bottom: 40, left: 48 }}>
             <PolarGrid stroke="#334155" strokeOpacity={0.7} />
             <PolarAngleAxis dataKey="label" tick={renderTick} />
-            <PolarRadiusAxis domain={[0, 99]} tick={false} axisLine={false} tickCount={5} />
+            <PolarRadiusAxis domain={[0, 1]} tick={false} axisLine={false} tickCount={5} />
             <Radar dataKey="league" stroke="#94a3b8" strokeDasharray="4 4" strokeWidth={1.5} fill="none" isAnimationActive={false} />
-            <Radar dataKey="value" stroke={accent} strokeWidth={2.5} fill={accent} fillOpacity={0.35} dot={{ r: 3.5, fill: accent, strokeWidth: 0 }} />
+            <Radar dataKey="plot" stroke={accent} strokeWidth={2.5} fill={accent} fillOpacity={0.35} dot={{ r: 3.5, fill: accent, strokeWidth: 0 }} />
           </RadarChart>
         </ResponsiveContainer>
       </div>

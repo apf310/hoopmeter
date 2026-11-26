@@ -1,7 +1,7 @@
 // Tests de los metadatos y enlaces compartidos (Tarea 6.25). Se lanzan con `npm test`.
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildSitemap, compareMeta, gameDateLine, gameMeta, pageMetadata, playerIdParam, playerMeta, SITE_URL, splitTeamName, teamMeta } from "./seo.ts";
+import { buildSitemap, compareMeta, gameDateLine, gameMeta, pageMetadata, playerIdParam, playerMeta, SITE_URL, splitTeamName, teamMeta, tradeMeta } from "./seo.ts";
 
 const LAL = { name: "Los Angeles Lakers", abbreviation: "LAL" };
 const BOS = { name: "Boston Celtics", abbreviation: "BOS" };
@@ -84,6 +84,22 @@ describe("seo · fichas", () => {
   });
 });
 
+describe("seo · traspaso del GM (Tarea 7.9)", () => {
+  it("equipos y quién va a cada uno", () => {
+    const meta = tradeMeta(["Los Angeles Lakers", "Boston Celtics"], [{ name: "LeBron James", to: "Boston Celtics" }, { name: "Jayson Tatum", to: "Los Angeles Lakers" }], 1);
+    assert.equal(meta.title, "Traspaso Lakers - Celtics: ¿lo aprobaría la NBA?");
+    assert.equal(meta.description, "LeBron James a los Celtics, Jayson Tatum a los Lakers y 1 ronda del draft. Compruébalo con los contratos reales en el GM Virtual de Hoopmeter.");
+  });
+
+  it("resume los traspasos grandes y los de solo rondas", () => {
+    const players = ["A", "B", "C", "D", "E", "F"].map((name) => ({ name, to: "Portland Trail Blazers" }));
+    const big = tradeMeta(["Portland Trail Blazers", "Miami Heat", "Utah Jazz"], players, 0);
+    assert.equal(big.title, "Traspaso Trail Blazers - Heat - Jazz: ¿lo aprobaría la NBA?");
+    assert.match(big.description, /^A a los Trail Blazers, B .*, D a los Trail Blazers y 2 jugadores más\. /);
+    assert.match(tradeMeta(["Miami Heat", "Utah Jazz"], [], 2).description, /^2 rondas del draft\. Compruébalo/);
+  });
+});
+
 describe("seo · metadatos y sitemap", () => {
   it("cada página lleva su Open Graph completo", () => {
     const meta = pageMetadata({ title: "Clasificación", description: "D", path: "/standings" });
@@ -95,6 +111,9 @@ describe("seo · metadatos y sitemap", () => {
     const segment = pageMetadata({ title: "LAL @ BOS", path: "/games/1", image: null });
     assert.equal(segment.openGraph?.images, undefined, "null deja la imagen del segmento");
     assert.equal(segment.twitter?.images, undefined);
+    const shared = pageMetadata({ path: "/gm-simulator", url: "/gm-simulator?equipos=1,2", image: "/og/trade?equipos=1,2" });
+    assert.deepEqual(shared.alternates, { canonical: "/gm-simulator" }, "un traspaso no es una página para buscadores");
+    assert.equal((shared.openGraph as { url: string }).url, "/gm-simulator?equipos=1,2", "pero la previsualización es la del traspaso");
     const withImage = pageMetadata({ path: "/compare", image: "/og/compare?a=1&b=2" });
     assert.equal(withImage.title, "Hoopmeter · Qué partido ver, sin spoilers");
     assert.deepEqual(withImage.openGraph?.images, [{ url: "/og/compare?a=1&b=2", width: 1200, height: 630, alt: withImage.title }]);

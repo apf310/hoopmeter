@@ -24,6 +24,8 @@ type PageMeta = {
   description?: string;
   /** Ruta canónica, sin parámetros que cambien de un usuario a otro. */
   path: string;
+  /** Dirección de lo que se comparte, si no es la canónica (un traspaso del GM): la usan las previsualizaciones. */
+  url?: string;
   /**
    * Imagen propia (ruta del sitio); sin ella, la de la marca (la de la raíz no se hereda si la página define
    * `openGraph`). `null` = la del `opengraph-image` del segmento (partido, jugador, equipo), que esta pisaría.
@@ -39,7 +41,7 @@ export function pageTitle(title?: string): string {
  * Metadatos completos de una página: título, descripción, canónica, Open Graph y X. Next.js no hereda
  * `openGraph` campo a campo (el hijo sustituye al padre entero), así que cada página lo lleva todo.
  */
-export function pageMetadata({ title, description = SITE_DESCRIPTION, path, image = BRAND_IMAGE }: PageMeta): Metadata {
+export function pageMetadata({ title, description = SITE_DESCRIPTION, path, url = path, image = BRAND_IMAGE }: PageMeta): Metadata {
   const fullTitle = pageTitle(title);
   const images = image === null ? undefined : [{ url: image, ...OG_SIZE, alt: fullTitle }];
   return {
@@ -50,7 +52,7 @@ export function pageMetadata({ title, description = SITE_DESCRIPTION, path, imag
       type: "website",
       siteName: SITE_NAME,
       locale: "es_ES",
-      url: path,
+      url,
       title: fullTitle,
       description,
       ...(images && { images }),
@@ -134,6 +136,25 @@ export function compareMeta(a: { full_name: string } | null, b: { full_name: str
   return {
     title: "Comparador de jugadores NBA de cualquier época",
     description: "Enfrenta a dos jugadores de la NBA de cualquier época: radares superpuestos, estadísticas y palmarés.",
+  };
+}
+
+type TradeMove = { name: string; to: string };
+
+/**
+ * Enlace de un traspaso del GM (Tarea 7.9): equipos y quién va a cada uno. Nada de spoilers (el GM se ve en todos los
+ * niveles) y nada de la IA: su nota no se guarda con el enlace.
+ */
+export function tradeMeta(teams: string[], players: TradeMove[], picks: number): { title: string; description: string } {
+  const nicknames = teams.map((name) => splitTeamName(name).nickname);
+  const shown = players.slice(0, 4).map(({ name, to }) => `${name} a los ${splitTeamName(to).nickname}`);
+  const rest = players.length - shown.length;
+  const extras = [rest > 0 && `${rest} ${rest === 1 ? "jugador más" : "jugadores más"}`, picks > 0 && `${picks} ${picks === 1 ? "ronda" : "rondas"} del draft`].filter(Boolean);
+  const parts = [...shown, ...extras] as string[];
+  const list = parts.length > 1 ? `${parts.slice(0, -1).join(", ")} y ${parts.at(-1)}` : (parts[0] ?? "");
+  return {
+    title: `Traspaso ${nicknames.join(" - ")}: ¿lo aprobaría la NBA?`,
+    description: `${list ? `${list[0].toUpperCase()}${list.slice(1)}. ` : ""}Compruébalo con los contratos reales en el GM Virtual de ${SITE_NAME}.`,
   };
 }
 

@@ -2,14 +2,16 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { cardTier, legendLine, legendWeight, splitName, surnameSize, tiltAt } from "./player-card.ts";
 
-test("el material sale de la media, con los mismos cortes que las barras", () => {
+test("el material sale de la media, con los mismos cortes que las barras (Tarea 7.10)", () => {
   assert.equal(cardTier(true, 99), "elite");
-  assert.equal(cardTier(true, 90), "elite");
-  assert.equal(cardTier(true, 89), "great");
-  assert.equal(cardTier(true, 75), "great");
-  assert.equal(cardTier(true, 74), "good");
-  assert.equal(cardTier(true, 45), "good");
-  assert.equal(cardTier(true, 44), "base");
+  assert.equal(cardTier(true, 84), "elite");
+  assert.equal(cardTier(true, 83), "great");
+  assert.equal(cardTier(true, 70), "great");
+  assert.equal(cardTier(true, 69), "good");
+  assert.equal(cardTier(true, 55), "good");
+  assert.equal(cardTier(true, 54), "base");
+  assert.equal(cardTier(true, 40), "base");
+  // Sin partidos esta temporada: cartón, nunca la del año pasado
   assert.equal(cardTier(true, null), "base");
   assert.equal(cardTier(false, null), "legend");
 });

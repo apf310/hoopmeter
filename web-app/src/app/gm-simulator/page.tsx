@@ -2,17 +2,37 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { TradeMachine } from "@/components/gm/TradeMachine";
-import { pageMetadata } from "@/lib/seo";
-import { buildTrade, type GmData } from "@/lib/gm";
-import { parseTradeSearch, restoreTrade, type RestoredTrade } from "@/lib/gm-link";
+import { getSharedTrade, restoreLink } from "@/lib/gm-share";
+import { pageMetadata, tradeMeta } from "@/lib/seo";
 import { getGmData } from "@/lib/queries";
-import { isValidEstimate, PICK_YEARS, SEASON } from "@/lib/trade-rules";
+import { SEASON } from "@/lib/trade-rules";
 
-export const metadata: Metadata = pageMetadata({
-  title: "Simulador de traspasos NBA en español",
-  description: "GM Virtual: monta traspasos de la NBA con los contratos reales, comprueba al momento si cumplen el convenio y pide la opinión de la IA.",
-  path: "/gm-simulator",
-});
+const PATH = "/gm-simulator";
+
+/**
+ * El enlace de un traspaso (Tarea 7.9) se previsualiza con sus equipos y su imagen (`/og/trade`), montado con los
+ * contratos de hoy. La canónica sigue siendo la del simulador: cada traspaso no es una página para los buscadores.
+ */
+export async function generateMetadata({ searchParams }: PageProps<"/gm-simulator">): Promise<Metadata> {
+  const params = await searchParams;
+  const shared = params.equipos !== undefined ? await getSharedTrade(params) : null;
+  if (!shared) {
+    return pageMetadata({
+      title: "Simulador de traspasos NBA en español",
+      description: "GM Virtual: monta traspasos de la NBA con los contratos reales, comprueba al momento si cumplen el convenio y pide la opinión de la IA.",
+      path: PATH,
+    });
+  }
+  const { trade, teams, search } = shared;
+  const teamName = (id: number) => teams.find((team) => team.id === id)?.name ?? "";
+  const moves = [...trade.players].sort((a, b) => b.player.salary - a.player.salary).map(({ player, to }) => ({ name: player.name, to: teamName(to) }));
+  return pageMetadata({
+    ...tradeMeta(teams.map((team) => team.name), moves, trade.picks.length),
+    path: PATH,
+    url: `${PATH}${search}`,
+    image: `/og/trade${search}`,
+  });
+}
 
 const UPDATED_FORMAT = new Intl.DateTimeFormat("es-ES", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" });
 
@@ -54,16 +74,6 @@ async function GmContent({ searchParams }: { searchParams: PageProps<"/gm-simula
   if (params.equipos !== undefined) return <TradeMachine data={data} initialTrade={restoreLink(data, params)} />;
   const playerId = Number(params.jugador);
   return <TradeMachine data={data} initialPlayerId={Number.isInteger(playerId) && playerId > 0 ? playerId : null} />;
-}
-
-const LINK_RULES = { pickYears: PICK_YEARS, isValidEstimate };
-
-function restoreLink(data: GmData, params: Awaited<PageProps<"/gm-simulator">["searchParams"]>): RestoredTrade {
-  const parsed = parseTradeSearch(params);
-  const restored = parsed && restoreTrade(data, parsed, LINK_RULES);
-  // Con dos equipos, la última palabra la tiene `buildTrade`, la misma comprobación que hace la evaluación con IA
-  if (restored && (restored.request.teamIds.length < 2 || buildTrade(data, restored.request))) return restored;
-  return { request: { teamIds: [], players: [], picks: [], estimates: [] }, dropped: ["El enlace del traspaso no es válido: monta uno nuevo."] };
 }
 
 function GmSkeleton() {
