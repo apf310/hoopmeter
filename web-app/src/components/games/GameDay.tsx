@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useEffectEvent, useMemo, useRef, useState, type TouchEvent } from "react";
-import { Eye, EyeOff, Star, WifiOff, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Eye, EyeOff, Star, WifiOff, type LucideIcon } from "lucide-react";
 import { DayPicker } from "@/components/games/DayPicker";
 import { LiveGameCard, type CardView } from "@/components/games/LiveGameCard";
 import { SpanishPlayersStrip } from "@/components/games/SpanishPlayersStrip";
@@ -282,33 +283,69 @@ export function GameDay({ today, initialDay, teams, initialSchedule, initialRang
   );
 }
 
-const HINTS: Record<SpoilerLevel, { icon: LucideIcon; title: string; tip: string; className: string }> = {
+// `short`: en el móvil, junto a "Qué ver ›" (Tarea 8.1), para que quepa en dos líneas a 360 px
+const HINTS: Record<SpoilerLevel, { icon: LucideIcon; title: string; tip: string; short?: string; className: string }> = {
   // Qué es la nota, en la línea que ya existe (Tarea 7.6)
-  1: { icon: EyeOff, title: "Sin spoilers", tip: "Toca Nota: del 1 al 10, lo emocionante que fue cada partido, sin decir quién ganó", className: "text-emerald-400" },
-  2: { icon: Star, title: "Solo nota", tip: "Emoción del 1 al 10: 8+ partidazo, menos de 5 flojo · Mantén pulsado Resultados para el marcador", className: "text-amber-400" },
+  1: {
+    icon: EyeOff,
+    title: "Sin spoilers",
+    tip: "Toca Nota: del 1 al 10, lo emocionante que fue cada partido, sin decir quién ganó",
+    short: "Toca Nota: del 1 al 10, cuánto emocionó cada partido, sin decir quién ganó",
+    className: "text-emerald-400",
+  },
+  2: {
+    icon: Star,
+    title: "Solo nota",
+    tip: "Emoción del 1 al 10: 8+ partidazo, menos de 5 flojo · Mantén pulsado Resultados para el marcador",
+    short: "8+ partidazo, menos de 5 flojo · Mantén pulsado Resultados para el marcador",
+    className: "text-amber-400",
+  },
   3: { icon: Eye, title: "Resultados visibles", tip: "Marcadores, cuartos y nota del partido", className: "text-orange-400" },
 };
 
 function LevelHint({ level, live, offline }: { level: SpoilerLevel; live: boolean; offline: boolean }) {
-  const { icon: Icon, title, tip, className } = HINTS[level];
+  const { icon: Icon, title, tip, short, className } = HINTS[level];
   return (
     // En móvil, dos líneas en todos los niveles: el texto no se corta y la lista no se mueve al cambiar de nivel
-    <div aria-live="polite" className="flex min-h-12 items-center gap-2 border-b border-slate-800 px-4 py-1.5 text-xs md:min-h-0 md:px-8 md:py-2">
-      <Icon className={cn("size-3.5 shrink-0", className)} />
-      <span className={cn("shrink-0 whitespace-nowrap font-display text-sm font-bold uppercase tracking-wide", className)}>{title}</span>
-      <span className={cn("leading-snug text-slate-400", (live || offline) && "max-md:hidden")}>{tip}</span>
-      {live && (
-        <span className="ml-auto flex shrink-0 items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wider text-red-400">
-          <span className="size-1.5 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
-          Actualizando cada 30 s
-        </span>
-      )}
-      {offline && (
-        <span className="ml-auto flex shrink-0 items-center gap-1.5 text-slate-400">
-          <WifiOff className="size-3.5" />
-          Sin conexión, reintentando…
-        </span>
-      )}
+    <div className="flex min-h-12 items-stretch border-b border-slate-800 text-xs md:min-h-0">
+      <div aria-live="polite" className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-4 pr-2 md:py-2 md:pl-8">
+        <Icon className={cn("size-3.5 shrink-0", className)} />
+        {/* Título y explicación en el mismo párrafo: la segunda línea aprovecha todo el ancho */}
+        <p className="min-w-0 leading-snug text-slate-400">
+          <span className={cn("mr-1.5 whitespace-nowrap font-display text-sm font-bold uppercase tracking-wide", className)}>{title}</span>
+          <span className={cn((live || offline) && "max-md:hidden")}>
+            {short ? (
+              <>
+                <span className="md:hidden">{short}</span>
+                <span className="max-md:hidden">{tip}</span>
+              </>
+            ) : (
+              tip
+            )}
+          </span>
+        </p>
+        {live && (
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 font-display text-xs font-bold uppercase tracking-wider text-red-400">
+            <span className="size-1.5 animate-pulse rounded-full bg-red-500 motion-reduce:animate-none" />
+            Actualizando cada 30 s
+          </span>
+        )}
+        {offline && (
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-slate-400">
+            <WifiOff className="size-3.5" />
+            Sin conexión, reintentando…
+          </span>
+        )}
+      </div>
+      {/* Qué ver (Tarea 8.1): fuera de la barra, a un toque desde Inicio y en los tres niveles. La página ya
+          decide qué enseña en cada uno (en Nivel 1, ningún partido) */}
+      <Link
+        href="/que-ver"
+        className="flex shrink-0 items-center gap-0.5 border-l border-slate-800 pl-3 pr-2.5 font-display text-sm font-bold uppercase tracking-wide text-orange-300 transition-colors hover:bg-slate-900 hover:text-orange-200 md:px-6"
+      >
+        Qué ver
+        <ChevronRight aria-hidden className="size-4" />
+      </Link>
     </div>
   );
 }

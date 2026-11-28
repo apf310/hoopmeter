@@ -18,6 +18,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Vuelta de "Entrar con Google" (Tarea 8.5): Google no deja iniciar sesión dentro del WebView, así que se
+                 hace en el navegador del sistema y vuelve aquí con com.hoopmeter.app://auth?code=… -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.hoopmeter.app" android:host="auth" />
+            </intent-filter>
         </activity>
 
         <provider

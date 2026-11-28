@@ -1,7 +1,8 @@
 "use client";
 
 // Almacén de favoritos (Tarea 6.10) en localStorage: sobrevive al cerrar la app, a diferencia del
-// nivel de spoilers (sessionStorage, siempre vuelve al 1), que NUNCA se guarda aquí.
+// nivel de spoilers (sessionStorage, siempre vuelve al 1), que NUNCA se guarda aquí. Con la cuenta (Tarea 8.5), se
+// suben y bajan con `account-store.ts` (gana el cambio más reciente).
 import { useEffect, useSyncExternalStore } from "react";
 import { loadSearchIndex } from "@/components/search/SearchCommand";
 import {
@@ -10,6 +11,7 @@ import {
   FAVORITES_STORAGE_KEY,
   encodeFavoritesCookie,
   parseFavorites,
+  parseFavoritesAt,
   serializeFavorites,
   togglePlayer,
   toggleTeam,
@@ -23,13 +25,25 @@ const listeners = new Set<() => void>();
 // En memoria además de en el almacenamiento: en modo privado sin localStorage los favoritos
 // funcionan durante la sesión aunque no se guarden.
 let current: Favorites | null = null;
+/** Cuándo los cambiaste en este dispositivo (ms; 0 = antes de las cuentas): con la cuenta, gana el cambio más reciente. */
+let currentAt = 0;
 
 function load(): Favorites {
   try {
-    return parseFavorites(localStorage.getItem(FAVORITES_STORAGE_KEY));
+    const raw = localStorage.getItem(FAVORITES_STORAGE_KEY);
+    currentAt = parseFavoritesAt(raw);
+    return parseFavorites(raw);
   } catch {
+    currentAt = 0;
     return EMPTY_FAVORITES;
   }
+}
+
+/** Con la sesión abierta (Tarea 8.5), la cuenta se entera de cada cambio para subirlo. */
+let editListener: (() => void) | null = null;
+
+export function setFavoritesEditListener(listener: (() => void) | null) {
+  editListener = listener;
 }
 
 // La cookie solo lleva ids y dura lo máximo que permiten los navegadores (400 días)
@@ -51,18 +65,34 @@ function snapshot(): Favorites {
   return current;
 }
 
-function update(change: (favorites: Favorites) => Favorites) {
-  const prev = snapshot();
-  const next = change(prev);
-  if (next === prev) return;
+function store(next: Favorites, at: number) {
   current = next;
+  currentAt = at;
   try {
-    localStorage.setItem(FAVORITES_STORAGE_KEY, serializeFavorites(next));
+    localStorage.setItem(FAVORITES_STORAGE_KEY, serializeFavorites(next, at));
   } catch {
     // Sin almacenamiento: se quedan solo en memoria.
   }
   writeCookie(next);
   listeners.forEach((listener) => listener());
+}
+
+function update(change: (favorites: Favorites) => Favorites) {
+  const prev = snapshot();
+  const next = change(prev);
+  if (next === prev) return;
+  store(next, Math.max(Date.now(), currentAt + 1));
+  editListener?.();
+}
+
+/** Los favoritos de ahora y cuándo cambiaron (para la cuenta, fuera de React). */
+export function deviceFavorites(): { favorites: Favorites; at: number } {
+  return { favorites: snapshot(), at: currentAt };
+}
+
+/** Los que manda la cuenta (Tarea 8.5), con la hora de su último cambio. */
+export function replaceFavorites(favorites: Favorites, at: number) {
+  store(favorites, at);
 }
 
 // Otra pestaña cambió los favoritos: se releen
@@ -93,6 +123,7 @@ export function useFavorites(initial: Favorites = EMPTY_FAVORITES): Favorites {
 /** "Borrar los datos de este dispositivo" (/privacidad, Tarea 6.26): favoritos y cookie fuera. */
 export function clearFavorites() {
   current = EMPTY_FAVORITES;
+  currentAt = 0;
   try {
     localStorage.removeItem(FAVORITES_STORAGE_KEY);
   } catch {

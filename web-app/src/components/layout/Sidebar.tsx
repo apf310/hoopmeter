@@ -3,13 +3,16 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Tv } from "lucide-react";
+import { sidebarSection } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, isActive } from "./nav-items";
+import { NAV_ITEMS } from "./nav-items";
 import { SpoilerModeSelector } from "./SpoilerModeSelector";
 import { Wordmark } from "./Wordmark";
 import { SearchTrigger } from "@/components/search/SearchCommand";
 import { SidebarFavorites } from "@/components/favorites/FavoritesQuickAccess";
 import { ActiveSidebarPushLink, SidebarPushLink } from "@/components/push/SidebarPushLink";
+import { ActiveSidebarAccountLink, SidebarAccountLink } from "@/components/account/AccountLinks";
 
 export function Sidebar() {
   return (
@@ -27,9 +30,18 @@ export function Sidebar() {
       <Suspense fallback={<SidebarLinks pathname={null} />}>
         <ActiveSidebarLinks />
       </Suspense>
-      <Suspense fallback={<SidebarPushLink active={false} />}>
-        <ActiveSidebarPushLink />
-      </Suspense>
+      {/* Bajo las pestañas, juntos: Qué ver (fuera de la barra desde la Tarea 8.1), el aviso de la mañana y la cuenta (8.5) */}
+      <div className="shrink-0 border-t border-slate-800">
+        <Suspense fallback={<SidebarWatchLink active={false} />}>
+          <ActiveSidebarWatchLink />
+        </Suspense>
+        <Suspense fallback={<SidebarPushLink active={false} />}>
+          <ActiveSidebarPushLink />
+        </Suspense>
+        <Suspense fallback={<SidebarAccountLink active={false} />}>
+          <ActiveSidebarAccountLink />
+        </Suspense>
+      </div>
       <SidebarFavorites />
     </aside>
   );
@@ -40,10 +52,11 @@ function ActiveSidebarLinks() {
 }
 
 function SidebarLinks({ pathname }: { pathname: string | null }) {
+  const section = pathname === null ? null : sidebarSection(pathname);
   return (
     <nav aria-label="Navegación principal" className="flex shrink-0 flex-col py-3">
-      {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname !== null && isActive(pathname, href);
+      {NAV_ITEMS.map(({ href, label, sidebarLabel, icon: Icon }) => {
+        const active = section === href;
         return (
           <Link
             key={href}
@@ -61,11 +74,33 @@ function SidebarLinks({ pathname }: { pathname: string | null }) {
               aria-hidden
               className={cn("absolute inset-y-0 left-0 w-[3px] bg-orange-500 transition-opacity", active ? "opacity-100" : "opacity-0")}
             />
-            <Icon className={cn("size-5", active && "text-orange-500")} />
-            {label}
+            <Icon aria-hidden className={cn("size-5", active && "text-orange-500")} />
+            {sidebarLabel ?? label}
           </Link>
         );
       })}
     </nav>
+  );
+}
+
+function ActiveSidebarWatchLink() {
+  return <SidebarWatchLink active={sidebarSection(usePathname()) === "/que-ver"} />;
+}
+
+/** "Qué ver" en el escritorio, con el mismo aspecto que "Aviso de la mañana" (en el móvil: la línea del nivel). */
+function SidebarWatchLink({ active }: { active: boolean }) {
+  return (
+    <Link
+      href="/que-ver"
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "relative flex items-center gap-3 px-6 py-3 font-display text-base font-bold uppercase tracking-wide transition-colors",
+        active ? "bg-gradient-to-r from-orange-500/15 to-transparent text-white" : "text-slate-400 hover:bg-slate-900 hover:text-white"
+      )}
+    >
+      <span aria-hidden className={cn("absolute inset-y-0 left-0 w-[3px] bg-orange-500 transition-opacity", active ? "opacity-100" : "opacity-0")} />
+      <Tv aria-hidden className={cn("size-5", active && "text-orange-500")} />
+      Qué ver
+    </Link>
   );
 }

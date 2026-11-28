@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { Barlow_Condensed, Geist, Geist_Mono } from "next/font/google";
+import { AccountSync } from "@/components/account/AccountSync";
 import { AppAnalytics } from "@/components/layout/AppAnalytics";
 import { ErrorReporter } from "@/components/layout/ErrorReporter";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -87,6 +88,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SharedNavListener />
         </Suspense>
         <PushSync />
+        {/* Tarea 8.5: la cuenta, solo si hay sesión en este dispositivo */}
+        <AccountSync />
         {/* Tarea 6.27: avisos de errores (sin IP ni parámetros) y visitas sin cookies */}
         <ErrorReporter />
         <AppAnalytics />

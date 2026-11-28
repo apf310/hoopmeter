@@ -49,8 +49,36 @@ export function parseFavorites(raw: string | null): Favorites {
   return { teams: teamList.slice(0, MAX_FAVORITES), players: playerList.slice(0, MAX_FAVORITES) };
 }
 
-export function serializeFavorites(favorites: Favorites): string {
-  return JSON.stringify(favorites);
+/**
+ * Lo que se guarda: los favoritos y, desde la Tarea 8.5, cuándo los cambiaste en este dispositivo (`at`, ms): con la
+ * cuenta, gana el cambio más reciente entre tus dispositivos.
+ */
+export function serializeFavorites(favorites: Favorites, at = 0): string {
+  return JSON.stringify({ teams: favorites.teams, players: favorites.players, ...(at > 0 ? { at } : {}) });
+}
+
+/** Cuándo se cambiaron los favoritos guardados (0 si no se sabe: guardados antes de las cuentas). */
+export function parseFavoritesAt(raw: string | null): number {
+  try {
+    const at = (JSON.parse(raw ?? "null") as { at?: unknown } | null)?.at;
+    return typeof at === "number" && Number.isSafeInteger(at) && at > 0 ? at : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Mismos favoritos y en el mismo orden. */
+export const sameFavorites = (a: Favorites, b: Favorites): boolean =>
+  JSON.stringify([a.teams, a.players]) === JSON.stringify([b.teams, b.players]);
+
+/**
+ * Los de los dos sitios juntos (al entrar en la cuenta desde un dispositivo, Tarea 8.5): primero los de `first`, después
+ * los que solo tiene `second`, sin pasar del tope.
+ */
+export function unionFavorites(first: Favorites, second: Favorites): Favorites {
+  const teams = [...first.teams, ...second.teams.filter((t) => !isFavoriteTeam(first, t.id))].slice(0, MAX_FAVORITES);
+  const players = [...first.players, ...second.players.filter((p) => !isFavoritePlayer(first, p.id))].slice(0, MAX_FAVORITES);
+  return teams.length === 0 && players.length === 0 ? EMPTY_FAVORITES : { teams, players };
 }
 
 // --- Copia en cookie: solo ids, para que el servidor pinte la portada ya ordenada y con la franja

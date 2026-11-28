@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { Shared, SharedLink } from "@/components/layout/SharedLink";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, ListOrdered } from "lucide-react";
 import { teamPath } from "@/lib/routes";
 import { pageMetadata } from "@/lib/seo";
 import { teamLogoUrl } from "@/lib/nba-cdn";
@@ -23,7 +24,7 @@ const CONFERENCES: { id: "East" | "West"; label: string }[] = [
 
 /**
  * Los 30 equipos por conferencia y división (Tarea 6.7). Solo identidad (nombre y escudo): sin balances,
- * así que no depende del nivel de spoilers. Enlazada desde la clasificación.
+ * así que no depende del nivel de spoilers. Enlazada desde la clasificación (pestaña Liga, Tarea 8.1).
  */
 export default async function TeamsPage() {
   const teams = await getTeams();
@@ -32,9 +33,19 @@ export default async function TeamsPage() {
   return (
     // Márgenes negativos: la página ocupa todo el ancho del área de contenido
     <div className="-mx-4 -mt-4 md:-mx-8 md:-mt-8">
-      <header className="border-b border-slate-800 px-4 pb-3 pt-4 md:px-8 md:pb-5 md:pt-10">
-        <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400">NBA · {teams.length} franquicias</p>
-        <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Equipos</h1>
+      <header className="flex items-end justify-between gap-3 border-b border-slate-800 px-4 pb-3 pt-4 md:px-8 md:pb-5 md:pt-10">
+        <div className="min-w-0">
+          <p className="font-display text-xs font-semibold uppercase tracking-[0.3em] text-orange-400">NBA · {teams.length} franquicias</p>
+          <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Equipos</h1>
+        </div>
+        {/* Liga = clasificación y equipos (Tarea 8.1): de una a otra con un toque */}
+        <Link
+          href="/standings"
+          className="flex h-11.5 shrink-0 items-center gap-1.5 px-2 font-display text-sm font-bold uppercase tracking-wider text-slate-300 transition-colors hover:text-orange-400 md:h-10"
+        >
+          <ListOrdered className="size-4" aria-hidden />
+          Clasificación
+        </Link>
       </header>
 
       {CONFERENCES.map((conference) => {

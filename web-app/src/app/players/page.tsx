@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Swords } from "lucide-react";
 import { PlayerDirectory } from "@/components/players/PlayerDirectory";
 import { PlayerExplorer } from "@/components/players/PlayerExplorer";
 import { pageMetadata } from "@/lib/seo";
@@ -50,8 +52,20 @@ async function PlayersContent({ searchParams }: { searchParams: PageProps<"/play
 function Header({ kicker }: { kicker: string }) {
   return (
     <header className="border-b border-slate-800 px-4 pb-3 pt-4 md:px-8 md:pb-5 md:pt-10">
+      {/* El antetítulo, a todo el ancho: junto al enlace no cabría entero a 360 px */}
       <p className="truncate font-display text-xs font-semibold uppercase tracking-[0.2em] text-orange-400 sm:tracking-[0.3em]">{kicker}</p>
-      <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Jugadores</h1>
+      <div className="flex items-end justify-between gap-3">
+        <h1 className="font-display text-4xl font-extrabold uppercase leading-none text-white md:text-6xl">Jugadores</h1>
+        {/* El comparador vive en la pestaña Jugadores (Tarea 8.1) */}
+        {/* Margen negativo: 40 px para el dedo sin hacer más alta la cabecera */}
+        <Link
+          href="/compare"
+          className="-my-1 flex h-11.5 shrink-0 items-center gap-1.5 px-2 font-display text-sm font-bold uppercase tracking-wider text-slate-300 transition-colors hover:text-orange-400 md:h-10"
+        >
+          <Swords className="size-4" aria-hidden />
+          Comparador
+        </Link>
+      </div>
     </header>
   );
 }

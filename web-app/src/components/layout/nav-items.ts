@@ -1,20 +1,23 @@
-import { Home, Trophy, Users, Briefcase, Swords, Tv, type LucideIcon } from "lucide-react";
+import { Briefcase, Gamepad2, Home, Trophy, Users, type LucideIcon } from "lucide-react";
+import type { NavSection } from "@/lib/nav";
 
 export type NavItem = {
-  href: string;
+  href: NavSection;
   label: string;
+  /** En la Sidebar del escritorio, si cabe un nombre más largo. */
+  sidebarLabel?: string;
   icon: LucideIcon;
 };
 
-export const NAV_ITEMS: NavItem[] = [
+/**
+ * Barra de 5 pestañas (Tarea 8.1, aprobada el 25-nov). Liga = clasificación y equipos; Jugadores = explorador,
+ * fichas y comparador. Qué ver se abre desde la línea del nivel en Inicio (y en la Sidebar, bajo las pestañas).
+ * Qué pestaña está activa en cada pantalla: `navSection` (`lib/nav.ts`, con tests).
+ */
+export const NAV_ITEMS: readonly NavItem[] = [
   { href: "/", label: "Inicio", icon: Home },
-  { href: "/que-ver", label: "Qué ver", icon: Tv },
-  { href: "/standings", label: "Clasificación", icon: Trophy },
+  { href: "/standings", label: "Liga", icon: Trophy },
   { href: "/players", label: "Jugadores", icon: Users },
-  { href: "/gm-simulator", label: "GM Virtual", icon: Briefcase },
-  { href: "/compare", label: "Comparar", icon: Swords },
+  { href: "/gm-simulator", label: "GM", sidebarLabel: "GM Virtual", icon: Briefcase },
+  { href: "/juegos", label: "Juegos", icon: Gamepad2 },
 ];
-
-export function isActive(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
-}

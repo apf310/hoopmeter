@@ -2,7 +2,9 @@
 // Puro, sin dependencias de React: lo usan /privacidad, /aviso-legal, /acerca y sus tests. Si la app
 // empieza a guardar algo nuevo (cuentas, publicidad), se añade aquí y se cambia `LEGAL_UPDATED`. La analítica
 // (Tarea 6.27, Vercel Web Analytics) no guarda nada en el dispositivo: no va en DEVICE_DATA.
+import { ACCOUNT_STORAGE_KEY, ACCOUNT_VERIFIER_KEY } from "./account.ts";
 import { FAVORITES_COOKIE, FAVORITES_STORAGE_KEY } from "./favorites.ts";
+import { GAMES_STORAGE_KEY } from "./games.ts";
 import { PUSH_STORAGE_KEY } from "./push.ts";
 import { RECENT_SEARCH_KEY } from "./search.ts";
 import { DEFERRED_POSITION_PREFIX } from "./deferred-position.ts";
@@ -18,7 +20,7 @@ export const LEGAL = {
 } as const;
 
 /** Fecha de la última versión de los textos (ISO). */
-export const LEGAL_UPDATED = "2026-11-25";
+export const LEGAL_UPDATED = "2026-11-28";
 
 export const LEGAL_PAGES = [
   { href: "/acerca", label: "Acerca de" },
@@ -62,7 +64,7 @@ export const DEVICE_DATA: readonly DeviceItem[] = [
   {
     key: FAVORITES_STORAGE_KEY,
     where: "localStorage",
-    what: "Tus equipos y jugadores favoritos (ids, nombre y equipo).",
+    what: "Tus equipos y jugadores favoritos (ids, nombre y equipo) y cuándo los cambiaste (con cuenta, gana el cambio más reciente).",
     lasts: "Hasta que los quites o borres los datos.",
     clearable: true,
   },
@@ -78,6 +80,27 @@ export const DEVICE_DATA: readonly DeviceItem[] = [
     where: "localStorage",
     what: "Tus últimas búsquedas (solo ids de equipos y jugadores).",
     lasts: "Hasta que pulses «Borrar» en el buscador o borres los datos.",
+    clearable: true,
+  },
+  {
+    key: GAMES_STORAGE_KEY,
+    where: "localStorage",
+    what: "Tus resultados de los juegos de cada día (con lo que sacó la mitad de la gente ese día, para calcular tu ELO, y el recibo que firma el servidor para pasarlos a tu cuenta), tu racha, tu récord del modo infinito y el número de tus partidas de hoy de Adivina el jugador y Carrera oculta, para seguirlas al volver. Con cuenta, mandan los resultados de la cuenta.",
+    lasts: "Hasta que borres los datos.",
+    clearable: true,
+  },
+  {
+    key: ACCOUNT_STORAGE_KEY,
+    where: "localStorage",
+    what: "Solo si entras en tu cuenta: la sesión que da Supabase al entrar con Google (sus llaves, tu id y tu email), para no tener que entrar cada vez.",
+    lasts: "Hasta que cierres la sesión, borres la cuenta o borres los datos.",
+    clearable: true,
+  },
+  {
+    key: ACCOUNT_VERIFIER_KEY,
+    where: "localStorage",
+    what: "Un código de un solo uso mientras entras con Google, para que nadie más pueda usar la vuelta de Google.",
+    lasts: "Hasta acabar de entrar (unos segundos).",
     clearable: true,
   },
   {

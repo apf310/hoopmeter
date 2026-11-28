@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { Check, Trash2 } from "lucide-react";
 import { clearRecentSearches } from "@/components/search/SearchCommand";
+import { forgetAccountOnDevice } from "@/lib/account-store";
 import { clearFavorites } from "@/lib/favorites-store";
+import { clearGames } from "@/lib/games-store";
 import { forgetPush } from "@/lib/push-store";
 
 /**
  * "Borrar los datos de este dispositivo" (Tarea 6.26): da de baja el aviso de la mañana (el servidor borra
- * la suscripción) y quita favoritos, cookie y búsquedas recientes. El nivel de spoilers no se toca: vive en
+ * la suscripción), cierra la sesión de la cuenta (la cuenta sigue: se borra en /cuenta) y quita favoritos, cookie,
+ * búsquedas recientes y lo jugado en los juegos. El nivel de spoilers no se toca: vive en
  * sessionStorage y ya vuelve solo a "Todo oculto". Sin confirmación: no hay nada que no se pueda volver a elegir.
  */
 export function DeleteDeviceData() {
@@ -18,7 +21,8 @@ export function DeleteDeviceData() {
     setState("busy");
     clearFavorites();
     clearRecentSearches();
-    await forgetPush().catch(() => null);
+    clearGames();
+    await Promise.all([forgetPush().catch(() => null), forgetAccountOnDevice()]);
     setState("done");
   }
 
@@ -37,7 +41,7 @@ export function DeleteDeviceData() {
         {state === "done" && (
           <span className="inline-flex items-center gap-1.5 text-emerald-400">
             <Check className="size-4" aria-hidden />
-            Hecho: sin favoritos, sin búsquedas y sin aviso.
+            Hecho: sin favoritos, sin búsquedas, sin puntos, sin aviso y sin sesión.
           </span>
         )}
       </p>

@@ -7,7 +7,7 @@ import { pageMetadata } from "@/lib/seo";
 
 export const metadata: Metadata = pageMetadata({
   title: "Privacidad y cookies",
-  description: "Qué datos trata Hoopmeter, para qué y cómo borrarlos. Sin cuentas, sin publicidad y sin cookies de terceros.",
+  description: "Qué datos trata Hoopmeter, para qué y cómo borrarlos. Cuentas opcionales, sin publicidad y sin cookies de terceros.",
   path: "/privacidad",
 });
 
@@ -15,8 +15,9 @@ const WHERE_LABEL = { cookie: "Cookie", localStorage: "Almacenamiento local", se
 
 /**
  * Política de privacidad y cookies (Tarea 6.26). Describe solo lo que la app hace hoy: si cambia lo que se
- * guarda (cuentas 8.1, publicidad, un proveedor nuevo), se cambia este texto y `LEGAL_UPDATED` en `lib/legal.ts`.
+ * guarda (publicidad, un proveedor nuevo), se cambia este texto y `LEGAL_UPDATED` en `lib/legal.ts`.
  * Tarea 6.27: estadísticas de visitas (Vercel Web Analytics, sin cookies) y errores en `app_errors` (sin IP).
+ * Tarea 8.5: cuentas con Google (`cuentas.sql`), recibos de los juegos y borrar la cuenta.
  */
 export default function PrivacyPage() {
   return (
@@ -24,7 +25,9 @@ export default function PrivacyPage() {
       <LegalSection title="En resumen">
         <ul>
           <li>
-            <strong>Sin cuentas:</strong> no te pedimos nombre, email ni teléfono. No sabemos quién eres.
+            <strong>La cuenta es opcional:</strong> sin ella no te pedimos nombre, email ni teléfono y no sabemos quién eres.
+            Si la creas (con Google), guardamos tu email, tu alias, tus resultados de los juegos y tus favoritos, y la puedes
+            borrar cuando quieras.
           </li>
           <li>
             <strong>Sin publicidad y sin cookies de terceros.</strong> No vendemos ni cedemos datos.
@@ -34,11 +37,11 @@ export default function PrivacyPage() {
             tu IP.
           </li>
           <li>
-            Tus favoritos y tus búsquedas se quedan <strong>en tu dispositivo</strong>.
+            Sin cuenta, tus favoritos, tus búsquedas y tus puntos de los juegos se quedan <strong>en tu dispositivo</strong>.
           </li>
           <li>
-            Lo único que guardamos en nuestro servidor es la suscripción al <strong>aviso de la mañana</strong>, y solo si
-            la activas tú.
+            De ti, en nuestro servidor solo guardamos <strong>tu cuenta</strong> si la creas y la suscripción al{" "}
+            <strong>aviso de la mañana</strong> si la activas.
           </li>
         </ul>
       </LegalSection>
@@ -79,6 +82,28 @@ export default function PrivacyPage() {
           jugadores, rondas y contratos. Nada tuyo. La respuesta se guarda tres días en nuestra base de datos (Supabase)
           para no repetirla, sin nada que diga quién la pidió. Para evitar abusos, el servidor cuenta las peticiones de cada IP en
           memoria durante un minuto; nunca se guarda.
+        </p>
+        <p>
+          <strong>Juegos.</strong> Para que nadie pueda hacer trampas, los retos los pone y los corrige nuestro servidor: cada
+          partida (en ¿Más o menos?, sus preguntas, tus respuestas y lo que tardas en cada una; en Adivina el jugador y
+          Carrera oculta, los jugadores que dices y, en la segunda, si has visto los equipos) se guarda dos días en nuestra
+          base de datos (Supabase), sin nada que diga quién juega. Al acabar cada reto, el servidor firma tu resultado (un
+          «recibo») y la app lo guarda con él: así, si creas una cuenta, tus puntos pasan a ella sin que nadie pueda
+          inventárselos. Sin cuenta, tus resultados, tu ELO, tu racha y el número de tus partidas de Adivina y Carrera
+          oculta (para seguirlas si cierras la app) se quedan en tu dispositivo; para calcular el ELO, la app solo pide al
+          servidor lo que sacó la mitad de la gente ese día, sin enviar nada tuyo. Para evitar abusos, el servidor cuenta
+          las peticiones de cada IP en memoria durante un minuto; nunca se guarda. Base legal: interés legítimo en que los
+          juegos sean limpios (art. 6.1.f).
+        </p>
+        <p>
+          <strong>Tu cuenta (solo si la creas).</strong> Entras con Google, y nuestro proveedor de acceso (Supabase Auth)
+          guarda lo que Google da al entrar: un identificador, tu email y, si los tienes en Google, tu nombre y tu foto.
+          Nosotros solo usamos el email para decirte con qué cuenta has entrado; el nombre y la foto no los usamos ni los
+          enseñamos nunca. Además guardamos el alias que eliges, la fecha de alta, tus resultados de los juegos (día, reto,
+          puntos, tiempo de respuesta, los cuadros para compartir y lo que sacó la mitad de la gente ese día) y tus
+          favoritos. Base legal: darte el servicio que pides al crearla (art. 6.1.b del RGPD). Se borra todo al borrar la
+          cuenta y, si entras con Google y no llegas a elegir alias, lo que dio Google se borra a los 7 días. Más
+          detalles en <a href="#cuentas">Cuentas</a>.
         </p>
         <p>
           <strong>Aviso de la mañana (solo si lo activas).</strong> Guardamos en nuestra base de datos (Supabase) la
@@ -127,8 +152,10 @@ export default function PrivacyPage() {
 
       <LegalSection id="borrar" title="Borrar tus datos">
         <p>
-          Con este botón das de baja el aviso de la mañana (se borra también de nuestro servidor) y quitas favoritos,
-          búsquedas recientes y la cookie de este dispositivo. El nivel de spoilers ya se borra solo al cerrar la app.
+          Con este botón das de baja el aviso de la mañana (se borra también de nuestro servidor), cierras la sesión de tu
+          cuenta y quitas favoritos, búsquedas recientes, puntos, racha, récord y partida en curso de los juegos y la
+          cookie de este dispositivo. El nivel de spoilers ya se borra solo al cerrar la app. Tu cuenta sigue en nuestro
+          servidor: para borrarla, entra en <Link href="/cuenta">Tu cuenta</Link> › «Borrar la cuenta».
         </p>
         <DeleteDeviceData />
         <p>
@@ -145,15 +172,16 @@ export default function PrivacyPage() {
             <strong>Vercel</strong>: alojamiento de la web y estadísticas de visitas (Web Analytics).
           </li>
           <li>
-            <strong>Supabase</strong>: base de datos (suscripciones del aviso de la mañana, registro de errores y
-            evaluaciones del GM, sin datos tuyos).
+            <strong>Supabase</strong>: base de datos y acceso a las cuentas, en la Unión Europea (Fráncfort): cuentas,
+            suscripciones del aviso de la mañana, registro de errores, evaluaciones del GM y partidas de los juegos (estas
+            tres, sin datos tuyos).
           </li>
           <li>
             <strong>GitHub</strong>: procesos automáticos que envían el aviso y avisan de los errores.
           </li>
           <li>
-            <strong>Google</strong>: Gemini API (evaluación del GM, sin datos tuyos) y Firebase Cloud Messaging (avisos en
-            Android).
+            <strong>Google</strong>: inicio de sesión con Google (si creas una cuenta, con su propia política de
+            privacidad), Gemini API (evaluación del GM, sin datos tuyos) y Firebase Cloud Messaging (avisos en Android).
           </li>
         </ul>
         <p>
@@ -165,43 +193,52 @@ export default function PrivacyPage() {
       <LegalSection title="Tus derechos">
         <p>
           Puedes pedir el acceso, la rectificación, la supresión, la limitación, la portabilidad de tus datos u oponerte a
-          su tratamiento escribiendo a <a href={mailto("Ejercer mis derechos")}>{LEGAL.email}</a>. Como no tenemos tu nombre
-          ni tu email, lo más rápido para el aviso de la mañana es desactivarlo en <Link href="/avisos">Avisos</Link> o usar
-          el botón de arriba. Si crees que no hemos atendido bien tu petición, puedes reclamar ante la Agencia Española de
-          Protección de Datos (<a href="https://www.aepd.es">aepd.es</a>).
+          su tratamiento escribiendo a <a href={mailto("Ejercer mis derechos")}>{LEGAL.email}</a>. Si tienes cuenta, en{" "}
+          <Link href="/cuenta">Tu cuenta</Link> ves lo que guarda, cambias el alias y la borras tú mismo al momento. Para el
+          aviso de la mañana, lo más rápido es desactivarlo en <Link href="/avisos">Avisos</Link> o usar el botón de arriba.
+          Si crees que no hemos atendido bien tu petición, puedes reclamar ante la Agencia Española de Protección de Datos
+          (<a href="https://www.aepd.es">aepd.es</a>).
         </p>
       </LegalSection>
 
       <LegalSection id="menores" title="Menores y edad mínima">
         <p>
-          Hoopmeter se puede usar sin dar ningún dato. Para activar el aviso de la mañana hay que tener al menos{" "}
-          <strong>{LEGAL.minAge} años</strong> (art. 7 de la LOPDGDD) o hacerlo con permiso de tu madre, padre o tutor.
+          Hoopmeter se puede usar sin dar ningún dato. Para crear una cuenta hay que tener al menos{" "}
+          <strong>{LEGAL.minAge} años</strong> (art. 7 de la LOPDGDD), y la app lo pregunta al elegir el alias. Para activar
+          el aviso de la mañana, también, o hacerlo con permiso de tu madre, padre o tutor.
         </p>
       </LegalSection>
 
-      <LegalSection id="cuentas" title="Cuentas (todavía no existen)">
-        <p>
-          Hoy no hay cuentas. Cuando lleguen (para los juegos y las clasificaciones), esta página se actualizará antes y
-          funcionarán así:
-        </p>
+      <LegalSection id="cuentas" title="Cuentas">
         <ul>
-          <li>Serán opcionales: todo lo de hoy seguirá funcionando sin cuenta.</li>
+          <li>Son opcionales: todo funciona sin cuenta.</li>
           <li>
-            Se entrará con Google. Guardaremos solo el identificador y el email que da Google, el alias que elijas y lo que
-            hagas en los juegos y favoritos.
+            Se entra con Google (en la app de Android se abre el navegador del móvil para hacerlo: Google no deja hacerlo
+            dentro de una app). Hace falta tener al menos <strong>{LEGAL.minAge} años</strong>.
           </li>
           <li>
-            Hará falta tener al menos <strong>{LEGAL.minAge} años</strong>.
+            Lo que ve la gente es <strong>solo tu alias</strong> (en las clasificaciones, cuando lleguen). Nunca tu email,
+            tu nombre ni tu foto. El alias no puede llevar insultos ni parecer de Hoopmeter, y se puede cambiar una vez por
+            semana.
           </li>
-          <li>Podrás borrar la cuenta desde la propia app, y con ella todos sus datos.</li>
-          <li>El nivel de spoilers nunca se guardará en la cuenta: la app seguirá abriéndose siempre en «Todo oculto».</li>
+          <li>
+            Al crearla, lo de este dispositivo pasa a ella: tus favoritos y tus resultados de los juegos que tengan su
+            recibo. Después, cada reto que acabes y cada favorito que cambies se guardan en ella, y llegan a cualquier
+            dispositivo en el que entres.
+          </li>
+          <li>
+            La borras tú mismo desde <Link href="/cuenta">Tu cuenta</Link>: se borran al momento tu alias, tus resultados,
+            tus favoritos de la cuenta y lo que dio Google. Lo de tu dispositivo se queda hasta que lo borres arriba.
+          </li>
+          <li>El nivel de spoilers nunca se guarda en la cuenta: la app sigue abriéndose siempre en «Todo oculto».</li>
         </ul>
       </LegalSection>
 
       <LegalSection title="Publicidad, analítica y cambios">
         <p>
-          Hoy no hay publicidad ni analítica. Si alguna vez las hay, lo explicaremos aquí antes y te pediremos permiso para
-          cualquier cookie que no sea técnica. La fecha de arriba indica la última versión de este texto.
+          Hoy no hay publicidad, y las estadísticas de visitas no usan cookies. Si alguna vez hay publicidad, lo
+          explicaremos aquí antes y te pediremos permiso para cualquier cookie que no sea técnica. La fecha de arriba indica
+          la última versión de este texto.
         </p>
       </LegalSection>
     </LegalPage>

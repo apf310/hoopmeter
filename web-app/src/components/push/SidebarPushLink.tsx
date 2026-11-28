@@ -11,7 +11,7 @@ export function ActiveSidebarPushLink() {
   return <SidebarPushLink active={usePathname() === "/avisos"} />;
 }
 
-/** "Aviso de la mañana" en la Sidebar (escritorio), bajo las secciones. En móvil: la campana de la portada. */
+/** "Aviso de la mañana" en la Sidebar (escritorio), bajo las secciones y junto a Qué ver. En móvil: la campana de la portada. */
 export function SidebarPushLink({ active }: { active: boolean }) {
   const { enabled } = usePushState();
   const Icon = enabled ? BellRing : Bell;
@@ -20,7 +20,7 @@ export function SidebarPushLink({ active }: { active: boolean }) {
       href="/avisos"
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative flex shrink-0 items-center gap-3 border-t border-slate-800 px-6 py-3 font-display text-base font-bold uppercase tracking-wide transition-colors",
+        "relative flex shrink-0 items-center gap-3 px-6 py-3 font-display text-base font-bold uppercase tracking-wide transition-colors",
         active ? "bg-gradient-to-r from-orange-500/15 to-transparent text-white" : "text-slate-400 hover:bg-slate-900 hover:text-white"
       )}
     >

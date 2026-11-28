@@ -26,6 +26,56 @@ export function onNativeAppState(listener: (active: boolean) => void): () => voi
 }
 
 /**
+ * "Entrar con Google" (Tarea 8.5): Google no deja iniciar sesión dentro de un WebView, así que se abre en el navegador
+ * del sistema (Custom Tabs) y vuelve a la app con `com.hoopmeter.app://auth?code=…` (`onNativeAuthRedirect`). Con un APK
+ * anterior sin el plugin, Capacitor abre fuera de la app cualquier dirección que no sea la de la web.
+ */
+export async function openAuthBrowser(url: string): Promise<void> {
+  if (Capacitor.isPluginAvailable("Browser")) {
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url });
+  } else {
+    window.location.href = url;
+  }
+}
+
+/** Cierra el navegador de "Entrar con Google" al volver a la app. */
+export async function closeAuthBrowser(): Promise<void> {
+  if (!Capacitor.isPluginAvailable("Browser")) return;
+  const { Browser } = await import("@capacitor/browser");
+  await Browser.close().catch(() => {});
+}
+
+/**
+ * La vuelta de Google a la app (`prefix` = `com.hoopmeter.app://auth`): con la app abierta (`appUrlOpen`) o, si Android
+ * la cerró mientras tanto, al arrancar con ese enlace. En la web no hace nada.
+ */
+export function onNativeAuthRedirect(prefix: string, listener: (url: string) => void): () => void {
+  if (!isNativeApp()) return () => {};
+
+  let stopped = false;
+  let remove: (() => Promise<void>) | undefined;
+  const handle = (url: string | undefined) => {
+    if (!stopped && url?.startsWith(prefix)) listener(url);
+  };
+  import("@capacitor/app")
+    .then(async ({ App }) => {
+      handle((await App.getLaunchUrl())?.url);
+      return App.addListener("appUrlOpen", ({ url }) => handle(url));
+    })
+    .then((handleRef) => {
+      if (stopped) void handleRef.remove();
+      else remove = handleRef.remove;
+    })
+    .catch(console.error);
+
+  return () => {
+    stopped = true;
+    void remove?.();
+  };
+}
+
+/**
  * Botón atrás de Android. Capacitor, sin este aviso, solo retrocede en el historial: en la
  * portada no hacía nada. Ahora cierra el diálogo abierto (Base UI se cierra con Escape), vuelve
  * a la página anterior o, en la primera, pasa la app a segundo plano como cualquier app de
@@ -166,6 +216,16 @@ export async function shareLinkNatively(url: string, title: string) {
   const { Share } = await import("@capacitor/share");
   try {
     await Share.share({ title, url });
+  } catch (error) {
+    if (!(error instanceof Error && /cancel/i.test(error.message))) throw error;
+  }
+}
+
+/** Menú de compartir de Android con un texto (el resultado en emojis de los juegos, Tarea 8.1). */
+export async function shareTextNatively(text: string) {
+  const { Share } = await import("@capacitor/share");
+  try {
+    await Share.share({ text });
   } catch (error) {
     if (!(error instanceof Error && /cancel/i.test(error.message))) throw error;
   }

@@ -4,7 +4,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS, isActive } from "./nav-items";
+import { navSection } from "@/lib/nav";
+import { NAV_ITEMS } from "./nav-items";
 
 export function BottomNav() {
   return (
@@ -25,18 +26,19 @@ function ActiveBottomNavItems() {
 }
 
 function BottomNavItems({ pathname }: { pathname: string | null }) {
+  const section = pathname === null ? null : navSection(pathname);
   return (
     <ul className="flex items-stretch justify-around">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-        const active = pathname !== null && isActive(pathname, href);
+        const active = section === href;
         return (
           <li key={href} className="flex-1">
             <Link
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                // Seis secciones a 360 px: con más espaciado "Clasificación" y "Jugadores" se tocan
-                "relative flex flex-col items-center gap-1 pb-2 pt-2.5 font-display text-[11px] font-bold uppercase tracking-wide transition-colors",
+                // Cinco pestañas (Tarea 8.1): a 360 px caben a 13 px y con 50 px de alto para el dedo
+                "relative flex min-h-[50px] flex-col items-center justify-center gap-1 pb-2 pt-2.5 font-display text-[13px] font-bold uppercase leading-none tracking-wide transition-colors",
                 active ? "text-white" : "text-slate-400 hover:text-white"
               )}
             >
@@ -48,7 +50,7 @@ function BottomNavItems({ pathname }: { pathname: string | null }) {
                   active ? "opacity-100" : "opacity-0"
                 )}
               />
-              <Icon className={cn("size-5", active && "text-orange-500")} />
+              <Icon aria-hidden className={cn("size-[22px]", active && "text-orange-500")} />
               {label}
             </Link>
           </li>
