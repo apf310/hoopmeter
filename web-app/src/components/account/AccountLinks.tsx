@@ -33,7 +33,7 @@ export function SidebarAccountLink({ active }: { active: boolean }) {
 }
 
 const LINE: Record<Exclude<AccountState["status"], "unknown" | "loading">, { title: (state: AccountState) => string; text: string }> = {
-  "signed-out": { title: () => "Tu cuenta", text: "guarda tu ELO y tu racha en todos tus dispositivos" },
+  "signed-out": { title: () => "Tu cuenta", text: "guarda tu ELO y tu racha" },
   "needs-alias": { title: () => "Tu cuenta", text: "elige tu alias para terminarla" },
   ready: { title: (s) => (s.status === "ready" ? `@${s.account.alias}` : ""), text: "tus retos se guardan en tu cuenta" },
   unavailable: { title: () => "Tu cuenta", text: "sin conexión ahora mismo" },
